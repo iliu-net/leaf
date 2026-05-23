@@ -1,6 +1,6 @@
 {
-  "name": "Notes",
-  "short_name": "Notes",
+  "name": "Leaf",
+  "short_name": "Leaf",
   "description": "A minimal markdown notes app",
   "start_url": "./",
   "display": "standalone",

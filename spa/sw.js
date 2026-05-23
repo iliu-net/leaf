@@ -1,10 +1,10 @@
-/* sw.js — Notes PWA Service Worker */
+/* sw.js — Leaf PWA Service Worker */
 
 // Derive the base path from the SW's own URL so the app works
 // correctly regardless of install path (e.g. /v6/spa/, /, /notes/).
 // self.location.pathname = '/v6/spa/sw.js' → base = '/v6/spa'
 const BASE  = self.location.pathname.replace(/\/sw\.js$/, '');
-const CACHE = 'notes-v4';
+const CACHE = 'leaf-v1';
 
 const SHELL = [
   `${BASE}/`,
