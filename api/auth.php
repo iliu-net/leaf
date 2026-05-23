@@ -29,7 +29,7 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/jwt.php';
 require_once __DIR__ . '/users.php';
 
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: ' . CORS_ALLOW_POLICY);
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Content-Type: application/json');

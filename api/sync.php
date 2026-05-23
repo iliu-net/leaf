@@ -1,9 +1,9 @@
 <?php
 /**
- * sync.php — Dexie Syncable server endpoint (poll pattern)
+ * sync.php — sync protocol endpoint (poll pattern)
  *
- * Implements the ISyncProtocol server side for Dexie Syncable.
- * Uses the poll pattern — suitable for shared hosting where WebSockets
+ * Single POST endpoint that handles both push and pull of note changes.
+ * Uses a polling pattern — suitable for shared hosting where WebSockets
  * and long-polling are unavailable.
  *
  * Protocol (single POST endpoint):
@@ -36,9 +36,8 @@
  *   The server always accepts incoming changes. If a competing change has
  *   already been written (baseRevision < server current), both survive as
  *   separate version history entries linked by the prev pointer chain.
- *   The client receives the competing version in the response and Dexie
- *   applies its own last-write-wins resolution on the client side.
- *   Old versions are preserved for future 3-way merge UI.
+ *   The client receives the competing version in the response and reconciles
+ *   locally. Old versions are preserved for future 3-way merge UI.
  *
  * Content opacity:
  *   obj.content is stored and returned as-is. sync.php never reads it.
@@ -59,8 +58,7 @@ const DEXIE_CREATE = 1;
 const DEXIE_UPDATE = 2;
 const DEXIE_DELETE = 3;
 
-// CORS — tighten Access-Control-Allow-Origin in production
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: ' . CORS_ALLOW_POLICY);
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Content-Type: application/json');
@@ -135,7 +133,7 @@ function safe_id(string $raw): string {
  * Returns the changelog entry written, or null if the change was skipped
  * (e.g. unknown type, empty key, or note was already deleted).
  *
- * @param array  $change  Dexie change object with keys: type, key, obj
+ * @param array  $change  Change object with keys: type, key, obj
  * @param string $author  Authenticated username applying the change
  * @return array|null     Changelog entry written, or null if skipped
  */
@@ -207,13 +205,13 @@ function apply_client_change(array $change, string $author): ?array {
 // ─────────────────────────────────────────────
 
 /**
- * Convert a changelog entry into a Dexie change object.
+ * Convert a changelog entry into a change object for the sync response.
  *
  * Returns null if the note file cannot be read (e.g. race condition
  * where a note was deleted between the changelog write and this read).
  *
  * @param array $entry  Changelog entry with keys: file, type, version, prev_version
- * @return array{type: int, key: string, obj: array|null}|null  Dexie change object
+ * @return array{type: int, key: string, obj: array|null}|null  Change object for response
  */
 function changelog_entry_to_dexie_change(array $entry): ?array {
     $key  = $entry['file'] ?? '';
@@ -260,10 +258,10 @@ $synced_revision = (int)($body['syncedRevision'] ?? 0);
 $client_changes  = $body['changes'] ?? [];
 $partial         = (bool)($body['partial'] ?? false);
 
-// Dexie sends partial batches when partialsThreshold is exceeded.
-// We apply each batch but only respond after partial=false.
-// For simplicity we accept all batches and always respond — Dexie
-// handles the sequencing on the client side.
+// The client may send partial batches (partial=true) when the number
+// of pending changes exceeds a threshold. We apply each batch but
+// only respond after partial=false. For simplicity we accept all
+// batches and always respond — the client handles sequencing.
 
 // ── Step 1: Apply client changes ─────────────
 foreach ($client_changes as $change) {

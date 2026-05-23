@@ -34,3 +34,7 @@ define('JWT_SECRET',   'CHANGE_ME_TO_A_LONG_RANDOM_STRING');
 
 define('JWT_EXPIRY',     15 * 60);          // access token lifetime:  15 minutes
 define('REFRESH_EXPIRY', 30 * 24 * 3600);   // refresh token lifetime: 30 days
+
+// ── CORS policy ──────────────────────────────────────────────────────────
+// CORS — tighten Access-Control-Allow-Origin in production
+define('CORS_ALLOW_POLICY', '*'); # Set to the actual SPA origin
