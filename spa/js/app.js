@@ -25,7 +25,9 @@ import {
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 function safeName(raw) {
-  return raw.replace(/[^a-zA-Z0-9_\-\.]/g, '_').slice(0, 80);
+  let name = raw.replace(/\//g, ':');
+  name = name.replace(/[^a-zA-Z0-9_\-\.$%'@~!(){}^#&`:]/g, '_');
+  return name.slice(0, 80);
 }
 
 // ── App state ─────────────────────────────────────────────────────────────
