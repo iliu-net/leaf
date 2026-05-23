@@ -1,5 +1,5 @@
 /**
- * api.js — data access layer
+ * notes.js — data access layer
  *
  * All reads/writes go to IndexedDB first.
  * Every mutating operation also queues a change for sync.js to push.

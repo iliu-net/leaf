@@ -12,7 +12,7 @@
  *   logout        → stop sync, clear UI, show login screen
  */
 
-import * as api   from './api.js';
+import * as notes from './notes.js';
 import * as store from './store.js';
 import * as ui    from './ui.js';
 import { db } from './db.js';
@@ -32,8 +32,8 @@ function safeName(raw) {
 
 async function refreshList(selectId = null) {
   try {
-    const notes = await api.listNotes();
-    store.setNotes(notes);
+    const items = await notes.listNotes();
+    store.setNotes(items);
     ui.renderFileList(store.getNotes(), store.getCurrent());
     ui.updateNoteCount(store.getState().notes.length, store.getNotes().length);
     if (selectId) await openFile(selectId);
@@ -45,7 +45,7 @@ async function refreshList(selectId = null) {
 async function openFile(id) {
   if (store.isDirty() && !confirm('You have unsaved changes. Discard?')) return;
   try {
-    const data = await api.loadNote(id);
+    const data = await notes.loadNote(id);
     store.openNote(id, data.content);
     ui.showEditor(id, data.content);
     ui.setActiveFile(id);
@@ -61,7 +61,7 @@ async function saveFile() {
   if (!id) return;
   const content = ui.getEditorContent();
   try {
-    await api.saveNote(id, content);
+    await notes.saveNote(id, content);
     store.markClean();
     ui.setDirty(false);
     ui.setStatus(`Saved "${id}"`);
@@ -75,7 +75,7 @@ async function saveFile() {
 async function deleteFile(id) {
   if (!confirm(`Delete "${id}"? This cannot be undone.`)) return;
   try {
-    await api.deleteNote(id);
+    await notes.deleteNote(id);
     if (store.getCurrent() === id) {
       store.closeNote();
       ui.hideEditor();
@@ -96,7 +96,7 @@ async function createFile() {
   if (!name) { ui.setModalError('Name contains no valid characters.'); return; }
   ui.setModalHint(`Will be saved as: ${name}`);
   try {
-    const data = await api.createNote(name);
+    const data = await notes.createNote(name);
     ui.closeModal();
     await refreshList(data.file);
     ui.toast(`Created "${data.file}"`);

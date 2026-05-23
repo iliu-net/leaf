@@ -11,7 +11,7 @@ const SHELL = [
   `${BASE}/index.html`,
   `${BASE}/css/app.css`,
   `${BASE}/js/app.js`,
-  `${BASE}/js/api.js`,
+  `${BASE}/js/notes.js`,
   `${BASE}/js/auth.js`,
   `${BASE}/js/db.js`,
   `${BASE}/js/sync.js`,
