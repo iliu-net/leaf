@@ -57,6 +57,7 @@ require_once __DIR__ . '/auth_guard.php';
 const DEXIE_CREATE = 1;
 const DEXIE_UPDATE = 2;
 const DEXIE_DELETE = 3;
+const DEXIE_RENAME = 4;
 
 header('Access-Control-Allow-Origin: ' . CORS_ALLOW_POLICY);
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -149,9 +150,9 @@ function apply_client_change(array $change, string $author): ?array {
         $content = (string)($obj['content'] ?? '');
 
         if (note_is_deleted($key)) {
-            // Note was deleted on server — skip silently.
-            // The client will receive the DELETE in the response and reconcile.
-            return null;
+            // Tombstone exists — revive (remove tombstone) so the note
+            // can be re-created or updated rather than silently ignored.
+            storage_revive_note($key);
         }
 
         $is_new = !storage_note_exists($key);
@@ -197,6 +198,30 @@ function apply_client_change(array $change, string $author): ?array {
         return $entry;
     }
 
+    // ── RENAME ────────────────────────────────
+    if ($type === DEXIE_RENAME) {
+        $new_id = safe_id($obj['renamed_to'] ?? '');
+        if ($new_id === '') return null;
+        if (!storage_note_exists($key)) return null;
+        if (storage_note_exists($new_id)) return null;
+        // If target is tombstoned, revive it so the rename succeeds
+        if (note_is_deleted($new_id)) storage_revive_note($new_id);
+
+        if (!storage_rename_note($key, $new_id)) return null;
+
+        $entry = [
+            'rev'          => next_rev(),
+            'file'         => $key,
+            'type'         => 'RENAME',
+            'ts'           => time(),
+            'renamed_to'   => $new_id,
+            'version'      => null,
+            'prev_version' => null,
+        ];
+        changelog_append($entry);
+        return $entry;
+    }
+
     return null;   // unknown type — skip
 }
 
@@ -210,7 +235,7 @@ function apply_client_change(array $change, string $author): ?array {
  * Returns null if the note file cannot be read (e.g. race condition
  * where a note was deleted between the changelog write and this read).
  *
- * @param array $entry  Changelog entry with keys: file, type, version, prev_version
+ * @param array $entry  Changelog entry with keys: file, type, version, prev_version, renamed_to
  * @return array{type: int, key: string, obj: array|null}|null  Change object for response
  */
 function changelog_entry_to_dexie_change(array $entry): ?array {
@@ -222,6 +247,14 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
             'type' => DEXIE_DELETE,
             'key'  => $key,
             'obj'  => null,
+        ];
+    }
+
+    if ($type === 'RENAME') {
+        return [
+            'type' => DEXIE_RENAME,
+            'key'  => $key,
+            'obj'  => ['renamed_to' => $entry['renamed_to'] ?? ''],
         ];
     }
 

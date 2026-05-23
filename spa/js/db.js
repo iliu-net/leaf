@@ -101,17 +101,55 @@ export async function dbCreateNote(id) {
 }
 
 /**
+ * Rename a note locally in IndexedDB.
+ * Rewrites any pending queue entries for the old id to the new id.
+ * @param {string} oldId
+ * @param {string} newId
+ */
+export async function dbRenameNote(oldId, newId) {
+  const existing = await db.notes.get(oldId);
+  if (!existing) return;
+  await db.notes.put({ ...existing, id: newId, updated_at: Date.now() });
+  await db.notes.delete(oldId);
+  // Rewrite pending queue entries for old id → new id
+  const pending = await db.queue
+    .where('status').equals('pending')
+    .filter(e => e.id === oldId)
+    .toArray();
+  for (const entry of pending) {
+    await db.queue.update(entry.seq, { id: newId });
+  }
+}
+
+/**
  * Apply a change received from the server into the local notes table.
  * Does not touch the queue — server changes are not re-queued.
- * @param {'CREATE'|'UPDATE'|'DELETE'} type
+ * @param {'CREATE'|'UPDATE'|'DELETE'|'RENAME'} type
  * @param {string} id
- * @param {string|null} content
+ * @param {string|null} content  (holds the new id for RENAME)
  */
 export async function dbApplyServerChange(type, id, content) {
   if (type === 'DELETE') {
     const existing = await db.notes.get(id);
     if (existing) {
       await db.notes.put({ ...existing, deleted: 1, updated_at: Date.now() });
+    }
+    return;
+  }
+  if (type === 'RENAME') {
+    const newId = content;
+    if (!newId) return;
+    const existing = await db.notes.get(id);
+    if (!existing) return;
+    await db.notes.put({ ...existing, id: newId, updated_at: Date.now() });
+    await db.notes.delete(id);
+    // Rewrite pending queue entries for old id → new id
+    const pending = await db.queue
+      .where('status').equals('pending')
+      .filter(e => e.id === id)
+      .toArray();
+    for (const entry of pending) {
+      await db.queue.update(entry.seq, { id: newId });
     }
     return;
   }
@@ -132,19 +170,21 @@ export async function dbApplyServerChange(type, id, content) {
  * Add a change to the outbound queue.
  * For UPDATE/CREATE, collapses any existing pending entry for the same note
  * so we never push stale intermediate versions.
- * @param {'CREATE'|'UPDATE'|'DELETE'} type
+ * For RENAME, also collapses pending entries for the old id (they're superseded).
+ * @param {'CREATE'|'UPDATE'|'DELETE'|'RENAME'} type
  * @param {string} id
  * @param {string|null} content
+ * @param {object} [extra]  Extra properties to store on the queue entry (e.g. {renamed_to})
  */
-export async function queueChange(type, id, content = null) {
-  if (type === 'UPDATE' || type === 'CREATE') {
+export async function queueChange(type, id, content = null, extra = {}) {
+  if (type === 'UPDATE' || type === 'CREATE' || type === 'RENAME') {
     // Remove any pending (unsent) entry for this note to avoid redundant pushes
     await db.queue
       .where('status').equals('pending')
       .filter(e => e.id === id)
       .delete();
   }
-  await db.queue.add({ type, id, content, status: 'pending' });
+  await db.queue.add({ type, id, content, status: 'pending', ...extra });
 }
 
 /**

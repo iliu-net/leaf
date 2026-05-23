@@ -112,10 +112,13 @@ async function push() {
   const pending = await queueGetPending();
   if (pending.length === 0) return;
 
+  const typeToInt = { CREATE: 1, UPDATE: 2, DELETE: 3, RENAME: 4 };
   const changes = pending.map(entry => ({
-    type: entry.type === 'CREATE' ? 1 : entry.type === 'UPDATE' ? 2 : 3,
+    type: typeToInt[entry.type] ?? 3,
     key:  entry.id,
-    obj:  entry.type === 'DELETE' ? null : { id: entry.id, content: entry.content },
+    obj:  entry.type === 'DELETE' ? null
+        : entry.type === 'RENAME'  ? { renamed_to: entry.renamed_to }
+        : { id: entry.id, content: entry.content },
   }));
 
   const syncedRevision = getRevision();
@@ -142,8 +145,15 @@ async function pull() {
 async function applyServerChanges(changes, currentRevision) {
   let hadChanges = false;
   for (const change of changes) {
-    const type    = change.type === 1 ? 'CREATE' : change.type === 2 ? 'UPDATE' : 'DELETE';
-    await dbApplyServerChange(type, change.key, change.obj?.content ?? null);
+    const typeMap = { 1: 'CREATE', 2: 'UPDATE', 3: 'DELETE', 4: 'RENAME' };
+    const type = typeMap[change.type] ?? null;
+    if (!type) continue;
+    if (type === 'RENAME') {
+      const newId = change.obj?.renamed_to;
+      if (newId) await dbApplyServerChange('RENAME', change.key, newId);
+    } else {
+      await dbApplyServerChange(type, change.key, change.obj?.content ?? null);
+    }
     hadChanges = true;
   }
   setRevision(currentRevision);

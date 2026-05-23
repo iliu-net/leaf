@@ -91,6 +91,27 @@ async function deleteFile(id) {
   }
 }
 
+async function handleRenameClick(id) {
+  ui.openRenameModal(id);
+}
+
+async function handleRenameConfirm(oldId) {
+  const raw = ui.getModalValue();
+  if (!raw) { ui.setModalError('Please enter a name.'); return; }
+  const newId = safeName(raw);
+  if (!newId) { ui.setModalError('Name contains no valid characters.'); return; }
+  if (newId === oldId) { ui.closeModal(); return; }
+  try {
+    await notes.renameNote(oldId, newId);
+    ui.closeModal();
+    await refreshList(newId);
+    ui.toast(`Renamed to "${newId}"`);
+    syncNow();
+  } catch (err) {
+    ui.setModalError(err.message || 'Could not rename note.');
+  }
+}
+
 async function createFile() {
   const raw = ui.getModalValue();
   if (!raw) { ui.setModalError('Please enter a name.'); return; }
@@ -200,15 +221,17 @@ onAuthFailure(() => showLogin());
 // ── UI event wiring ───────────────────────────────────────────────────────
 
 ui.bindEvents({
-  onOpen:        id       => openFile(id),
-  onDelete:      id       => deleteFile(id),
-  onSearch:      q        => handleSearch(q),
-  onSave:        ()       => saveFile(),
-  onNew:         ()       => ui.openModal(),
-  onCreate:      ()       => createFile(),
-  onCancelModal: ()       => ui.closeModal(),
-  onLogin:       (u, p)   => handleLogin(u, p),
-  onLogout:      ()       => handleLogout(),
+  onOpen:          id       => openFile(id),
+  onDelete:        id       => deleteFile(id),
+  onSearch:        q        => handleSearch(q),
+  onSave:          ()       => saveFile(),
+  onNew:           ()       => ui.openModal(),
+  onCreate:        ()       => createFile(),
+  onCancelModal:   ()       => ui.closeModal(),
+  onLogin:         (u, p)   => handleLogin(u, p),
+  onLogout:        ()       => handleLogout(),
+  onRename:        id       => handleRenameClick(id),
+  onRenameConfirm: oldId    => handleRenameConfirm(oldId),
 });
 
 document.addEventListener('note-changed', () => store.updateContent(ui.getEditorContent()));

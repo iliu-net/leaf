@@ -15,6 +15,7 @@ import {
   dbSaveNote,
   dbDeleteNote,
   dbCreateNote,
+  dbRenameNote,
   queueChange,
 } from './db.js';
 
@@ -65,5 +66,17 @@ export async function createNote(id) {
 export async function deleteNote(id) {
   await dbDeleteNote(id);
   await queueChange('DELETE', id, null);
+  return { ok: true };
+}
+
+/**
+ * Rename a note in IndexedDB and queue a RENAME for the server.
+ * @param {string} oldId
+ * @param {string} newId
+ * @returns {Promise<{ok: boolean}>}
+ */
+export async function renameNote(oldId, newId) {
+  await dbRenameNote(oldId, newId);
+  await queueChange('RENAME', oldId, null, { renamed_to: newId });
   return { ok: true };
 }

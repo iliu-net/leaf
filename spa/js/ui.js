@@ -25,6 +25,7 @@ const charCount    = $('char-count');
 const lineCount    = $('line-count');
 const offlineBadge = $('offline-badge');
 const overlay      = $('modal-overlay');
+const modalTitle   = $('modal-title');
 const modalInput   = $('modal-input');
 const modalHint    = $('modal-hint');
 const modalCreate  = $('modal-create');
@@ -45,6 +46,9 @@ const usernameDisp = $('username-display');
 const btnLogout    = $('btn-logout');
 
 let statusTimer = null;
+
+/** Non-null when the modal is in rename mode (holds the id being renamed). */
+let _renameId = null;
 
 // ── File list ─────────────────────────────────────────────────────────────
 
@@ -81,6 +85,7 @@ export function renderFileList(notes, currentId) {
         <path d="M9 12h6m-6 4h6m2 4H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l5 5v11a2 2 0 0 1-2 2z"/>
       </svg>
       <span class="file-item-name" title="${id}">${id}</span>
+      <button class="file-item-rename btn-icon" title="Rename note" aria-label="Rename ${id}">✎</button>
       <button class="file-item-del btn-icon" title="Delete note" aria-label="Delete ${id}">×</button>
     `;
 
@@ -188,14 +193,34 @@ export function toast(msg, isErr = false) {
 // ── Modal ─────────────────────────────────────────────────────────────────
 
 export function openModal() {
+  _renameId = null;
+  if (modalTitle) modalTitle.textContent = 'New note';
   modalInput.value      = '';
   modalHint.textContent = '';
   modalHint.className   = 'modal-hint';
+  if (modalCreate) modalCreate.textContent = 'Create';
+  overlay.classList.add('open');
+  requestAnimationFrame(() => modalInput.focus());
+}
+
+/**
+ * Open the modal in rename mode.
+ * @param {string} id — current note id being renamed
+ */
+export function openRenameModal(id) {
+  _renameId = id;
+  if (modalTitle) modalTitle.textContent = 'Rename note';
+  modalInput.value      = id;
+  modalInput.select();
+  modalHint.textContent = '';
+  modalHint.className   = 'modal-hint';
+  if (modalCreate) modalCreate.textContent = 'Rename';
   overlay.classList.add('open');
   requestAnimationFrame(() => modalInput.focus());
 }
 
 export function closeModal() {
+  _renameId = null;
   overlay.classList.remove('open');
 }
 
@@ -256,7 +281,7 @@ export function setLoginLoading(loading) {
 
 export function bindEvents({
   onOpen, onDelete, onSearch, onSave, onNew, onCreate, onCancelModal,
-  onLogin, onLogout,
+  onLogin, onLogout, onRename, onRenameConfirm,
 }) {
   // Login form
   if (loginForm) {
@@ -275,10 +300,12 @@ export function bindEvents({
 
   // File list — event delegation
   fileList.addEventListener('click', e => {
-    const del  = e.target.closest('.file-item-del');
-    const item = e.target.closest('.file-item');
-    if (del && item)  { e.stopPropagation(); onDelete(item.dataset.id); return; }
-    if (item)           onOpen(item.dataset.id);
+    const del    = e.target.closest('.file-item-del');
+    const rename = e.target.closest('.file-item-rename');
+    const item   = e.target.closest('.file-item');
+    if (del && item)    { e.stopPropagation(); onDelete(item.dataset.id); return; }
+    if (rename && item) { e.stopPropagation(); onRename(item.dataset.id); return; }
+    if (item)             onOpen(item.dataset.id);
   });
 
   // Search
@@ -294,12 +321,18 @@ export function bindEvents({
   btnSave.addEventListener('click', onSave);
   $('btn-new').addEventListener('click', onNew);
 
-  // Modal
-  modalCreate.addEventListener('click', onCreate);
+  // Modal — create or rename
+  modalCreate.addEventListener('click', () => {
+    if (_renameId) onRenameConfirm(_renameId);
+    else           onCreate();
+  });
   modalCancel.addEventListener('click', onCancelModal);
 
   modalInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter')  onCreate();
+    if (e.key === 'Enter') {
+      if (_renameId) onRenameConfirm(_renameId);
+      else           onCreate();
+    }
     if (e.key === 'Escape') onCancelModal();
   });
 

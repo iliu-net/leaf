@@ -182,6 +182,47 @@ function storage_delete_note(string $id): void {
 }
 
 /**
+ * Revive a soft-deleted note by removing its tombstone.
+ *
+ * Removes the .deleted.json marker so the note can be re-created or
+ * updated as if it had never been deleted.  The old .json file was
+ * renamed away when the note was deleted, so this does NOT restore
+ * content — it simply clears the way for a fresh CREATE or UPDATE.
+ *
+ * Idempotent — safe to call on a note that is not deleted.
+ *
+ * @param string $id  Note identifier
+ * @return void
+ */
+function storage_revive_note(string $id): void {
+    $path = deleted_path($id);
+    if (file_exists($path)) {
+        @unlink($path);
+    }
+}
+
+/**
+ * Rename a live note by moving its JSON file.
+ *
+ * Both files must be on the same filesystem, so PHP's rename() is atomic.
+ * The full version history, prev pointers, and created_at all move intact.
+ * Returns true on success, false if the new name already exists or either
+ * note is in a deleted state.
+ *
+ * @param string $old_id  Current note identifier
+ * @param string $new_id  New note identifier
+ * @return bool           True if the rename succeeded
+ */
+function storage_rename_note(string $old_id, string $new_id): bool {
+    if (note_is_deleted($old_id)) return false;
+    if (note_is_deleted($new_id)) return false;
+    if (!file_exists(note_path($old_id))) return false;
+    if (file_exists(note_path($new_id))) return false;
+
+    return rename(note_path($old_id), note_path($new_id));
+}
+
+/**
  * Return metadata for all live notes (no content), sorted by id.
  *
  * Used by sync.php to build the server changes response.
