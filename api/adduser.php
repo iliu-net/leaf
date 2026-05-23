@@ -30,6 +30,13 @@ require_once __DIR__ . '/config.php';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
+/**
+ * Load the htpasswd file and return a map of username => bcrypt hash.
+ *
+ * Skips comment lines (starting with #) and malformed lines.
+ *
+ * @return array<string, string>  Associative array of username => hash
+ */
 function load_htpasswd(): array {
     if (!file_exists(HTPASSWD_FILE)) return [];
     $lines = file(HTPASSWD_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
@@ -43,6 +50,14 @@ function load_htpasswd(): array {
     return $users;
 }
 
+/**
+ * Persist the user map to the htpasswd file atomically (temp file + rename).
+ *
+ * Writes a header comment, then one username:hash line per user.
+ *
+ * @param array<string, string> $users  Associative array of username => hash
+ * @return void
+ */
 function save_htpasswd(array $users): void {
     $lines  = ["# htpasswd — managed by adduser.php — do not edit manually\n"];
     foreach ($users as $user => $hash) {
@@ -53,11 +68,23 @@ function save_htpasswd(array $users): void {
     rename($tmp, HTPASSWD_FILE);
 }
 
+/**
+ * Print an error message to STDERR and exit with the given code.
+ *
+ * @param string $msg   Error message
+ * @param int    $code  Exit status code (default 1)
+ * @return never
+ */
 function abort(string $msg, int $code = 1): never {
     fwrite(STDERR, "Error: $msg\n");
     exit($code);
 }
 
+/**
+ * Print CLI usage instructions and exit.
+ *
+ * @return never
+ */
 function usage(): never {
     echo "Usage:\n";
     echo "  php adduser.php add    <username> <password>\n";
@@ -69,6 +96,15 @@ function usage(): never {
 
 // ── Validation ────────────────────────────────────────────────────────────
 
+/**
+ * Validate a username string.
+ *
+ * Usernames must be non-empty, at most 64 characters, and must not
+ * contain colons (htpasswd delimiter) or path separator characters.
+ *
+ * @param string $u  Username to validate
+ * @return bool      True if the username is valid
+ */
 function valid_username(string $u): bool {
     // No colons (htpasswd delimiter), no path chars, reasonable length
     return $u !== '' && strlen($u) <= 64 && !preg_match('/[:\\/\\\\]/', $u);

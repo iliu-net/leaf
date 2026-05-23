@@ -53,6 +53,8 @@
 require_once __DIR__ . '/storage.php';
 require_once __DIR__ . '/auth_guard.php';
 
+// ── Dexie change type constants ────────────────────────────────────────────
+
 const DEXIE_CREATE = 1;
 const DEXIE_UPDATE = 2;
 const DEXIE_DELETE = 3;
@@ -78,21 +80,49 @@ $author = require_auth();   // exits with 401 if token missing/invalid
 // Helpers
 // ─────────────────────────────────────────────
 
+/**
+ * Send a JSON response and terminate execution.
+ *
+ * @param mixed $data  Data to encode as JSON
+ * @return never
+ */
 function respond(mixed $data): never {
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit;
 }
 
+/**
+ * Send a JSON error response and terminate execution.
+ *
+ * @param string $msg   Error message
+ * @param int    $code  HTTP status code (default 400)
+ * @return never
+ */
 function fail(string $msg, int $code = 400): never {
     http_response_code($code);
     echo json_encode(['error' => $msg]);
     exit;
 }
 
-/** Sanitize a note id from client data. */
+/**
+ * Sanitize a note identifier received from the client.
+ *
+ * Maps directory separators (/) to colons to prevent path traversal.
+ * Replaces leading dots with underscore (prevents hidden files and "." / "..").
+ * Strips any remaining unsafe characters, allowing a broad set of
+ * printable special characters alongside alphanumerics.
+ *
+ * @param string $raw  Raw note identifier from client input
+ * @return string      Sanitized, safe identifier
+ */
 function safe_id(string $raw): string {
-    $raw = basename(trim($raw));
-    return preg_replace('/[^a-zA-Z0-9_\-\.]/u', '_', $raw);
+    $raw = trim($raw);
+    // Map directory separators to colon (preserves logical paths safely)
+    $raw = str_replace('/', ':', $raw);
+    // Replace leading dots with underscore (prevents hidden files and "." / "..")
+    $raw = preg_replace('/^\.+/', '_', $raw);
+    // Strip any remaining unsafe characters
+    return preg_replace('/[^a-zA-Z0-9_\-\.$%\'@~!(){}^#&`:]/u', '_', $raw);
 }
 
 // ─────────────────────────────────────────────
@@ -101,7 +131,13 @@ function safe_id(string $raw): string {
 
 /**
  * Apply a single client change to storage and write a changelog entry.
- * Returns the changelog entry written, or null if the change was skipped.
+ *
+ * Returns the changelog entry written, or null if the change was skipped
+ * (e.g. unknown type, empty key, or note was already deleted).
+ *
+ * @param array  $change  Dexie change object with keys: type, key, obj
+ * @param string $author  Authenticated username applying the change
+ * @return array|null     Changelog entry written, or null if skipped
  */
 function apply_client_change(array $change, string $author): ?array {
     $type = (int)($change['type'] ?? 0);
@@ -172,7 +208,12 @@ function apply_client_change(array $change, string $author): ?array {
 
 /**
  * Convert a changelog entry into a Dexie change object.
- * Returns null if the note file cannot be read (e.g. race condition).
+ *
+ * Returns null if the note file cannot be read (e.g. race condition
+ * where a note was deleted between the changelog write and this read).
+ *
+ * @param array $entry  Changelog entry with keys: file, type, version, prev_version
+ * @return array{type: int, key: string, obj: array|null}|null  Dexie change object
  */
 function changelog_entry_to_dexie_change(array $entry): ?array {
     $key  = $entry['file'] ?? '';

@@ -16,7 +16,7 @@
  * Access tokens (JWT):
  *   - Short-lived (JWT_EXPIRY, default 15 min)
  *   - Stored in JS memory only — never in localStorage/cookies
- *   - Verified by auth_guard.php on every api.php / sync.php request
+ *   - Verified by auth_guard.php on every sync.php request
  *
  * Refresh tokens:
  *   - Long-lived (REFRESH_EXPIRY, default 30 days)
@@ -41,12 +41,25 @@ $action = $_GET['action'] ?? '';
 
 // ── Refresh token store helpers ───────────────────────────────────────────
 
+/**
+ * Load all stored refresh tokens from the JSON file.
+ *
+ * @return array<string, array{user: string, expires: int}>  Map of token => metadata
+ */
 function load_refresh_tokens(): array {
     if (!file_exists(REFRESH_TOKENS_FILE)) return [];
     $data = json_decode(file_get_contents(REFRESH_TOKENS_FILE), true);
     return is_array($data) ? $data : [];
 }
 
+/**
+ * Persist refresh tokens to the JSON file atomically.
+ *
+ * Automatically prunes expired tokens before writing to keep the file small.
+ *
+ * @param array<string, array{user: string, expires: int}> $tokens  Map of token => metadata
+ * @return void
+ */
 function save_refresh_tokens(array $tokens): void {
     // Prune expired tokens on every write to keep the file small
     $now    = time();
@@ -56,10 +69,23 @@ function save_refresh_tokens(array $tokens): void {
     rename($tmp, REFRESH_TOKENS_FILE);
 }
 
+/**
+ * Generate a cryptographically secure random refresh token.
+ *
+ * @return string  64-character hex string
+ */
 function generate_refresh_token(): string {
     return bin2hex(random_bytes(32));   // 64 hex chars, cryptographically random
 }
 
+/**
+ * Set the httpOnly refresh token cookie on the response.
+ *
+ * Uses SameSite=Strict and Secure when served over HTTPS.
+ *
+ * @param string $token  The refresh token value
+ * @return void
+ */
 function set_refresh_cookie(string $token): void {
     $secure   = isset($_SERVER['HTTPS']);
     $expires  = time() + REFRESH_EXPIRY;
@@ -72,20 +98,43 @@ function set_refresh_cookie(string $token): void {
     ));
 }
 
+/**
+ * Clear the refresh token cookie by setting an expired value.
+ *
+ * @return void
+ */
 function clear_refresh_cookie(): void {
     header('Set-Cookie: refresh_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict');
 }
 
+/**
+ * Read the refresh token from the incoming request cookie.
+ *
+ * @return string  The raw refresh token value, or empty string if absent
+ */
 function get_refresh_token_from_cookie(): string {
     return $_COOKIE['refresh_token'] ?? '';
 }
 
+/**
+ * Send a JSON response and terminate execution.
+ *
+ * @param mixed $data  Data to encode as JSON
+ * @param int   $code  HTTP status code (default 200)
+ * @return never
+ */
 function respond(mixed $data, int $code = 200): never {
     http_response_code($code);
     echo json_encode($data);
     exit;
 }
 
+/**
+ * Create a signed JWT access token for the given user.
+ *
+ * @param string $username  The authenticated username (stored in JWT 'sub' claim)
+ * @return array{token: string, username: string, expires: int}  Token bundle
+ */
 function issue_access_token(string $username): array {
     $expires = time() + JWT_EXPIRY;
     $token   = jwt_encode(['sub' => $username, 'exp' => $expires]);

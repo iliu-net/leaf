@@ -2,7 +2,7 @@
 /**
  * storage.php — flat-file storage abstraction
  *
- * Required by api.php and sync.php.
+ * Required by all endpoints that read or write notes (sync.php, etc.).
  * All file I/O is isolated here so switching to MySQL later
  * means rewriting only this file.
  *
@@ -70,10 +70,22 @@ if (!is_dir(NOTES_DIR)) mkdir(NOTES_DIR, 0755, true);
 // Path helpers
 // ─────────────────────────────────────────────
 
+/**
+ * Get the filesystem path for a live note file.
+ *
+ * @param string $id  Note identifier
+ * @return string     Full path to the note JSON file
+ */
 function note_path(string $id): string {
     return NOTES_DIR . $id . '.json';
 }
 
+/**
+ * Get the filesystem path for a soft-deleted note tombstone.
+ *
+ * @param string $id  Note identifier
+ * @return string     Full path to the .deleted.json tombstone
+ */
 function deleted_path(string $id): string {
     return NOTES_DIR . $id . '.deleted.json';
 }
@@ -82,25 +94,45 @@ function deleted_path(string $id): string {
 // Note CRUD
 // ─────────────────────────────────────────────
 
-/** Returns true if the note has been soft-deleted. */
+/**
+ * Check whether a note has been soft-deleted.
+ *
+ * A deleted note exists as a {id}.deleted.json tombstone file.
+ *
+ * @param string $id  Note identifier
+ * @return bool       True if the note has been soft-deleted
+ */
 function note_is_deleted(string $id): bool {
     return file_exists(deleted_path($id));
 }
 
-/** Returns true if the note exists as a live (non-deleted) file. */
+/**
+ * Check whether a note exists as a live (non-deleted) file.
+ *
+ * A note exists if there is a {id}.json file and no corresponding
+ * {id}.deleted.json tombstone.
+ *
+ * @param string $id  Note identifier
+ * @return bool       True if the note exists and is not deleted
+ */
 function storage_note_exists(string $id): bool {
     return !note_is_deleted($id) && file_exists(note_path($id));
 }
 
 /**
  * Read a live note file.
+ *
  * Returns null if the note does not exist or has been soft-deleted.
+ * The returned array contains 'current', 'created_at', and 'versions' keys.
  *
  * MySQL equivalent:
  *   SELECT n.*, v.* FROM notes n
  *   LEFT JOIN versions v ON v.note_id = n.id
  *   WHERE n.id = ? AND n.deleted = 0
  *   ORDER BY v.version_key
+ *
+ * @param string $id  Note identifier
+ * @return array|null  Note data array, or null if not found or deleted
  */
 function storage_get_note(string $id): ?array {
     if (note_is_deleted($id)) return null;
@@ -111,12 +143,18 @@ function storage_get_note(string $id): ?array {
 }
 
 /**
- * Write a note atomically (temp file + rename).
- * Creates the note if it does not exist.
+ * Write a note file atomically using temp file + rename.
+ *
+ * Creates the note if it does not exist. The $data array must contain
+ * 'current', 'created_at', and 'versions' keys matching the note schema.
  *
  * MySQL equivalent:
  *   INSERT INTO notes ... ON DUPLICATE KEY UPDATE current = ?
  *   + INSERT/REPLACE INTO versions ...
+ *
+ * @param string $id    Note identifier
+ * @param array  $data  Complete note data structure
+ * @return void
  */
 function storage_put_note(string $id, array $data): void {
     $path = note_path($id);
@@ -126,11 +164,15 @@ function storage_put_note(string $id, array $data): void {
 }
 
 /**
- * Soft-delete a note: rename .json → .deleted.json.
+ * Soft-delete a note by renaming .json → .deleted.json.
+ *
  * Idempotent — safe to call on an already-deleted note.
  *
  * MySQL equivalent:
  *   UPDATE notes SET deleted = 1 WHERE id = ?
+ *
+ * @param string $id  Note identifier
+ * @return void
  */
 function storage_delete_note(string $id): void {
     $path = note_path($id);
@@ -141,7 +183,8 @@ function storage_delete_note(string $id): void {
 
 /**
  * Return metadata for all live notes (no content), sorted by id.
- * Used by api.php ?action=list.
+ *
+ * Used by sync.php to build the server changes response.
  *
  * MySQL equivalent:
  *   SELECT n.id, n.created_at, n.current,
@@ -150,6 +193,8 @@ function storage_delete_note(string $id): void {
  *   LEFT JOIN versions v ON v.note_id = n.id AND v.version_key = n.current
  *   WHERE n.deleted = 0
  *   ORDER BY n.id
+ *
+ * @return array<int, array{id: string, created_at: int, updated_at: int, current: string|null}>
  */
 function storage_list_notes(): array {
     $files = glob(NOTES_DIR . '*.json') ?: [];
@@ -193,7 +238,9 @@ function storage_list_notes(): array {
  * Author and date are encoded in the key "{date}:{counter}:{author}",
  * so they are parsed back out rather than stored redundantly.
  *
- * Returns [$version_key, $is_overwrite].
+ * @param array  $note    Note data array with 'versions' and 'current' keys
+ * @param string $author  Username making the write
+ * @return array{0: string, 1: bool}  [version_key, is_overwrite]
  */
 function storage_resolve_version(array $note, string $author): array {
     $today    = gmdate('Y-m-d');
@@ -227,9 +274,14 @@ function storage_resolve_version(array $note, string $author): array {
 
 /**
  * Apply a write (CREATE or UPDATE) to a note and persist it.
- * Returns the version key that was written.
  *
- * This is the single write path shared by api.php and sync.php.
+ * This is the single write path shared by all endpoints that modify notes.
+ * Creates the note if it doesn't exist yet.
+ *
+ * @param string $id       Note identifier
+ * @param string $content  Note content (opaque — not inspected)
+ * @param string $author   Username making the write
+ * @return string          The version key that was written
  */
 function storage_apply_write(string $id, string $content, string $author): string {
     $note = storage_get_note($id) ?? [
@@ -262,13 +314,17 @@ function storage_apply_write(string $id, string $content, string $author): strin
 // ─────────────────────────────────────────────
 
 /**
- * Append one entry to the changelog.
+ * Append one entry to the append-only changelog file.
+ *
  * Uses flock() so concurrent appends don't interleave.
  *
  * MySQL equivalent:
  *   INSERT INTO changelog (file, type, ts, version, prev_version)
  *   VALUES (?, ?, ?, ?, ?)
  *   -- AUTO_INCREMENT handles rev
+ *
+ * @param array $entry  Changelog entry with keys: rev, file, type, ts, version, prev_version
+ * @return void
  */
 function changelog_append(array $entry): void {
     $fh = fopen(CHANGELOG_FILE, 'a');
@@ -281,10 +337,14 @@ function changelog_append(array $entry): void {
 
 /**
  * Return the next revision number (max rev + 1).
- * Reads the last non-empty line of the changelog backwards.
+ *
+ * Reads the last non-empty line of the changelog by scanning backwards
+ * from end of file — avoids loading the entire log into memory.
  *
  * MySQL equivalent:
  *   SELECT COALESCE(MAX(rev), 0) + 1 FROM changelog
+ *
+ * @return int  The next revision number (1 if changelog is empty or missing)
  */
 function next_rev(): int {
     if (!file_exists(CHANGELOG_FILE)) return 1;
@@ -319,10 +379,14 @@ function next_rev(): int {
 
 /**
  * Return all changelog entries with rev > $since, in ascending order.
+ *
  * Used by sync.php to build the server changes response.
  *
  * MySQL equivalent:
  *   SELECT * FROM changelog WHERE rev > ? ORDER BY rev ASC
+ *
+ * @param int $since  Return only entries with revision greater than this
+ * @return array<int, array>  Changelog entries (empty array if none or file missing)
  */
 function changelog_since(int $since): array {
     if (!file_exists(CHANGELOG_FILE)) return [];
@@ -346,10 +410,12 @@ function changelog_since(int $since): array {
 }
 
 /**
- * Return the highest rev currently in the changelog, or 0 if empty.
+ * Return the highest revision number currently in the changelog.
  *
  * MySQL equivalent:
  *   SELECT COALESCE(MAX(rev), 0) FROM changelog
+ *
+ * @return int  Current revision number, or 0 if changelog is empty
  */
 function changelog_current_rev(): int {
     return next_rev() - 1;

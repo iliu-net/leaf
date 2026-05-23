@@ -17,10 +17,22 @@ require_once __DIR__ . '/config.php';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
+/**
+ * Base64-URL encode (RFC 4648 §5) — no padding, URL-safe charset.
+ *
+ * @param string $data  Raw binary data
+ * @return string       URL-safe base64 encoded string
+ */
 function base64url_encode(string $data): string {
     return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
 }
 
+/**
+ * Base64-URL decode (RFC 4648 §5) — restores padding, decodes.
+ *
+ * @param string $data  URL-safe base64 encoded string
+ * @return string|false  Decoded binary data, or false on failure
+ */
 function base64url_decode(string $data): string|false {
     $padded = str_pad(strtr($data, '-_', '+/'), strlen($data) % 4 === 0 ? strlen($data) : strlen($data) + 4 - strlen($data) % 4, '=');
     return base64_decode($padded);
