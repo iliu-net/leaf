@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="bootstrap.php"
+         colors="true"
+         cacheResult="false">
+  <testsuites>
+    <testsuite name="leaf">
+      <file>JwtTest.php</file>
+      <file>StorageTest.php</file>
+      <file>UsersTest.php</file>
+      <file>SyncUtilTest.php</file>
+    </testsuite>
+  </testsuites>
+</phpunit>

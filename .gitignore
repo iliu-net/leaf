@@ -1,2 +1,4 @@
-data/
+data
 config.php
+tests/vendor
+tests/spa/node_modules

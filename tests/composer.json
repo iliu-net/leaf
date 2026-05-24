@@ -1,0 +1,15 @@
+{
+    "name": "leaf/notes",
+    "description": "Notes app PHP backend",
+    "type": "project",
+    "authors": [
+        {
+            "name": "Alejandro Liu",
+            "email": "alejandro_liu@hotmail.com"
+        }
+    ],
+    "require": {},
+    "require-dev": {
+        "phpunit/phpunit": "^11"
+    }
+}
