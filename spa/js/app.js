@@ -21,14 +21,7 @@ import {
   login, logout, getUsername,
   tryRestoreSession, onAuthFailure,
 } from './auth.js';
-
-// ── Helpers ───────────────────────────────────────────────────────────────
-
-function safeName(raw) {
-  let name = raw.replace(/\//g, ':');
-  name = name.replace(/[^a-zA-Z0-9_\-\.$%'@~!(){}^#&`:]/g, '_');
-  return name.slice(0, 80);
-}
+import { safeName } from './utils.js';
 
 // ── App state ─────────────────────────────────────────────────────────────
 
