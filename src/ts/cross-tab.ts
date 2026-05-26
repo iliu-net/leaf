@@ -20,9 +20,14 @@ export interface CrossTabMessage {
 
 type CrossTabListener = (msg: CrossTabMessage) => void;
 
+// ── Imports ─────────────────────────────────────────────────────────────────
+
+import { getNamespace } from './config.js';
+
 // ── Channel setup ──────────────────────────────────────────────────────────
 
-const CHANNEL_NAME = 'leaf-notes-cross-tab';
+const _NS          = getNamespace();
+const CHANNEL_NAME = _NS ? `leaf-notes-cross-tab:${_NS}` : 'leaf-notes-cross-tab';
 
 let channel: BroadcastChannel | null = null;
 

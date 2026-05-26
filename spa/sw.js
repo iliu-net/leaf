@@ -3,8 +3,12 @@
 // Derive the base path from the SW's own URL so the app works
 // correctly regardless of install path (e.g. /v6/spa/, /, /notes/).
 // self.location.pathname = '/v6/spa/sw.js' → base = '/v6/spa'
-const BASE  = self.location.pathname.replace(/\/sw\.js$/, '');
-const CACHE = 'leaf-v3';
+const BASE = self.location.pathname.replace(/\/sw\.js$/, '');
+
+// Namespace the cache so multiple instances on the same origin don't
+// race on the same cache bucket.
+const _slug = BASE.replace(/^\/|\/$/g, '').replace(/\//g, '-');
+const CACHE = _slug ? `leaf-v3:${_slug}` : 'leaf-v3';
 
 const SHELL = [
   `${BASE}/`,

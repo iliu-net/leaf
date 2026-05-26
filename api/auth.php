@@ -92,8 +92,9 @@ function set_refresh_cookie(string $token): void {
     $expires  = time() + REFRESH_EXPIRY;
     // Use raw setcookie for SameSite=Strict support on older PHP
     header(sprintf(
-        'Set-Cookie: refresh_token=%s; Path=/; Expires=%s; HttpOnly; SameSite=Strict%s',
+        'Set-Cookie: refresh_token=%s; Path=%s; Expires=%s; HttpOnly; SameSite=Strict%s',
         rawurlencode($token),
+        COOKIE_PATH,
         gmdate('D, d M Y H:i:s T', $expires),
         $secure ? '; Secure' : ''
     ));
@@ -105,7 +106,7 @@ function set_refresh_cookie(string $token): void {
  * @return void
  */
 function clear_refresh_cookie(): void {
-    header('Set-Cookie: refresh_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict');
+    header('Set-Cookie: refresh_token=; Path=' . COOKIE_PATH . '; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict');
 }
 
 /**

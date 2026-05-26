@@ -45,6 +45,15 @@ define('AUDIT_RETENTION_DAYS', 90);
 // Set to false to omit IP addresses from audit log entries.
 define('AUDIT_LOG_IPS',       true);
 
+// ── Cookie path ─────────────────────────────────────────────────────────
+// Scopes the refresh_token cookie to this instance so multiple instances
+// on the same domain don't share auth state.
+// Derived from SCRIPT_NAME, e.g. /app1/api/auth.php → /app1/
+// For a single-instance root deployment this resolves to "/".
+// Override for reverse-proxy deployments where the URL path differs.
+define('COOKIE_PATH',
+    rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/');
+
 // ── CORS policy ──────────────────────────────────────────────────────────
 // CORS — tighten Access-Control-Allow-Origin in production
 define('CORS_ALLOW_POLICY', '*'); # Set to the actual SPA origin

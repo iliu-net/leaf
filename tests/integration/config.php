@@ -19,4 +19,6 @@ define('REFRESH_EXPIRY',      86400);
 define('DELETED_NOTE_TTL_DAYS', 30);
 define('AUDIT_RETENTION_DAYS', 90);
 define('AUDIT_LOG_IPS',       false);
+// Cookie path — scoped to "/" for the test server (it serves from root)
+define('COOKIE_PATH', '/');
 define('CORS_ALLOW_POLICY',   '*');

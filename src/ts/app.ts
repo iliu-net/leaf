@@ -25,6 +25,7 @@ import { safeName } from './utils.js';
 import type { NoteData } from './notes.js';
 import { onCrossTabChange } from './cross-tab.js';
 import type { CrossTabMessage } from './cross-tab.js';
+import { loadConfig } from './config.js';
 
 // ── App state ─────────────────────────────────────────────────────────────
 
@@ -433,6 +434,9 @@ if (new URLSearchParams(location.search).get('action') === 'new') {
 // ── Boot ──────────────────────────────────────────────────────────────────
 
 async function boot(): Promise<void> {
+  // Must be first — derives namespace before any storage is accessed
+  loadConfig();
+
   ui.setOffline(!navigator.onLine);
 
   // Always show the app shell first

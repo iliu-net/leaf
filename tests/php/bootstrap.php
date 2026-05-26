@@ -18,6 +18,7 @@ define('JWT_SECRET',          '0123456789abcdef0123456789abcdef0123456789abcdef0
 define('JWT_EXPIRY',          900);
 define('REFRESH_EXPIRY',      86400);
 define('DELETED_NOTE_TTL_DAYS', 30);
+define('COOKIE_PATH', '/');
 
 @mkdir(DATA_ROOT, 0755, true);
 @mkdir(NOTES_DIR, 0755, true);

@@ -30,9 +30,13 @@ export interface LoginResult {
 
 type AuthFailureListener = () => void;
 
+// ── Imports ──────────────────────────────────────────────────────────────
+
+import { apiUrl } from './config.js';
+
 // ── Constants ────────────────────────────────────────────────────────────
 
-const AUTH_URL = '../api/auth.php';
+const AUTH_URL = apiUrl('auth.php');
 
 // ── Token store (memory only) ─────────────────────────────────────────────
 

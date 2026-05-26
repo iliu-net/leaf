@@ -22,6 +22,7 @@ import type { QueueRecord } from './db.js';
 
 import { authFetch } from './auth.js';
 import { notifyServerSync } from './cross-tab.js';
+import { apiUrl, getNamespace } from './config.js';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -57,10 +58,11 @@ interface SyncResponseBody {
 
 // ── Config ────────────────────────────────────────────────────────────────
 
-const SYNC_URL      = '../api/sync.php';
-const POLL_INTERVAL = 30_000;   // ms between polls when online
-const RETRY_DELAY   = 10_000;   // ms before retrying after an error
-const REVISION_KEY  = 'notes_sync_revision';
+const _NS            = getNamespace();
+const SYNC_URL       = apiUrl('sync.php');
+const POLL_INTERVAL  = 30_000;   // ms between polls when online
+const RETRY_DELAY    = 10_000;   // ms before retrying after an error
+const REVISION_KEY   = _NS ? `notes_sync_revision:${_NS}` : 'notes_sync_revision';
 
 // ── Status ────────────────────────────────────────────────────────────────
 

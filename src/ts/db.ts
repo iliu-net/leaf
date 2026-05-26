@@ -24,6 +24,7 @@
  */
 
 import Dexie, { type Table } from 'dexie';
+import { getNamespace } from './config.js';
 
 // ── Constants ───────────────────────────────────────────────────────────
 
@@ -60,7 +61,8 @@ class NotesDatabase extends Dexie {
   queue!: Table<QueueRecord, number>;
 
   constructor() {
-    super('notes-app');
+    const ns = getNamespace();
+    super(ns ? `notes-app-${ns}` : 'notes-app');
     this.version(1).stores({
       notes: 'id, updated_at, deleted',
       queue: '++seq, status',
