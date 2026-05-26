@@ -56,6 +56,15 @@ define('AUDIT_LOG_IPS',       true);
 define('COOKIE_PATH',
     rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/');
 
+// ── SPA client config ─────────────────────────────────────────────────────
+// Values exposed to the SPA via GET /api/index.php/spa-config.
+// The SPA fetches this at boot and caches it in localStorage.
+$spa_config = [
+    'markdown' => [
+        'html' => false,  // allow raw HTML in markdown input
+    ],
+];
+
 // ── CORS policy ──────────────────────────────────────────────────────────
 // CORS — tighten Access-Control-Allow-Origin in production
 define('CORS_ALLOW_POLICY', '*'); # Set to the actual SPA origin

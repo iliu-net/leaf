@@ -60,6 +60,9 @@ switch ($route) {
     case 'history':
         require $sharedDir . 'history.php';
         break;
+    case 'spa-config':
+        require $sharedDir . 'spa-config.php';
+        break;
     default:
         http_response_code(404);
         header('Content-Type: application/json');

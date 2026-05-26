@@ -80,3 +80,54 @@ export function loadConfig(): void {
     _apiBaseUrl,
   );
 }
+
+// ── SPA config (server-provided) ────────────────────────────────────────────
+
+export interface SpaConfig {
+  markdown: {
+    html: boolean;
+  };
+}
+
+/** Hardcoded safe defaults used when no config has been fetched yet. */
+const DEFAULT_SPA_CONFIG: SpaConfig = {
+  markdown: { html: false },
+};
+
+let _spaConfig: SpaConfig = { ...DEFAULT_SPA_CONFIG };
+
+function cacheKey(): string {
+  const ns = getNamespace();
+  return (ns || 'root') + ':spa-config';
+}
+
+/**
+ * Fetch the SPA config from the server and cache it in localStorage.
+ * Fire-and-forget: catches all errors internally and never throws.
+ * On failure, falls back to localStorage, then hardcoded defaults.
+ */
+export async function fetchSpaConfig(): Promise<void> {
+  try {
+    const resp = await fetch(apiUrl('spa-config'));
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json: SpaConfig = await resp.json();
+    _spaConfig = json;
+    try {
+      localStorage.setItem(cacheKey(), JSON.stringify(json));
+    } catch { /* localStorage unavailable (private browsing, quota) */ }
+  } catch {
+    // Server unreachable — try localStorage cache
+    try {
+      const cached = localStorage.getItem(cacheKey());
+      if (cached) _spaConfig = JSON.parse(cached) as SpaConfig;
+    } catch { /* corrupted cache or localStorage unavailable — keep defaults */ }
+  }
+}
+
+/**
+ * Return the in-memory SPA config synchronously.
+ * Populated by fetchSpaConfig() at boot, otherwise returns hardcoded safe defaults.
+ */
+export function getSpaConfig(): SpaConfig {
+  return _spaConfig;
+}
