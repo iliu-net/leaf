@@ -21,6 +21,7 @@ import {
 import type { QueueRecord } from './db.js';
 
 import { authFetch } from './auth.js';
+import { notifyServerSync } from './cross-tab.js';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -209,7 +210,10 @@ async function applyServerChanges(
     count++;
   }
   setRevision(currentRevision);
-  if (count > 0) notifyRemoteChange();
+  if (count > 0) {
+    notifyRemoteChange();
+    notifyServerSync();
+  }
   return count;
 }
 

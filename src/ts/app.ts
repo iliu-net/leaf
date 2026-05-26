@@ -23,6 +23,8 @@ import {
 } from './auth.js';
 import { safeName } from './utils.js';
 import type { NoteData } from './notes.js';
+import { onCrossTabChange } from './cross-tab.js';
+import type { CrossTabMessage } from './cross-tab.js';
 
 // ── App state ─────────────────────────────────────────────────────────────
 
@@ -106,6 +108,89 @@ async function handleRenameConfirm(oldId: string): Promise<void> {
   }
 }
 
+// ── Cross-tab sync handler ─────────────────────────────────────────────────
+
+/**
+ * Handle a change notification from another tab via BroadcastChannel.
+ * Re-reads IndexedDB and updates the UI accordingly.
+ */
+async function handleCrossTabChange(msg: CrossTabMessage): Promise<void> {
+  const currentId = store.getCurrent();
+
+  switch (msg.type) {
+    case 'saved':
+    case 'created': {
+      await refreshList(currentId);
+      // Reload the open note if it was the one changed in the other tab
+      if (currentId && currentId === msg.id && !store.isDirty()) {
+        await reloadOpenNote(currentId);
+      }
+      break;
+    }
+
+    case 'deleted': {
+      await refreshList();
+      if (currentId && currentId === msg.id) {
+        store.closeNote();
+        ui.hideEditor();
+        ui.toast(`"${msg.id}" was deleted in another tab`);
+      }
+      break;
+    }
+
+    case 'renamed': {
+      const newId = msg.newId;
+      await refreshList(newId);
+      if (currentId && currentId === msg.id && newId && !store.isDirty()) {
+        await reloadOpenNoteAs(newId);
+        ui.toast(`Renamed to "${newId}" in another tab`);
+      }
+      break;
+    }
+
+    case 'server-sync': {
+      // Bulk refresh — reload everything and preserve open note
+      await refreshList(currentId);
+      if (currentId && !store.isDirty()) {
+        await reloadOpenNote(currentId);
+      }
+      break;
+    }
+  }
+}
+
+/**
+ * Reload the currently-open note from IndexedDB and update the editor.
+ * Called when another tab saved or server synced the note we have open.
+ */
+async function reloadOpenNote(id: string): Promise<void> {
+  try {
+    const data: NoteData = await notes.loadNote(id);
+    if (data.content === store.getContent()) return; // nothing changed
+    store.openNote(id, data.content);
+    ui.showEditor(data);
+  } catch {
+    // Note may have been deleted in the other tab
+    store.closeNote();
+    ui.hideEditor();
+  }
+}
+
+/**
+ * Reload a note under a new id (after a rename in another tab).
+ */
+async function reloadOpenNoteAs(newId: string): Promise<void> {
+  try {
+    const data: NoteData = await notes.loadNote(newId);
+    store.openNote(newId, data.content);
+    ui.showEditor(data);
+    ui.setActiveFile(newId);
+  } catch {
+    store.closeNote();
+    ui.hideEditor();
+  }
+}
+
 async function createFile(): Promise<void> {
   const raw = ui.getModalValue();
   if (!raw) { ui.setModalError('Please enter a name.'); return; }
@@ -165,6 +250,13 @@ async function showApp(hasSession: boolean = false): Promise<void> {
       ui.setSidebarLoading(false);
     });
   }
+
+  // Listen for changes from other tabs via BroadcastChannel
+  onCrossTabChange(msg => {
+    handleCrossTabChange(msg).catch(err =>
+      console.warn('[cross-tab] Handler error:', err)
+    );
+  });
 }
 
 function showLogin(): void {

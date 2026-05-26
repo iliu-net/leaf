@@ -19,6 +19,7 @@ import type { NoteMeta } from './store.js';
 import { updateFrontmatter, parseFrontmatter } from './frontmatter.js';
 import type { FrontmatterResult } from './frontmatter.js';
 import { getUsername } from './auth.js';
+import { notifyLocalChange } from './cross-tab.js';
 
 /**
  * Full note data returned by loadNote().
@@ -68,6 +69,7 @@ export async function saveNote(id: string, content: string): Promise<{ ok: boole
   });
   await dbSaveNote(id, fmContent);
   await queueChange('UPDATE', id, fmContent, note?.current ?? 'local');
+  notifyLocalChange('saved', id);
   return { ok: true };
 }
 
@@ -86,6 +88,7 @@ export async function createNote(id: string): Promise<{ ok: boolean; file: strin
 
   const note = await dbGetNote(id);
   await queueChange('CREATE', id, fmContent, note?.current ?? 'local');
+  notifyLocalChange('created', id);
   return { ok: true, file: id };
 }
 
@@ -96,6 +99,7 @@ export async function deleteNote(id: string): Promise<{ ok: boolean }> {
   const note = await dbGetNote(id);
   await dbDeleteNote(id);
   await queueChange('DELETE', id, null, note?.current ?? 'local');
+  notifyLocalChange('deleted', id);
   return { ok: true };
 }
 
@@ -106,5 +110,6 @@ export async function renameNote(oldId: string, newId: string): Promise<{ ok: bo
   const note = await dbGetNote(oldId);
   await dbRenameNote(oldId, newId);
   await queueChange('RENAME', oldId, null, note?.current ?? 'local', { renamed_to: newId });
+  notifyLocalChange('renamed', oldId, newId);
   return { ok: true };
 }
