@@ -1,5 +1,5 @@
 data
-config.php
+api/config.php
 tests/vendor
 tests/spa/node_modules
 src/node_modules
