@@ -140,11 +140,8 @@ function setupDOM() {
     <!-- Toast container -->
     <div id="toast-container"></div>
 
-    <!-- Context menu -->
-    <div id="item-context-menu" class="item-context-menu" role="menu">
-      <button class="context-menu-item" data-action="rename">Rename</button>
-      <button class="context-menu-item danger" data-action="delete">Delete</button>
-    </div>
+    <!-- Context menu (empty — populated dynamically by context-menu.ts) -->
+    <div id="context-menu" class="item-context-menu" role="menu"></div>
   `;
 }
 
@@ -719,7 +716,7 @@ describe('bindEvents()', () => {
     moreBtn.click();
 
     // Then click the Delete item in the context menu
-    const delBtn = document.querySelector('[data-action="delete"]');
+    const delBtn = document.querySelector('.context-menu-item.danger');
     delBtn.click();
     expect(onDelete).toHaveBeenCalledWith('doomed');
   });
@@ -744,7 +741,7 @@ describe('bindEvents()', () => {
     moreBtn.click();
 
     // Then click the Rename item in the context menu
-    const renameBtn = document.querySelector('[data-action="rename"]');
+    const renameBtn = document.querySelector('.context-menu-item:not(.danger)');
     renameBtn.click();
     expect(onRename).toHaveBeenCalledWith('rename-me');
   });

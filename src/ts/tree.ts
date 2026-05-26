@@ -8,11 +8,11 @@
  * Module-level state:
  *   expandedPaths   — which branch paths are currently expanded
  *   savedExpanded   — snapshot taken while a search is active
- *   contextMenuTarget — note path the open context menu belongs to
  */
 
 import type { SidebarView, UIEventHandlers } from './view.js';
 import type { NoteMeta } from './store.js';
+import * as contextMenu from './context-menu.js';
 
 // ── Tree data type ──────────────────────────────────────────────────────
 
@@ -27,8 +27,6 @@ interface TreeNode {
 
 const expandedPaths = new Set<string>();
 let savedExpanded: Set<string> | null = null;
-let contextMenuTarget: string | null = null;
-let contextMenuOutsideListener: ((e: MouseEvent) => void) | null = null;
 
 // ── DOM refs (queried once on first render) ─────────────────────────────
 
@@ -38,10 +36,6 @@ function getFileList(): HTMLElement {
 
 function getNoteCount(): HTMLElement {
   return document.getElementById('note-count')!;
-}
-
-function getContextMenu(): HTMLElement {
-  return document.getElementById('item-context-menu')!;
 }
 
 function getSearchInput(): HTMLInputElement | null {
@@ -166,69 +160,6 @@ function toggleBranch(path: string): void {
   } else {
     expandedPaths.add(path);
   }
-}
-
-// ── Context menu ────────────────────────────────────────────────────────
-
-function closeContextMenu(): void {
-  const menu = getContextMenu();
-  menu.classList.remove('open');
-  contextMenuTarget = null;
-  if (contextMenuOutsideListener) {
-    document.removeEventListener('click', contextMenuOutsideListener, true);
-    contextMenuOutsideListener = null;
-  }
-}
-
-function openContextMenu(anchorEl: HTMLElement, path: string, handlers: UIEventHandlers): void {
-  const menu = getContextMenu();
-  contextMenuTarget = path;
-
-  // Position the menu near the clicked button
-  const rect = anchorEl.getBoundingClientRect();
-  menu.style.left = `${rect.left}px`;
-  menu.style.top = `${rect.bottom}px`;
-  menu.classList.add('open');
-
-  // Wire menu actions (replace any previous click handlers)
-  const renameBtn = menu.querySelector('[data-action="rename"]') as HTMLElement | null;
-  const deleteBtn = menu.querySelector('[data-action="delete"]') as HTMLElement | null;
-
-  if (renameBtn) {
-    renameBtn.onclick = (e: MouseEvent) => {
-      e.stopPropagation();
-      const p = contextMenuTarget!;
-      closeContextMenu();
-      handlers.onRename(p);
-    };
-  }
-  if (deleteBtn) {
-    deleteBtn.onclick = (e: MouseEvent) => {
-      e.stopPropagation();
-      const p = contextMenuTarget!;
-      closeContextMenu();
-      handlers.onDelete(p);
-    };
-  }
-
-  // Remove any stale outside-click listener before adding a new one
-  if (contextMenuOutsideListener) {
-    document.removeEventListener('click', contextMenuOutsideListener, true);
-    contextMenuOutsideListener = null;
-  }
-
-  // One-shot document click to close on outside click.
-  // Deferred via setTimeout(0) so the current click event finishes
-  // propagating before we start listening.
-  const listener = (e: MouseEvent) => {
-    if (!menu.contains(e.target as Node)) {
-      closeContextMenu();
-    }
-  };
-  contextMenuOutsideListener = listener;
-  setTimeout(() => {
-    document.addEventListener('click', listener, true);
-  }, 0);
 }
 
 // ── Tree renderer ───────────────────────────────────────────────────────
@@ -401,8 +332,12 @@ export const TreeView: SidebarView = {
     const moreBtn = target.closest('.file-item-more');
     if (moreBtn) {
       const bar = (moreBtn as HTMLElement).closest('[data-path]') as HTMLElement | null;
-      if (bar?.dataset.path) {
-        openContextMenu(moreBtn as HTMLElement, bar.dataset.path, handlers);
+      const path = bar?.dataset.path;
+      if (path) {
+        contextMenu.show(moreBtn as HTMLElement, [
+          { label: 'Rename', action: () => handlers.onRename(path) },
+          { label: 'Delete', action: () => handlers.onDelete(path), danger: true },
+        ]);
       }
       return;
     }
@@ -425,7 +360,7 @@ export const TreeView: SidebarView = {
   },
 
   destroy(): void {
-    closeContextMenu();
+    contextMenu.close();
     expandedPaths.clear();
     savedExpanded = null;
     getFileList().innerHTML = '';
