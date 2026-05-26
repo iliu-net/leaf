@@ -19,6 +19,8 @@ import { TreeView } from './tree.js';
 
 import * as rawPanel   from './raw-panel.js';
 import * as metaPanel  from './meta-panel.js';
+import * as modal      from './modal.js';
+import * as loginScreen from './login-screen.js';
 import {
   parseFrontmatter,
   updateFrontmatter,
@@ -41,12 +43,6 @@ const searchInput  = $('search') as HTMLInputElement;
 const noteCount    = $('note-count');
 const statusMsg    = $('status-msg');
 const offlineBadge = $('offline-badge');
-const overlay      = $('modal-overlay');
-const modalTitle   = $('modal-title');
-const modalInput   = $('modal-input') as HTMLInputElement;
-const modalHint    = $('modal-hint');
-const modalCreate  = $('modal-create');
-const modalCancel  = $('modal-cancel');
 const toastCont    = $('toast-container');
 const syncStatus   = $('sync-status');
 const sidebarLoad  = $('sidebar-loading');
@@ -54,32 +50,19 @@ const editorTabs   = $('editor-tabs');
 const tabRaw       = $('tab-raw');
 const tabMeta      = $('tab-meta');
 
-// Login screen refs
-const loginScreen  = $('login-screen');
-const appShell     = $('app');
-const loginForm    = $('login-form');
-const loginUser    = $('login-username') as HTMLInputElement;
-const loginPass    = $('login-password') as HTMLInputElement;
-const loginBtn     = $('login-btn') as HTMLButtonElement;
-const loginErr     = $('login-error');
-const usernameDisp = $('username-display');
-const btnLogout    = $('btn-logout');
-const btnSignin    = $('btn-signin') as HTMLButtonElement;
-const loginClose   = $('login-close') as HTMLButtonElement;
-
 // Menu / dropdown refs
 const btnMenu     = $('btn-menu')     as HTMLButtonElement;
 const menuUpdate  = $('menu-update')  as HTMLButtonElement;
 const menuResetDb = $('menu-reset-db') as HTMLButtonElement;
 const appMenu     = $('app-menu');
 
+// App shell (for sidebar collapse)
+const appShell = $('app');
+
 // Sidebar toggle
 const btnToggleSidebar = $('btn-toggle-sidebar') as HTMLButtonElement;
 
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
-
-/** Non-null when the modal is in rename mode (holds the id being renamed). */
-let _renameId: string | null = null;
 
 /** Active sidebar view — defaults to TreeView on first render. */
 let currentView: SidebarView | null = null;
@@ -174,7 +157,6 @@ export function toggleSidebar(): void {
 export function clearSearch(): void {
   if (searchInput.value) {
     searchInput.value = '';
-    // Dispatch an input event so the store query is updated
     searchInput.dispatchEvent(new Event('input', { bubbles: true }));
   }
 }
@@ -249,9 +231,22 @@ export function getRawContent(): string {
   return rawPanel.getRawContent();
 }
 
+/**
+ * Programmatic write to the textarea (e.g. from history restore).
+ * Publicly exposed for external callers.
+ */
+export function setRawContent(content: string): void {
+  rawPanel.setRawContent(content);
+}
+
 export function setDirty(val: boolean): void {
   dirtyDot.classList.toggle('visible', val);
   btnSave.disabled = !val;
+}
+
+/** Get the ID of the currently open note. */
+export function getCurrentNoteId(): string | null {
+  return _currentNoteId;
 }
 
 // ── Tab switching ─────────────────────────────────────────────────────────
@@ -305,12 +300,9 @@ function updateTabButtons(): void {
 // ── Meta panel handlers ──────────────────────────────────────────────────
 
 function handleMetaFieldChange(): void {
-  // Read form values and update pending meta
   const newValues = metaPanel.getMetaFormValues();
   _pendingMeta = newValues;
   _pendingMetaDirty = true;
-
-  // Mark store dirty so Save button is enabled
   if (_onDirty) _onDirty();
 }
 
@@ -320,9 +312,7 @@ function handleAddCustomField(): void {
 }
 
 function handleRemoveCustomField(key: string): void {
-  // Remove from custom record
   delete _pendingMeta.custom[key];
-  // Re-render custom rows
   metaPanel.renderCustomRows(_pendingMeta.custom);
   _pendingMetaDirty = true;
   if (_onDirty) _onDirty();
@@ -376,183 +366,79 @@ export function toast(msg: string, isErr: boolean = false): void {
   setTimeout(() => el.remove(), 3500);
 }
 
-// ── Modal ─────────────────────────────────────────────────────────────────
+// ── Modal (delegated to modal.ts) ─────────────────────────────────────────
 
-export function openModal(): void {
-  _renameId = null;
-  if (modalTitle) modalTitle.textContent = 'New note';
-
-  // Derive the pre-fill value:
-  //   prefix = parent path of the currently open note (if any)
-  //   name   = current search text (if any)
-  //   result = prefix + name
-  // This keeps new notes in the same tree branch by default.
-  // Note: we read _currentNoteId rather than querying the DOM because
-  // the current note may be filtered out of the visible list by search.
-  const searchVal = searchInput.value || '';
-  let prefix = '';
-
-  if (_currentNoteId) {
-    const lastColon = _currentNoteId.lastIndexOf(':');
-    if (lastColon !== -1) {
-      prefix = _currentNoteId.substring(0, lastColon + 1); // includes the ':'
-    }
-  }
-
-  modalInput.value = prefix + searchVal;
-  modalHint.textContent = '';
-  modalHint.className = 'modal-hint';
-  if (modalCreate) modalCreate.textContent = 'Create';
-  overlay.classList.add('open');
-  requestAnimationFrame(() => modalInput.focus());
+export function openModal(currentNoteId?: string | null, searchValue?: string): void {
+  modal.openModal(currentNoteId ?? _currentNoteId, searchValue ?? searchInput.value);
 }
 
-/**
- * Open the modal in rename mode.
- * @param id — current note id being renamed
- */
 export function openRenameModal(id: string): void {
-  _renameId = id;
-  if (modalTitle) modalTitle.textContent = 'Rename note';
-  modalInput.value      = id;
-  modalInput.select();
-  modalHint.textContent = '';
-  modalHint.className   = 'modal-hint';
-  if (modalCreate) modalCreate.textContent = 'Rename';
-  overlay.classList.add('open');
-  requestAnimationFrame(() => modalInput.focus());
+  modal.openRenameModal(id);
 }
 
 export function closeModal(): void {
-  _renameId = null;
-  overlay.classList.remove('open');
+  modal.closeModal();
 }
 
 export function setModalError(msg: string): void {
-  modalHint.textContent = msg;
-  modalHint.className   = 'modal-hint err';
+  modal.setModalError(msg);
 }
 
 export function setModalHint(msg: string): void {
-  modalHint.textContent = msg;
-  modalHint.className   = 'modal-hint';
+  modal.setModalHint(msg);
 }
 
 export function getModalValue(): string {
-  return modalInput.value.trim();
+  return modal.getModalValue();
 }
 
-// ── Login screen ──────────────────────────────────────────────────────────
+// ── Login screen (delegated to login-screen.ts) ───────────────────────────
 
-/** Show the login screen, hide the app shell. */
 export function showLoginScreen(): void {
-  loginScreen.classList.add('visible');
-  if (loginScreen) loginScreen.style.display = 'flex';
-  if (appShell)    appShell.style.display    = 'none';
-  if (loginUser)   { loginUser.value = ''; loginUser.focus(); }
-  if (loginPass)   loginPass.value = '';
-  if (loginErr)    loginErr.textContent = '';
+  loginScreen.showLoginScreen();
 }
 
-/**
- * Hide the login screen, show the app shell.
- * @param username — displayed in the header, or null for offline/unauthenticated state
- */
 export function showAppShell(username: string | null): void {
-  loginScreen.classList.remove('visible');
-  if (loginScreen) loginScreen.style.display = 'none';
-  if (appShell)    appShell.style.display    = 'flex';
-
-  if (username) {
-    if (usernameDisp) usernameDisp.textContent = username;
-    if (usernameDisp) usernameDisp.style.display = 'inline';
-    btnSignin.style.display = 'none';
-    btnLogout.style.display = 'inline-block';
-  } else {
-    if (usernameDisp) usernameDisp.style.display = 'none';
-    btnSignin.style.display = 'inline-block';
-    btnLogout.style.display = 'none';
-  }
+  loginScreen.showAppShell(username);
 }
 
-/**
- * Show an error message on the login form.
- */
 export function setLoginError(msg: string): void {
-  if (loginErr) loginErr.textContent = msg;
+  loginScreen.setLoginError(msg);
 }
 
-/**
- * Show/hide a loading state on the login button.
- */
 export function setLoginLoading(loading: boolean): void {
-  if (!loginBtn) return;
-  loginBtn.disabled     = loading;
-  loginBtn.textContent  = loading ? 'Signing in…' : 'Sign in';
+  loginScreen.setLoginLoading(loading);
 }
 
-/**
- * Hide the login screen, show the app shell (dismiss dismiss).
- */
 export function hideLoginScreen(): void {
-  loginScreen.classList.remove('visible');
-  if (loginScreen) loginScreen.style.display = 'none';
-  if (appShell)    appShell.style.display    = 'flex';
+  loginScreen.hideLoginScreen();
 }
 
-/**
- * Show an inline message in the sidebar when there are no notes,
- * we're offline, and there's no session.
- */
 export function showOfflineFirstVisit(): void {
-  if (!fileList) return;
-  fileList.innerHTML = '';
-  const el = document.createElement('div');
-  el.style.cssText = 'padding:20px 12px;text-align:center;font-size:11px;'
-    + 'color:var(--text-3);font-family:var(--font-mono);line-height:1.6';
-  el.innerHTML = 'No notes yet.<br>Sign in to sync or<br>create one locally.';
-  fileList.appendChild(el);
+  loginScreen.showOfflineFirstVisit();
 }
 
 // ── Event wiring ──────────────────────────────────────────────────────────
 
 export function bindEvents(handlers: UIEventHandlers): void {
   const {
-    onOpen, onDelete, onSearch, onSave, onNew, onCreate, onCancelModal,
-    onLogin, onLogout, onRename, onRenameConfirm, onUpdateSW, onResetDB,
-    onSignIn, onDismissLogin,
+    onOpen, onDelete, onSearch, onSave, onNew, onRename,
+    onUpdateSW, onResetDB,
   } = handlers;
 
-  // Login form
-  if (loginForm) {
-    loginForm.addEventListener('submit', e => {
-      e.preventDefault();
-      const u = loginUser?.value.trim() ?? '';
-      const p = loginPass?.value ?? '';
-      if (u && p && onLogin) onLogin(u, p);
-    });
-  }
+  // Login form events → login-screen.ts
+  loginScreen.bindLoginEvents({
+    onLogin:        (u, p) => handlers.onLogin?.(u, p),
+    onSignIn:       () => handlers.onSignIn?.(),
+    onLogout:       () => handlers.onLogout?.(),
+    onDismissLogin: () => handlers.onDismissLogin?.(),
+  });
 
-  // Sign-in button
-  if (btnSignin) {
-    btnSignin.addEventListener('click', () => onSignIn?.());
-  }
-
-  // Logout button
-  if (btnLogout) {
-    btnLogout.addEventListener('click', () => onLogout?.());
-  }
-
-  // Login close / dismiss button
-  if (loginClose) {
-    loginClose.addEventListener('click', () => onDismissLogin?.());
-  }
-
-  // Escape key to dismiss login overlay
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && loginScreen.classList.contains('visible')) {
-      onDismissLogin?.();
-    }
+  // Modal events → modal.ts
+  modal.bindModalEvents({
+    onCreate:        () => handlers.onCreate?.(),
+    onCancel:        () => handlers.onCancelModal?.(),
+    onRenameConfirm: (oldId: string) => handlers.onRenameConfirm?.(oldId),
   });
 
   // File list — event delegation (delegated to current sidebar view)
@@ -575,34 +461,14 @@ export function bindEvents(handlers: UIEventHandlers): void {
   $('btn-new').addEventListener('click', onNew);
   btnToggleSidebar.addEventListener('click', toggleSidebar);
 
-  // Modal — create or rename
-  modalCreate.addEventListener('click', () => {
-    if (_renameId) onRenameConfirm(_renameId);
-    else           onCreate();
-  });
-  modalCancel.addEventListener('click', onCancelModal);
-
-  modalInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      if (_renameId) onRenameConfirm(_renameId);
-      else           onCreate();
-    }
-    if (e.key === 'Escape') onCancelModal();
-  });
-
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) onCancelModal();
-  });
-
   // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
       onSave();
     }
-    if (e.key === 'Escape' && overlay.classList.contains('open')) {
-      onCancelModal();
-    }
+    // Escape closes modal overlay if open (handled in modal.ts bind)
+    // and dismisses login (handled in login-screen.ts bind)
   });
 
   // Unload guard — warn if unsaved changes

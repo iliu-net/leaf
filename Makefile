@@ -25,7 +25,7 @@ typecheck: ## Run TypeScript type checking (no emit)
 	cd src && ./node_modules/.bin/tsc --noEmit
 
 build-spa: typecheck ## Build the SPA bundle from TypeScript sources
-	cd src && ./node_modules/.bin/esbuild ts/app.ts --bundle --outfile=../spa/app.js
+	cd src && ./node_modules/.bin/esbuild ts/app.ts --bundle --format=esm --splitting --outdir=../spa/
 
 build: build-spa ## Build everything (alias for build-spa)
 

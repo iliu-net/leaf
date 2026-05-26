@@ -8,7 +8,7 @@ const BASE = self.location.pathname.replace(/\/sw\.js$/, '');
 // Namespace the cache so multiple instances on the same origin don't
 // race on the same cache bucket.
 const _slug = BASE.replace(/^\/|\/$/g, '').replace(/\//g, '-');
-const CACHE = _slug ? `leaf-v3:${_slug}` : 'leaf-v3';
+const CACHE = _slug ? `leaf-v4:${_slug}` : 'leaf-v4';
 
 const SHELL = [
   `${BASE}/`,
@@ -46,16 +46,14 @@ self.addEventListener('fetch', e => {
 
   // Auth calls → network only, no fallback (let network errors propagate
   // so the app can distinguish "server unreachable" from "auth rejected")
-  if (url.pathname.endsWith('auth.php')) {
+  if (url.pathname.includes('/api/') && url.pathname.includes('/auth')) {
     e.respondWith(fetch(e.request));
     return;
   }
 
-  // API and sync calls → network only, never cached, offline fallback
-  if (
-    url.pathname.endsWith('api.php')  ||
-    url.pathname.endsWith('sync.php')
-  ) {
+  // API calls (sync, history, trash, etc.) → network only, never cached,
+  // offline fallback for sync
+  if (url.pathname.includes('/api/')) {
     e.respondWith(
       fetch(e.request).catch(() =>
         new Response(

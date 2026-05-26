@@ -11,7 +11,11 @@ import {
 import { db, queueGetPending, dbGetNote } from '../../src/ts/db.ts';
 
 async function seedNote(id, content = '', extra = {}) {
-  await db.notes.put({ id, content, created_at: 1, updated_at: 1, deleted: 0, current: 'local', ...extra });
+  await db.notes.put({
+    id, content, created_at: 1, updated_at: 1, deleted: 0,
+    current: 'local', created_by: '', updated_by: '',
+    ...extra,
+  });
 }
 
 describe('notes.js integration', () => {
@@ -43,52 +47,61 @@ describe('notes.js integration', () => {
     await seedNote('my-note', 'original');
     const result = await saveNote('my-note', 'updated content');
 
-    const expected = '---\nupdated_by: unknown\n---\nupdated content';
-
     expect(result.ok).toBe(true);
-    // Check persistence — frontmatter is injected automatically
+    // Content is saved as-is — no frontmatter injection (authorship is in NoteRecord fields)
     const note = await dbGetNote('my-note');
-    expect(note.content).toBe(expected);
+    expect(note.content).toBe('updated content');
+    expect(note.updated_by).toBe('unknown');
     // Check queue
     const queue = await queueGetPending();
     expect(queue).toHaveLength(1);
     expect(queue[0].type).toBe('UPDATE');
     expect(queue[0].id).toBe('my-note');
-    expect(queue[0].content).toBe(expected);
+    expect(queue[0].content).toBe('updated content');
     expect(queue[0].version).toBe('local');
   });
 
   it('saveNote creates the note record if it does not exist yet', async () => {
     await saveNote('brand-new', 'hello');
     const note = await dbGetNote('brand-new');
-    expect(note.content).toBe('---\nupdated_by: unknown\n---\nhello');
+    // Content saved as-is, authorship in NoteRecord fields
+    expect(note.content).toBe('hello');
+    expect(note.created_by).toBe('unknown');
+    expect(note.updated_by).toBe('unknown');
   });
 
   it('createNote creates a note and queues a CREATE', async () => {
     const result = await createNote('my-new-note');
 
-    const expected = '---\ncreated_by: unknown\nupdated_by: unknown\n---\n';
-
     expect(result.ok).toBe(true);
     expect(result.file).toBe('my-new-note');
 
     const note = await dbGetNote('my-new-note');
-    expect(note.content).toBe(expected);
+    // Content is empty (no frontmatter injection); authorship in NoteRecord fields
+    expect(note.content).toBe('');
+    expect(note.created_by).toBe('unknown');
+    expect(note.updated_by).toBe('unknown');
 
     const queue = await queueGetPending();
     expect(queue).toHaveLength(1);
     expect(queue[0].type).toBe('CREATE');
     expect(queue[0].id).toBe('my-new-note');
-    expect(queue[0].content).toBe(expected);
+    expect(queue[0].content).toBe('');
     expect(queue[0].version).toBe('local');
   });
 
-  it('createNote overwrites existing content with frontmatter', async () => {
+  it('createNote queues a CREATE even if note already exists, leaving content untouched', async () => {
     await seedNote('existing', 'original');
     await createNote('existing');
-    // createNote now writes frontmatter even if the note already existed
+    // dbCreateNote is a no-op for existing notes — content is preserved.
+    // A CREATE is still queued (server validates whether it's a true create).
     const note = await dbGetNote('existing');
-    expect(note.content).toBe('---\ncreated_by: unknown\nupdated_by: unknown\n---\n');
+    expect(note.content).toBe('original');
+
+    const queue = await queueGetPending();
+    expect(queue).toHaveLength(1);
+    expect(queue[0].type).toBe('CREATE');
+    expect(queue[0].id).toBe('existing');
   });
 
   it('deleteNote soft-deletes and queues a DELETE', async () => {

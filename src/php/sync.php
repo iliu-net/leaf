@@ -307,6 +307,23 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
         ? $note['versions'][$current]['content']
         : '';
 
+    // Surface author from the version entry (explicit field, not parsed from key).
+    // $author reflects the current version's author (for updated_by).
+    // Falls back to parsing the key for old notes that lack the author field.
+    $author = '';
+    if ($current && isset($note['versions'][$current])) {
+        $author = $note['versions'][$current]['author'] ?? '';
+        if ($author === '') {
+            $parts = explode(':', $current, 3);
+            $author = $parts[2] ?? '';
+        }
+    }
+
+    // $created_by is the original creator — stored at the note level, never overwritten.
+    // Needed because deduplication may collapse a CREATE+UPDATE into just an UPDATE,
+    // so the client can't derive the original creator from the change type alone.
+    $created_by = $note['created_by'] ?? '';
+
     $dexie_type = ($type === 'CREATE') ? DEXIE_CREATE : DEXIE_UPDATE;
 
     return [
@@ -317,6 +334,8 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
             'content'      => $content,   // opaque — not inspected
             'version'      => $version,
             'prev_version' => $prev_version,
+            'author'       => $author,
+            'created_by'   => $created_by,
         ],
     ];
 }

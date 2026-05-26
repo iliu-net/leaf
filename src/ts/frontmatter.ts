@@ -35,8 +35,6 @@ const RESERVED_KEYS = new Set([
   'summary',
   'user-tags',
   'auto-tags',
-  'created_by',
-  'updated_by',
 ]);
 
 // ── Parser ───────────────────────────────────────────────────────────────

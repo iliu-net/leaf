@@ -51,6 +51,8 @@ interface SyncResponseBody {
       renamed_to?: string;
       version: string;
       prev_version?: string | null;
+      author?: string | null;
+      created_by?: string | null;
     } | null;
   }[];
   currentRevision: number;
@@ -207,6 +209,8 @@ async function applyServerChanges(
         change.obj?.content ?? null,
         change.obj?.version,
         change.obj?.prev_version,
+        change.obj?.author,
+        change.obj?.created_by,
       );
     }
     count++;

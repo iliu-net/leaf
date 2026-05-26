@@ -362,6 +362,24 @@ ui.initPanels(() => store.updateContent(ui.getRawContent()));
 // Listen for textarea changes (raw tab) — use getRawContent() for plain read
 document.addEventListener('note-changed', () => store.updateContent(ui.getRawContent()));
 
+// ── View History button ──────────────────────────────────────────────────
+// Lazy-load the history module when the user clicks View History
+document.getElementById('btn-view-history')?.addEventListener('click', async () => {
+  const currentId = store.getCurrent();
+  if (!currentId) return;
+  try {
+    const { open } = await import('./history.js');
+    open(currentId, {
+      onRestore: (content: string) => {
+        ui.setRawContent(content);
+        store.updateContent(content);  // marks dirty automatically
+      },
+    });
+  } catch (err) {
+    ui.toast(`Failed to open history: ${(err as Error).message}`, true);
+  }
+});
+
 // ── PWA: service worker ───────────────────────────────────────────────────
 
 let swRegistration: ServiceWorkerRegistration | null = null;

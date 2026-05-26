@@ -224,6 +224,7 @@
               <tr><td>Updated</td><td id="meta-sys-updated"></td></tr>
               <tr><td>Created by</td><td id="meta-sys-created-by"></td></tr>
               <tr><td>Updated by</td><td id="meta-sys-updated-by"></td></tr>
+              <tr><td></td><td><button id="btn-view-history" class="btn-small">View History…</button></td></tr>
             </table>
           </div>
         </div>
@@ -268,8 +269,8 @@
   <button class="context-menu-item danger" data-action="delete">Delete</button>
 </div>
 
-<!-- App entry point (single bundle from TypeScript build) -->
-<script src="app.js"></script>
+<!-- App entry point (ESM code-split bundle from TypeScript build) -->
+<script type="module" src="app.js"></script>
 
 </body>
 </html>

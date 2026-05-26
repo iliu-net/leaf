@@ -57,6 +57,9 @@ switch ($route) {
     case 'trash':
         require $sharedDir . 'trash.php';
         break;
+    case 'history':
+        require $sharedDir . 'history.php';
+        break;
     default:
         http_response_code(404);
         header('Content-Type: application/json');

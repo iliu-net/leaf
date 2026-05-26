@@ -13,24 +13,37 @@
  *
  * Note file structure:
  * {
- *   "current":    "2025-05-21:1:anonymous",
- *   "created_at": 1716163200,
+ *   "current":    "2026-05-26:1:alice",
+ *   "created_at": 1748200000,
+ *   "created_by": "alice",
  *   "versions": {
- *     "2025-05-21:1:anonymous": {
- *       "saved_at": 1716249600,
- *       "content":  "<opaque blob>",
- *       "prev":     "2025-05-20:1:anonymous" | null
+ *     "2026-05-26:1:alice": {
+ *       "author":    "alice",
+ *       "saved_at":  1748200000,
+ *       "content":   "<opaque blob>",
+ *       "prev":      "2026-05-25:1:alice" | null,
+ *       "exclusive": true
  *     }
  *   }
  * }
  *
+ *   created_by     — original creator, set on first write, never overwritten
+ *   versions.*.author     — who wrote this specific version
+ *   versions.*.exclusive  — true until another user fetches this version via sync;
+ *                           when false, the next save by the original author creates
+ *                           a new version instead of overwriting
+ *
  * Version key format: "{date}:{counter}:{author}"
  *   Lexicographic sort == chronological order.
  *   Counter resets per (date, author) pair.
+ *   The author in the key is a convenience duplicate of the 'author' field;
+ *   the 'author' field is authoritative and the key format may evolve independently
+ *   (e.g. to UUIDs).
  *
  * Changelog entry:
- * {"rev":N,"file":"id","type":"CREATE|UPDATE|DELETE",
- *  "ts":N,"version":"key"|null,"prev_version":"key"|null}
+ * {"rev":N,"file":"id","type":"CREATE|UPDATE|DELETE|RENAME",
+ *  "ts":N,"version":"key"|null,"prev_version":"key"|null,
+ *  "renamed_to":"new-id"|null}
  *
  * Target MySQL schema (normalized — for future migration):
  *
@@ -38,15 +51,18 @@
  *     id         VARCHAR(200) PRIMARY KEY,
  *     current    VARCHAR(100),
  *     created_at INT NOT NULL,
+ *     created_by VARCHAR(100) NOT NULL DEFAULT '',
  *     deleted    TINYINT NOT NULL DEFAULT 0
  *   );
  *
  *   CREATE TABLE versions (
  *     note_id     VARCHAR(200) NOT NULL,
  *     version_key VARCHAR(100) NOT NULL,
+ *     author      VARCHAR(100) NOT NULL DEFAULT '',
  *     saved_at    INT NOT NULL,
  *     content     LONGTEXT NOT NULL,
  *     prev        VARCHAR(100),
+ *     exclusive   TINYINT NOT NULL DEFAULT 1,
  *     PRIMARY KEY (note_id, version_key),
  *     FOREIGN KEY (note_id) REFERENCES notes(id)
  *   );
@@ -54,10 +70,11 @@
  *   CREATE TABLE changelog (
  *     rev          INT AUTO_INCREMENT PRIMARY KEY,
  *     file         VARCHAR(200) NOT NULL,
- *     type         ENUM('CREATE','UPDATE','DELETE') NOT NULL,
+ *     type         ENUM('CREATE','UPDATE','DELETE','RENAME') NOT NULL,
  *     ts           INT NOT NULL,
  *     version      VARCHAR(100),
  *     prev_version VARCHAR(100),
+ *     renamed_to   VARCHAR(200),
  *     INDEX (rev)
  *   );
  */
@@ -403,11 +420,36 @@ function storage_resolve_version(array $note, string $author): array {
  * @return string          The version key that was written
  */
 function storage_apply_write(string $id, string $content, string $author): string {
-    $note = storage_get_note($id) ?? [
+    $note = storage_get_note($id);
+    $is_new = ($note === null);
+
+    $note = $note ?? [
         'current'    => null,
         'created_at' => time(),
         'versions'   => [],
     ];
+
+    // Record the original creator on the first write (never overwritten).
+    if ($is_new) {
+        $note['created_by'] = $author;
+    }
+
+    // Lazy-migrate old notes that lack created_by: walk the prev chain
+    // to the root version and extract the author from there.
+    if (empty($note['created_by']) && $note['current']) {
+        $vkey = $note['current'];
+        $versions = $note['versions'] ?? [];
+        while ($vkey && isset($versions[$vkey])) {
+            $ventry = $versions[$vkey];
+            $prev   = $ventry['prev'] ?? null;
+            if ($prev === null && isset($versions[$vkey])) {
+                // Root version found — use its author field or parse from key
+                $note['created_by'] = $ventry['author'] ?? (explode(':', $vkey, 3)[2] ?? '');
+                break;
+            }
+            $vkey = $prev;
+        }
+    }
 
     [$vkey, $overwrite] = storage_resolve_version($note, $author);
 
@@ -416,6 +458,7 @@ function storage_apply_write(string $id, string $content, string $author): strin
         : $note['current'];
 
     $note['versions'][$vkey] = [
+        'author'    => $author,
         'saved_at'  => time(),
         'content'   => $content,
         'prev'      => $prev_vkey,
@@ -454,7 +497,7 @@ function storage_mark_version_seen(string $id, string $viewer): void {
     if (!$current_vkey) return;
 
     $parts  = explode(':', $current_vkey, 3);
-    $author = $parts[2] ?? '';
+    $author = $note['versions'][$current_vkey]['author'] ?? ($parts[2] ?? '');
 
     if ($author !== $viewer) {
         // Another user is receiving this version → clear exclusivity

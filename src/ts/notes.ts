@@ -16,9 +16,8 @@ import {
   queueChange,
 } from './db.js';
 import type { NoteMeta } from './store.js';
-import { updateFrontmatter, parseFrontmatter } from './frontmatter.js';
+import { parseFrontmatter } from './frontmatter.js';
 import type { FrontmatterResult } from './frontmatter.js';
-import { getUsername } from './auth.js';
 import { notifyLocalChange } from './cross-tab.js';
 
 /**
@@ -31,6 +30,8 @@ export interface NoteData {
   created_at: number;   // from IndexedDB record
   updated_at: number;   // from IndexedDB record
   current: string;      // from IndexedDB record
+  created_by: string;   // from IndexedDB record (authoritative)
+  updated_by: string;   // from IndexedDB record (authoritative)
   meta: FrontmatterResult['meta'];  // parsed frontmatter
 }
 
@@ -55,6 +56,8 @@ export async function loadNote(id: string): Promise<NoteData> {
     created_at: note?.created_at ?? 0,
     updated_at: note?.updated_at ?? 0,
     current: note?.current ?? '',
+    created_by: note?.created_by ?? '',
+    updated_by: note?.updated_by ?? '',
     meta: fm.meta,
   };
 }
@@ -64,11 +67,10 @@ export async function loadNote(id: string): Promise<NoteData> {
  */
 export async function saveNote(id: string, content: string): Promise<{ ok: boolean }> {
   const note = await dbGetNote(id);
-  const fmContent = updateFrontmatter(content, {
-    updated_by: getUsername() ?? 'unknown',
-  });
-  await dbSaveNote(id, fmContent);
-  await queueChange('UPDATE', id, fmContent, note?.current ?? 'local');
+  // Authorship is now in NoteRecord (dbSaveNote sets updated_by).
+  // Content is saved as-is — no frontmatter injection.
+  await dbSaveNote(id, content);
+  await queueChange('UPDATE', id, content, note?.current ?? 'local');
   notifyLocalChange('saved', id);
   return { ok: true };
 }
@@ -77,17 +79,12 @@ export async function saveNote(id: string, content: string): Promise<{ ok: boole
  * Create a new note in IndexedDB and queue a CREATE for the server.
  */
 export async function createNote(id: string): Promise<{ ok: boolean; file: string }> {
+  // dbCreateNote sets created_by/updated_by on the NoteRecord.
+  // No frontmatter injection needed — authorship is authoritative in IndexedDB.
   await dbCreateNote(id);
 
-  // Write frontmatter with authorship info
-  const fmContent = updateFrontmatter('', {
-    created_by: getUsername() ?? 'unknown',
-    updated_by: getUsername() ?? 'unknown',
-  });
-  await dbSaveNote(id, fmContent);
-
   const note = await dbGetNote(id);
-  await queueChange('CREATE', id, fmContent, note?.current ?? 'local');
+  await queueChange('CREATE', id, '', note?.current ?? 'local');
   notifyLocalChange('created', id);
   return { ok: true, file: id };
 }

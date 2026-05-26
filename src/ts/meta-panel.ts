@@ -102,8 +102,8 @@ export function populateSystemFields(noteData: NoteData): void {
   if (_sysCurrent)   _sysCurrent.textContent   = noteData.current ?? '';
   if (_sysCreated)   _sysCreated.textContent   = formatTimestamp(noteData.created_at);
   if (_sysUpdated)   _sysUpdated.textContent   = formatTimestamp(noteData.updated_at);
-  if (_sysCreatedBy) _sysCreatedBy.textContent = getMetaField(noteData.meta, 'created_by');
-  if (_sysUpdatedBy) _sysUpdatedBy.textContent = getMetaField(noteData.meta, 'updated_by');
+  if (_sysCreatedBy) _sysCreatedBy.textContent = noteData.created_by;
+  if (_sysUpdatedBy) _sysUpdatedBy.textContent = noteData.updated_by;
 }
 
 // ── Event binding ─────────────────────────────────────────────────────────
@@ -216,13 +216,6 @@ function readCustomRows(): Record<string, string> {
   }
 
   return custom;
-}
-
-function getMetaField(meta: Record<string, string | string[]>, key: string): string {
-  const val = meta[key];
-  if (typeof val === 'string') return val;
-  if (Array.isArray(val)) return val.join(', ');
-  return '';
 }
 
 function formatTimestamp(ts: number | undefined): string {

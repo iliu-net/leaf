@@ -25,6 +25,7 @@
 
 import Dexie, { type Table } from 'dexie';
 import { getNamespace } from './config.js';
+import { getUsername } from './auth.js';
 
 // ── Constants ───────────────────────────────────────────────────────────
 
@@ -41,7 +42,9 @@ export interface NoteRecord {
   created_at: number;
   updated_at: number;
   deleted: 0 | 1;
-  current: string;   // version key — server-assigned or "local" for unsynced
+  current: string;     // version key — server-assigned or "local" for unsynced
+  updated_by: string;  // author of last write (from server or local user)
+  created_by: string;  // author who created the note
 }
 
 export interface QueueRecord {
@@ -124,6 +127,8 @@ export async function dbSaveNote(id: string, content: string): Promise<void> {
     updated_at: now,
     deleted:    0 as const,
     current:    existing?.current ?? 'local',
+    updated_by: getUsername() ?? 'unknown',
+    created_by: existing?.created_by ?? getUsername() ?? 'unknown',
   });
 }
 
@@ -145,7 +150,13 @@ export async function dbCreateNote(id: string): Promise<void> {
   const existing = await db.notes.get(id);
   if (existing) return;
   const now = Date.now();
-  await db.notes.put({ id, content: '', created_at: now, updated_at: now, deleted: 0 as const, current: 'local' });
+  const uname = getUsername() ?? 'unknown';
+  await db.notes.put({
+    id, content: '', created_at: now, updated_at: now, deleted: 0 as const,
+    current: 'local',
+    created_by: uname,
+    updated_by: uname,
+  });
 }
 
 /**
@@ -178,6 +189,8 @@ export async function dbApplyServerChange(
   content: string | null,  // holds the new id for RENAME
   version?: string | null,
   _prevVersion?: string | null,  // unused now, needed for future conflict resolution
+  author?: string | null,
+  created_by?: string | null,
 ): Promise<void> {
   await ensureDbOpen();
   if (type === 'DELETE') {
@@ -213,6 +226,11 @@ export async function dbApplyServerChange(
     updated_at: Date.now(),
     deleted:    0 as const,
     current:    version ?? existing?.current ?? 'local',
+    updated_by: author ?? existing?.updated_by ?? '',
+    created_by: created_by                       // server's authoritative value
+      ?? (type === 'CREATE' ? (author ?? undefined) : undefined)
+      ?? existing?.created_by
+      ?? '',
   });
 }
 
