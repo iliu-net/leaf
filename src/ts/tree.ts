@@ -1,0 +1,433 @@
+/**
+ * tree.ts — Collapsible tree view sidebar
+ *
+ * Builds a tree from flat NoteMeta[] using colon (:) as the path separator.
+ * Implements the SidebarView interface so it can be swapped out for
+ * other sidebar views (tag mode, etc.) in the future.
+ *
+ * Module-level state:
+ *   expandedPaths   — which branch paths are currently expanded
+ *   savedExpanded   — snapshot taken while a search is active
+ *   contextMenuTarget — note path the open context menu belongs to
+ */
+
+import type { SidebarView, UIEventHandlers } from './view.js';
+import type { NoteMeta } from './store.js';
+
+// ── Tree data type ──────────────────────────────────────────────────────
+
+interface TreeNode {
+  name: string;
+  path: string;
+  children: TreeNode[];
+  note: NoteMeta | null;
+}
+
+// ── Module-level state ──────────────────────────────────────────────────
+
+const expandedPaths = new Set<string>();
+let savedExpanded: Set<string> | null = null;
+let contextMenuTarget: string | null = null;
+let contextMenuOutsideListener: ((e: MouseEvent) => void) | null = null;
+
+// ── DOM refs (queried once on first render) ─────────────────────────────
+
+function getFileList(): HTMLElement {
+  return document.getElementById('file-list')!;
+}
+
+function getNoteCount(): HTMLElement {
+  return document.getElementById('note-count')!;
+}
+
+function getContextMenu(): HTMLElement {
+  return document.getElementById('item-context-menu')!;
+}
+
+function getSearchInput(): HTMLInputElement | null {
+  return document.getElementById('search') as HTMLInputElement | null;
+}
+
+// ── Natural sort ────────────────────────────────────────────────────────
+
+/**
+ * Compare strings with natural (human-friendly) ordering.
+ * Splits on digit boundaries and compares numeric segments as numbers,
+ * string segments via localeCompare.
+ */
+function naturalCompare(a: string, b: string): number {
+  const re = /(\d+)|(\D+)/g;
+  const partsA: (string | number)[] = [];
+  const partsB: (string | number)[] = [];
+
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(a)) !== null) {
+    partsA.push(m[1] !== undefined ? parseInt(m[1], 10) : m[2]);
+  }
+  while ((m = re.exec(b)) !== null) {
+    partsB.push(m[1] !== undefined ? parseInt(m[1], 10) : m[2]);
+  }
+
+  const len = Math.min(partsA.length, partsB.length);
+  for (let i = 0; i < len; i++) {
+    const ca = partsA[i];
+    const cb = partsB[i];
+    if (ca === cb) continue;
+    if (typeof ca === 'number' && typeof cb === 'number') return ca - cb;
+    if (typeof ca === 'string' && typeof cb === 'string') return ca.localeCompare(cb);
+    return typeof ca === 'number' ? -1 : 1;
+  }
+  return partsA.length - partsB.length;
+}
+
+// ── Tree builder ────────────────────────────────────────────────────────
+
+function buildTree(notes: NoteMeta[]): TreeNode[] {
+  // Sort notes by full ID using natural sort
+  const sorted = [...notes].sort((a, b) => naturalCompare(a.id, b.id));
+
+  const roots: TreeNode[] = [];
+  const nodeMap = new Map<string, TreeNode>();
+
+  for (const note of sorted) {
+    const segments = note.id.split(':');
+    let currentPath = '';
+    let parentChildren = roots;
+
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      currentPath = currentPath ? `${currentPath}:${seg}` : seg;
+
+      let node = nodeMap.get(currentPath);
+      if (!node) {
+        node = {
+          name: seg,
+          path: currentPath,
+          children: [],
+          note: i === segments.length - 1 ? note : null,
+        };
+        nodeMap.set(currentPath, node);
+        parentChildren.push(node);
+      } else if (i === segments.length - 1) {
+        // The note's ID exactly matches an existing branch node
+        node.note = note;
+      }
+      parentChildren = node.children;
+    }
+  }
+
+  // Sort each level: branches first, then leaves, natural sort within groups
+  function sortNodes(nodes: TreeNode[]): void {
+    nodes.sort((a, b) => {
+      const aIsBranch = a.children.length > 0;
+      const bIsBranch = b.children.length > 0;
+      if (aIsBranch && !bIsBranch) return -1;
+      if (!aIsBranch && bIsBranch) return 1;
+      return naturalCompare(a.name, b.name);
+    });
+    nodes.forEach(n => sortNodes(n.children));
+  }
+
+  sortNodes(roots);
+  return roots;
+}
+
+// ── Expand / collapse helpers ───────────────────────────────────────────
+
+function expandToPath(path: string): void {
+  const segments = path.split(':');
+  let current = '';
+  for (const seg of segments) {
+    current = current ? `${current}:${seg}` : seg;
+    expandedPaths.add(current);
+  }
+}
+
+function toggleBranch(path: string): void {
+  const container = document.querySelector(
+    `.tree-children[data-parent="${CSS.escape(path)}"]`
+  ) as HTMLElement | null;
+  if (!container) return;
+
+  const isExpanded = container.style.display !== 'none';
+  container.style.display = isExpanded ? 'none' : 'block';
+
+  // Update toggle arrow
+  const toggle = document.querySelector(
+    `.tree-bar[data-path="${CSS.escape(path)}"] .tree-toggle`
+  );
+  if (toggle) {
+    toggle.textContent = isExpanded ? '▶' : '▼';
+    toggle.setAttribute('aria-label', isExpanded ? 'Expand' : 'Collapse');
+  }
+
+  if (isExpanded) {
+    expandedPaths.delete(path);
+  } else {
+    expandedPaths.add(path);
+  }
+}
+
+// ── Context menu ────────────────────────────────────────────────────────
+
+function closeContextMenu(): void {
+  const menu = getContextMenu();
+  menu.classList.remove('open');
+  contextMenuTarget = null;
+  if (contextMenuOutsideListener) {
+    document.removeEventListener('click', contextMenuOutsideListener, true);
+    contextMenuOutsideListener = null;
+  }
+}
+
+function openContextMenu(anchorEl: HTMLElement, path: string, handlers: UIEventHandlers): void {
+  const menu = getContextMenu();
+  contextMenuTarget = path;
+
+  // Position the menu near the clicked button
+  const rect = anchorEl.getBoundingClientRect();
+  menu.style.left = `${rect.left}px`;
+  menu.style.top = `${rect.bottom}px`;
+  menu.classList.add('open');
+
+  // Wire menu actions (replace any previous click handlers)
+  const renameBtn = menu.querySelector('[data-action="rename"]') as HTMLElement | null;
+  const deleteBtn = menu.querySelector('[data-action="delete"]') as HTMLElement | null;
+
+  if (renameBtn) {
+    renameBtn.onclick = (e: MouseEvent) => {
+      e.stopPropagation();
+      const p = contextMenuTarget!;
+      closeContextMenu();
+      handlers.onRename(p);
+    };
+  }
+  if (deleteBtn) {
+    deleteBtn.onclick = (e: MouseEvent) => {
+      e.stopPropagation();
+      const p = contextMenuTarget!;
+      closeContextMenu();
+      handlers.onDelete(p);
+    };
+  }
+
+  // Remove any stale outside-click listener before adding a new one
+  if (contextMenuOutsideListener) {
+    document.removeEventListener('click', contextMenuOutsideListener, true);
+    contextMenuOutsideListener = null;
+  }
+
+  // One-shot document click to close on outside click.
+  // Deferred via setTimeout(0) so the current click event finishes
+  // propagating before we start listening.
+  const listener = (e: MouseEvent) => {
+    if (!menu.contains(e.target as Node)) {
+      closeContextMenu();
+    }
+  };
+  contextMenuOutsideListener = listener;
+  setTimeout(() => {
+    document.addEventListener('click', listener, true);
+  }, 0);
+}
+
+// ── Tree renderer ───────────────────────────────────────────────────────
+
+function renderTreeNodes(
+  nodes: TreeNode[],
+  depth: number,
+  currentId: string | null
+): DocumentFragment {
+  const frag = document.createDocumentFragment();
+  const indent = 12 + depth * 16; // base padding + 16px per level
+
+  for (const node of nodes) {
+    const hasNote = node.note !== null;
+    const hasChildren = node.children.length > 0;
+    const isExpanded = expandedPaths.has(node.path);
+
+    // ── Tree bar ──────────────────────────────────────────────────────
+    const bar = document.createElement('div');
+    bar.className = 'tree-bar';
+    bar.dataset.path = node.path;
+    bar.style.paddingLeft = `${indent}px`;
+
+    if (hasNote) {
+      bar.classList.add('file-item');
+      bar.dataset.id = node.note!.id;
+      if (node.note!.id === currentId) {
+        bar.classList.add('active');
+      }
+    } else {
+      bar.classList.add('tree-branch-only');
+    }
+
+    // Toggle arrow (branches only)
+    if (hasChildren) {
+      const toggle = document.createElement('span');
+      toggle.className = 'tree-toggle';
+      toggle.textContent = isExpanded ? '▼' : '▶';
+      toggle.setAttribute('aria-label', isExpanded ? 'Collapse' : 'Expand');
+      bar.appendChild(toggle);
+    }
+
+    // Document icon (note nodes only)
+    if (hasNote) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const icon = document.createElementNS(ns, 'svg');
+      icon.setAttribute('width', '13');
+      icon.setAttribute('height', '13');
+      icon.setAttribute('fill', 'none');
+      icon.setAttribute('stroke', 'currentColor');
+      icon.setAttribute('stroke-width', '1.5');
+      icon.setAttribute('viewBox', '0 0 24 24');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.classList.add('file-item-icon');
+      icon.innerHTML =
+        '<path d="M9 12h6m-6 4h6m2 4H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l5 5v11a2 2 0 0 1-2 2z"/>';
+      bar.appendChild(icon);
+    }
+
+    // Label
+    const label = document.createElement('span');
+    label.className = 'file-item-name';
+    label.textContent = node.name;
+    label.title = hasNote ? node.note!.id : node.path;
+    bar.appendChild(label);
+
+    // More-actions button (note nodes only)
+    if (hasNote) {
+      const more = document.createElement('button');
+      more.className = 'file-item-more btn-icon';
+      more.textContent = '⋯';
+      more.title = 'More actions';
+      more.setAttribute('aria-label', `More actions for ${node.note!.id}`);
+      bar.appendChild(more);
+    }
+
+    frag.appendChild(bar);
+
+    // ── Children container (branches only) ────────────────────────────
+    if (hasChildren) {
+      const container = document.createElement('div');
+      container.className = 'tree-children';
+      container.dataset.parent = node.path;
+      container.style.display = isExpanded ? 'block' : 'none';
+      container.appendChild(renderTreeNodes(node.children, depth + 1, currentId));
+      frag.appendChild(container);
+    }
+  }
+
+  return frag;
+}
+
+// ── Exported: TreeView object ───────────────────────────────────────────
+
+export const TreeView: SidebarView = {
+  render(notes: NoteMeta[], currentId: string | null): void {
+    const fileList = getFileList();
+    fileList.innerHTML = '';
+
+    // Empty state
+    if (notes.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText =
+        'padding:20px 12px;text-align:center;font-size:11px;' +
+        'color:var(--text-3);font-family:var(--font-mono)';
+      empty.textContent = 'No notes found';
+      fileList.appendChild(empty);
+      return;
+    }
+
+    // Check whether a search is active
+    const searchInput = getSearchInput();
+    const isSearching = searchInput ? searchInput.value.trim().length > 0 : false;
+
+    if (isSearching) {
+      // Search active → save expanded state snapshot (once) and render flat list
+      if (savedExpanded === null) {
+        savedExpanded = new Set(expandedPaths);
+      }
+
+      const frag = document.createDocumentFragment();
+      for (const note of notes) {
+        const item = document.createElement('div');
+        item.className = 'file-item' + (note.id === currentId ? ' active' : '');
+        item.dataset.id = note.id;
+        item.setAttribute('role', 'listitem');
+        item.innerHTML =
+          '<svg class="file-item-icon" width="13" height="13" fill="none" ' +
+          'stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">' +
+          '<path d="M9 12h6m-6 4h6m2 4H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l5 5v11a2 2 0 0 1-2 2z"/>' +
+          '</svg>' +
+          `<span class="file-item-name" title="${note.id}">${note.id}</span>`;
+        frag.appendChild(item);
+      }
+      fileList.appendChild(frag);
+    } else {
+      // Normal (non-search) mode
+      if (savedExpanded !== null) {
+        // Search was just cleared — restore previous expanded state
+        expandedPaths.clear();
+        for (const p of savedExpanded) expandedPaths.add(p);
+        savedExpanded = null;
+      }
+
+      // Auto-expand to the currently open note
+      if (currentId) {
+        expandToPath(currentId);
+      }
+
+      const tree = buildTree(notes);
+      const frag = renderTreeNodes(tree, 0, currentId);
+      fileList.appendChild(frag);
+    }
+  },
+
+  handleClick(e: MouseEvent, handlers: UIEventHandlers): void {
+    const target = e.target as HTMLElement;
+
+    // Toggle arrow
+    const toggle = target.closest('.tree-toggle');
+    if (toggle) {
+      const bar = (toggle as HTMLElement).closest('[data-path]') as HTMLElement | null;
+      if (bar?.dataset.path) {
+        toggleBranch(bar.dataset.path);
+      }
+      return;
+    }
+
+    // "More" button (⋯)
+    const moreBtn = target.closest('.file-item-more');
+    if (moreBtn) {
+      const bar = (moreBtn as HTMLElement).closest('[data-path]') as HTMLElement | null;
+      if (bar?.dataset.path) {
+        openContextMenu(moreBtn as HTMLElement, bar.dataset.path, handlers);
+      }
+      return;
+    }
+
+    // Note item → open
+    const item = target.closest('.file-item');
+    if (item) {
+      const id = (item as HTMLElement).dataset.id;
+      if (id) handlers.onOpen(id);
+    }
+  },
+
+  updateNoteCount(total: number, shown: number): void {
+    const el = getNoteCount();
+    if (shown === total) {
+      el.textContent = `${total} note${total !== 1 ? 's' : ''}`;
+    } else {
+      el.textContent = `${shown} / ${total}`;
+    }
+  },
+
+  destroy(): void {
+    closeContextMenu();
+    expandedPaths.clear();
+    savedExpanded = null;
+    getFileList().innerHTML = '';
+  },
+};

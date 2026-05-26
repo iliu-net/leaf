@@ -1,5 +1,5 @@
 /**
- * Tests for spa/js/notes.js — data access layer over db.js.
+ * Tests for src/ts/notes.ts — data access layer over db.ts.
  *
  * Uses the real db module with fake-indexeddb (set up in setup.js).
  */
@@ -7,11 +7,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   listNotes, loadNote, saveNote, createNote, deleteNote, renameNote,
-} from '../../spa/js/notes.js';
-import { db, queueGetPending, dbGetNote } from '../../spa/js/db.js';
+} from '../../src/ts/notes.ts';
+import { db, queueGetPending, dbGetNote } from '../../src/ts/db.ts';
 
 async function seedNote(id, content = '', extra = {}) {
-  await db.notes.put({ id, content, created_at: 1, updated_at: 1, deleted: 0, ...extra });
+  await db.notes.put({ id, content, created_at: 1, updated_at: 1, deleted: 0, current: 'local', ...extra });
 }
 
 describe('notes.js integration', () => {
@@ -43,45 +43,52 @@ describe('notes.js integration', () => {
     await seedNote('my-note', 'original');
     const result = await saveNote('my-note', 'updated content');
 
+    const expected = '---\nupdated_by: unknown\n---\nupdated content';
+
     expect(result.ok).toBe(true);
-    // Check persistence
+    // Check persistence — frontmatter is injected automatically
     const note = await dbGetNote('my-note');
-    expect(note.content).toBe('updated content');
+    expect(note.content).toBe(expected);
     // Check queue
     const queue = await queueGetPending();
     expect(queue).toHaveLength(1);
     expect(queue[0].type).toBe('UPDATE');
     expect(queue[0].id).toBe('my-note');
-    expect(queue[0].content).toBe('updated content');
+    expect(queue[0].content).toBe(expected);
+    expect(queue[0].version).toBe('local');
   });
 
   it('saveNote creates the note record if it does not exist yet', async () => {
     await saveNote('brand-new', 'hello');
     const note = await dbGetNote('brand-new');
-    expect(note.content).toBe('hello');
+    expect(note.content).toBe('---\nupdated_by: unknown\n---\nhello');
   });
 
   it('createNote creates a note and queues a CREATE', async () => {
     const result = await createNote('my-new-note');
 
+    const expected = '---\ncreated_by: unknown\nupdated_by: unknown\n---\n';
+
     expect(result.ok).toBe(true);
     expect(result.file).toBe('my-new-note');
 
     const note = await dbGetNote('my-new-note');
-    expect(note.content).toBe('');
+    expect(note.content).toBe(expected);
 
     const queue = await queueGetPending();
     expect(queue).toHaveLength(1);
     expect(queue[0].type).toBe('CREATE');
     expect(queue[0].id).toBe('my-new-note');
+    expect(queue[0].content).toBe(expected);
+    expect(queue[0].version).toBe('local');
   });
 
-  it('createNote is idempotent if note already exists', async () => {
+  it('createNote overwrites existing content with frontmatter', async () => {
     await seedNote('existing', 'original');
     await createNote('existing');
-    // Note content should be unchanged
+    // createNote now writes frontmatter even if the note already existed
     const note = await dbGetNote('existing');
-    expect(note.content).toBe('original');
+    expect(note.content).toBe('---\ncreated_by: unknown\nupdated_by: unknown\n---\n');
   });
 
   it('deleteNote soft-deletes and queues a DELETE', async () => {
@@ -96,6 +103,7 @@ describe('notes.js integration', () => {
     expect(queue[0].type).toBe('DELETE');
     expect(queue[0].id).toBe('delete-me');
     expect(queue[0].content).toBeNull();
+    expect(queue[0].version).toBe('local');
   });
 
   it('deleteNote is a no-op for non-existent note (no queue entry)', async () => {
@@ -125,6 +133,7 @@ describe('notes.js integration', () => {
     expect(queue[0].type).toBe('RENAME');
     expect(queue[0].id).toBe('old-name');
     expect(queue[0].renamed_to).toBe('new-name');
+    expect(queue[0].version).toBe('local');
   });
 
   it('renameNote always queues a RENAME even if note does not exist locally', async () => {

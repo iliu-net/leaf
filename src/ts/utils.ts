@@ -1,5 +1,5 @@
 /**
- * utils.js — shared utility functions
+ * utils.ts — shared utility functions
  *
  * Pure functions with no dependencies, safe to import anywhere
  * (including tests without a full browser environment).
@@ -11,10 +11,10 @@
  * Maps slashes to colons, replaces leading dots with underscore, strips
  * unsafe characters, and truncates to 80 characters.
  *
- * @param {string} raw  Raw user input
- * @returns {string}    Sanitized safe identifier
+ * @param raw  Raw user input
+ * @returns    Sanitized safe identifier
  */
-export function safeName(raw) {
+export function safeName(raw: string): string {
   let name = raw.trim();
   name = name.replace(/\//g, ':');
   name = name.replace(/^\.+/, '_');

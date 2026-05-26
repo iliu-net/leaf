@@ -28,7 +28,7 @@ describe('login()', () => {
 
   async function getAuth() {
     vi.resetModules();
-    return await import('../../spa/js/auth.js');
+    return await import('../../src/ts/auth.ts');
   }
 
   it('returns ok:true and stores token on success', async () => {
@@ -89,7 +89,7 @@ describe('token state', () => {
 
   async function getAuth() {
     vi.resetModules();
-    return await import('../../spa/js/auth.js');
+    return await import('../../src/ts/auth.ts');
   }
 
   it('isLoggedIn returns false when no token', async () => {
@@ -116,7 +116,7 @@ describe('refreshToken()', () => {
 
   async function getAuth() {
     vi.resetModules();
-    return await import('../../spa/js/auth.js');
+    return await import('../../src/ts/auth.ts');
   }
 
   it('returns a token on successful refresh', async () => {
@@ -180,7 +180,7 @@ describe('logout()', () => {
 
   async function getAuth() {
     vi.resetModules();
-    return await import('../../spa/js/auth.js');
+    return await import('../../src/ts/auth.ts');
   }
 
   it('clears token and notifies listeners', async () => {
@@ -225,7 +225,7 @@ describe('authFetch()', () => {
 
   async function getAuth() {
     vi.resetModules();
-    return await import('../../spa/js/auth.js');
+    return await import('../../src/ts/auth.ts');
   }
 
   it('attaches Authorization header when token exists', async () => {
@@ -314,21 +314,37 @@ describe('tryRestoreSession()', () => {
 
   async function getAuth() {
     vi.resetModules();
-    return await import('../../spa/js/auth.js');
+    return await import('../../src/ts/auth.ts');
   }
 
-  it('returns true when refresh succeeds', async () => {
+  it("returns 'ok' when refresh succeeds", async () => {
     const auth = await getAuth();
     mockFetch(200, { ok: true, token: 't', username: 'u', expires: 9999999999 });
     const result = await auth.tryRestoreSession();
-    expect(result).toBe(true);
+    expect(result).toBe('ok');
   });
 
-  it('returns false when refresh fails', async () => {
+  it("returns 'auth-failed' when refresh fails with HTTP error", async () => {
     const auth = await getAuth();
     mockFetch(401, { ok: false });
     const result = await auth.tryRestoreSession();
-    expect(result).toBe(false);
+    expect(result).toBe('auth-failed');
+  });
+
+  it("returns 'network-error' when server is unreachable", async () => {
+    const auth = await getAuth();
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
+    const result = await auth.tryRestoreSession();
+    expect(result).toBe('network-error');
+  });
+
+  it("returns 'network-error' when response lacks boolean ok field", async () => {
+    const auth = await getAuth();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Offline', changes: [] }), { status: 200 })
+    );
+    const result = await auth.tryRestoreSession();
+    expect(result).toBe('network-error');
   });
 });
 
@@ -341,7 +357,7 @@ describe('onAuthFailure()', () => {
 
   async function getAuth() {
     vi.resetModules();
-    return await import('../../spa/js/auth.js');
+    return await import('../../src/ts/auth.ts');
   }
 
   it('returns an unsubscribe function', async () => {

@@ -17,6 +17,7 @@ define('REFRESH_TOKENS_FILE', DATA_ROOT . 'refresh_tokens.json');
 define('JWT_SECRET',          '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');
 define('JWT_EXPIRY',          900);
 define('REFRESH_EXPIRY',      86400);
+define('DELETED_NOTE_TTL_DAYS', 30);
 
 @mkdir(DATA_ROOT, 0755, true);
 @mkdir(NOTES_DIR, 0755, true);

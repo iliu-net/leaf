@@ -1,5 +1,5 @@
 /**
- * app.js — entry point
+ * app.ts — entry point
  *
  * Boot sequence:
  *   1. Try silent session restore via refresh cookie
@@ -15,17 +15,18 @@
 import * as notes from './notes.js';
 import * as store from './store.js';
 import * as ui    from './ui.js';
-import { db } from './db.js';
-import { syncStart, syncNow, stopSync, onSyncStatus, onRemoteChange } from './sync.js';
+import { db, dbPurgeDeletedNotes } from './db.js';
+import { syncStart, syncNow, stopSync, clearRevision, onSyncStatus, onRemoteChange } from './sync.js';
 import {
   login, logout, getUsername,
   tryRestoreSession, onAuthFailure,
 } from './auth.js';
 import { safeName } from './utils.js';
+import type { NoteData } from './notes.js';
 
 // ── App state ─────────────────────────────────────────────────────────────
 
-async function refreshList(selectId = null) {
+async function refreshList(selectId: string | null = null): Promise<void> {
   try {
     const items = await notes.listNotes();
     store.setNotes(items);
@@ -33,28 +34,28 @@ async function refreshList(selectId = null) {
     ui.updateNoteCount(store.getState().notes.length, store.getNotes().length);
     if (selectId) await openFile(selectId);
   } catch (err) {
-    ui.toast(`Failed to load notes: ${err.message}`, true);
+    ui.toast(`Failed to load notes: ${(err as Error).message}`, true);
   }
 }
 
-async function openFile(id) {
+async function openFile(id: string): Promise<void> {
   if (store.isDirty() && !confirm('You have unsaved changes. Discard?')) return;
   try {
-    const data = await notes.loadNote(id);
+    const data: NoteData = await notes.loadNote(id);
     store.openNote(id, data.content);
-    ui.showEditor(id, data.content);
+    ui.showEditor(data);
     ui.setActiveFile(id);
     ui.setDirty(false);
     ui.setStatus(`Opened "${id}"`);
   } catch (err) {
-    ui.toast(`Could not open "${id}": ${err.message}`, true);
+    ui.toast(`Could not open "${id}": ${(err as Error).message}`, true);
   }
 }
 
-async function saveFile() {
+async function saveFile(): Promise<void> {
   const id = store.getCurrent();
   if (!id) return;
-  const content = ui.getEditorContent();
+  const content = ui.flushAndGetContent();
   try {
     await notes.saveNote(id, content);
     store.markClean();
@@ -63,11 +64,11 @@ async function saveFile() {
     ui.toast(`Saved "${id}"`);
     syncNow();
   } catch (err) {
-    ui.toast(`Save failed: ${err.message}`, true);
+    ui.toast(`Save failed: ${(err as Error).message}`, true);
   }
 }
 
-async function deleteFile(id) {
+async function deleteFile(id: string): Promise<void> {
   if (!confirm(`Delete "${id}"? This cannot be undone.`)) return;
   try {
     await notes.deleteNote(id);
@@ -80,15 +81,15 @@ async function deleteFile(id) {
     ui.toast(`Deleted "${id}"`);
     syncNow();
   } catch (err) {
-    ui.toast(`Delete failed: ${err.message}`, true);
+    ui.toast(`Delete failed: ${(err as Error).message}`, true);
   }
 }
 
-async function handleRenameClick(id) {
+async function handleRenameClick(id: string): Promise<void> {
   ui.openRenameModal(id);
 }
 
-async function handleRenameConfirm(oldId) {
+async function handleRenameConfirm(oldId: string): Promise<void> {
   const raw = ui.getModalValue();
   if (!raw) { ui.setModalError('Please enter a name.'); return; }
   const newId = safeName(raw);
@@ -101,11 +102,11 @@ async function handleRenameConfirm(oldId) {
     ui.toast(`Renamed to "${newId}"`);
     syncNow();
   } catch (err) {
-    ui.setModalError(err.message || 'Could not rename note.');
+    ui.setModalError((err as Error).message || 'Could not rename note.');
   }
 }
 
-async function createFile() {
+async function createFile(): Promise<void> {
   const raw = ui.getModalValue();
   if (!raw) { ui.setModalError('Please enter a name.'); return; }
   const name = safeName(raw);
@@ -114,15 +115,16 @@ async function createFile() {
   try {
     const data = await notes.createNote(name);
     ui.closeModal();
+    ui.clearSearch();
     await refreshList(data.file);
     ui.toast(`Created "${data.file}"`);
     syncNow();
   } catch (err) {
-    ui.setModalError(err.message || 'Could not create note.');
+    ui.setModalError((err as Error).message || 'Could not create note.');
   }
 }
 
-function handleSearch(query) {
+function handleSearch(query: string): void {
   store.setQuery(query);
   const filtered = store.getNotes();
   ui.renderFileList(filtered, store.getCurrent());
@@ -131,8 +133,13 @@ function handleSearch(query) {
 
 // ── Auth screens ──────────────────────────────────────────────────────────
 
-async function showApp() {
-  ui.showAppShell(getUsername());
+async function showApp(hasSession: boolean = false): Promise<void> {
+  ui.showAppShell(hasSession ? getUsername() : null);
+
+  // Purge stale soft-deleted notes from IndexedDB (fire-and-forget)
+  dbPurgeDeletedNotes().catch(err =>
+    console.warn('[purge] Failed to purge deleted notes:', err)
+  );
 
   // Check if IndexedDB is empty — first visit has no local notes yet
   const localCount = await db.notes.count();
@@ -142,26 +149,32 @@ async function showApp() {
   await refreshList();
 
   // Show loading indicator only on first visit while sync pulls from server
-  if (isFirstVisit && navigator.onLine) {
+  if (isFirstVisit && navigator.onLine && hasSession) {
     ui.setSidebarLoading(true);
   }
 
-  syncStart().catch(err => {
-    console.error('[sync] Start failed:', err);
-    ui.setSidebarLoading(false);
-  });
+  // On first visit when offline and no session, show inline prompt
+  if (isFirstVisit && !navigator.onLine && !hasSession) {
+    ui.showOfflineFirstVisit();
+  }
+
+  // Start sync only if we have a valid session
+  if (hasSession) {
+    syncStart().catch(err => {
+      console.error('[sync] Start failed:', err);
+      ui.setSidebarLoading(false);
+    });
+  }
 }
 
-function showLogin() {
+function showLogin(): void {
   stopSync();
-  store.closeNote();
-  ui.hideEditor();
   ui.showLoginScreen();
 }
 
 // ── Login form handler ────────────────────────────────────────────────────
 
-async function handleLogin(username, password) {
+async function handleLogin(username: string, password: string): Promise<void> {
   ui.setLoginError('');
   ui.setLoginLoading(true);
 
@@ -170,24 +183,37 @@ async function handleLogin(username, password) {
   ui.setLoginLoading(false);
 
   if (!result.ok) {
-    ui.setLoginError(result.error);
+    ui.setLoginError(result.error ?? '');
     return;
   }
 
-  showApp();
+  showApp(true);
+}
+
+// ── Dismiss login overlay ─────────────────────────────────────────────────
+
+function handleDismissLogin(): void {
+  ui.hideLoginScreen();
+  // Stay in offline mode — user chose not to authenticate
+}
+
+// ── Manual sign-in trigger ────────────────────────────────────────────────
+
+function handleSignIn(): void {
+  ui.showLoginScreen();
 }
 
 // ── Logout handler ────────────────────────────────────────────────────────
 
-async function handleLogout() {
+async function handleLogout(): Promise<void> {
   await logout();
   // onAuthFailure will fire and call showLogin()
 }
 
 // ── Store subscriptions ───────────────────────────────────────────────────
 
-store.on('dirty-changed',  val => ui.setDirty(val));
-store.on('online-changed', val => ui.setOffline(!val));
+store.on('dirty-changed',  val => ui.setDirty(val as boolean));
+store.on('online-changed', val => ui.setOffline(!(val as boolean)));
 
 // ── Sync status → UI ─────────────────────────────────────────────────────
 
@@ -209,7 +235,13 @@ onRemoteChange(() => {
 
 // ── Auth failure → show login ─────────────────────────────────────────────
 
-onAuthFailure(() => showLogin());
+onAuthFailure(() => {
+  stopSync();
+  if (navigator.onLine) {
+    ui.showLoginScreen();
+  }
+  // If offline, auth failure is expected — silently stay in offline mode
+});
 
 // ── UI event wiring ───────────────────────────────────────────────────────
 
@@ -225,26 +257,81 @@ ui.bindEvents({
   onLogout:        ()       => handleLogout(),
   onRename:        id       => handleRenameClick(id),
   onRenameConfirm: oldId    => handleRenameConfirm(oldId),
+  onUpdateSW:      ()       => handleUpdateApp(),
+  onResetDB:       ()       => handleResetDB(),
+  onSignIn:        ()       => handleSignIn(),
+  onDismissLogin:  ()       => handleDismissLogin(),
 });
 
-document.addEventListener('note-changed', () => store.updateContent(ui.getEditorContent()));
+// Initialize panels (tab system, meta panel, etc.)
+ui.initPanels(() => store.updateContent(ui.getRawContent()));
+
+// Listen for textarea changes (raw tab) — use getRawContent() for plain read
+document.addEventListener('note-changed', () => store.updateContent(ui.getRawContent()));
 
 // ── PWA: service worker ───────────────────────────────────────────────────
+
+let swRegistration: ServiceWorkerRegistration | null = null;
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js')
     .then(reg => {
+      swRegistration = reg;
       console.log('[SW] Registered, scope:', reg.scope);
       reg.addEventListener('updatefound', () => {
         const worker = reg.installing;
-        worker.addEventListener('statechange', () => {
-          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-            ui.toast('Update available — refresh to apply.');
-          }
-        });
+        if (worker) {
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              ui.toast('Update available — refresh to apply.');
+            }
+          });
+        }
       });
     })
     .catch(err => console.warn('[SW] Registration failed:', err));
+}
+
+async function handleUpdateApp(): Promise<void> {
+  if (!swRegistration) {
+    ui.toast('No service worker registration found', true);
+    return;
+  }
+
+  try {
+    await swRegistration.update();
+
+    // If a new worker is installing, wait for it to finish
+    if (swRegistration.installing) {
+      await new Promise<void>(resolve => {
+        swRegistration!.installing!.addEventListener('statechange', () => {
+          if (swRegistration?.installing?.state === 'installed') {
+            resolve();
+          }
+        });
+      });
+
+      // Tell the waiting worker to activate immediately
+      swRegistration.active?.postMessage({ action: 'SKIP_WAITING' });
+    }
+
+    location.reload();
+  } catch (err) {
+    ui.toast(`Update failed: ${(err as Error).message}`, true);
+  }
+}
+
+async function handleResetDB(): Promise<void> {
+  if (!confirm('This will delete all local data and re-download everything from the server. Continue?')) return;
+
+  stopSync();
+  clearRevision();
+  try {
+    await db.delete();
+  } catch (err) {
+    console.warn('[app] DB delete error (ignored on reload):', err);
+  }
+  location.reload();
 }
 
 if (new URLSearchParams(location.search).get('action') === 'new') {
@@ -253,17 +340,30 @@ if (new URLSearchParams(location.search).get('action') === 'new') {
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 
-async function boot() {
+async function boot(): Promise<void> {
   ui.setOffline(!navigator.onLine);
 
-  // Try to restore session silently from the refresh cookie
-  const restored = await tryRestoreSession();
+  // Always show the app shell first
+  await showApp(false /* no session yet */);
 
-  if (restored) {
-    showApp();
-  } else {
-    showLogin();
+  // Try to restore session silently in the background
+  const result = await tryRestoreSession();
+
+  if (result === 'ok') {
+    // We have a session! Upgrade the UI and start sync
+    ui.showAppShell(getUsername()!);
+    syncStart();
+  } else if (result === 'auth-failed') {
+    // Server is reachable but session is invalid — user must sign in
+    ui.showLoginScreen();
   }
+  // result === 'network-error': server is unreachable, stay in offline mode
+  // (app already visible, no gate, user can work locally)
+
+  // Safety net: ensure dirty state is clean after boot.  Browser form
+  // restoration can trigger spurious input events that mark content as
+  // dirty even when no note is open.  This resets any such false flag.
+  store.markClean();
 }
 
 boot().catch(err => {

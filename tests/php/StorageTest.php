@@ -114,7 +114,7 @@ class StorageTest extends TestCase
         $note  = [
             'current'    => "$today:1:alice",
             'created_at' => time(),
-            'versions'   => ["$today:1:alice" => ['saved_at' => time(), 'content' => '', 'prev' => null]],
+            'versions'   => ["$today:1:alice" => ['saved_at' => time(), 'content' => '', 'prev' => null, 'exclusive' => true]],
         ];
         [$vkey, $overwrite] = storage_resolve_version($note, 'alice');
         // Same date + same author but overwrite only if same version key
@@ -246,6 +246,123 @@ class StorageTest extends TestCase
         $note = storage_get_note('foo');
         $this->assertNotNull($note);
         $this->assertSame('new content', $note['versions'][$note['current']]['content']);
+    }
+
+    // ── Soft-delete maintenance ────────────────────────────────────────────
+
+    public function testDeleteEmbedsDeletedAt(): void
+    {
+        storage_apply_write('foo', 'content', 'alice');
+        $before = time();
+        storage_delete_note('foo');
+        $after = time();
+
+        $tombstone = json_decode(file_get_contents(deleted_path('foo')), true);
+        $this->assertIsArray($tombstone);
+        $this->assertArrayHasKey('deleted_at', $tombstone);
+        $this->assertGreaterThanOrEqual($before, $tombstone['deleted_at']);
+        $this->assertLessThanOrEqual($after, $tombstone['deleted_at']);
+    }
+
+    public function testReviveRestoresFullContent(): void
+    {
+        // Create with two versions
+        storage_apply_write('note', 'v1', 'alice');
+        storage_apply_write('note', 'v2', 'bob');
+        storage_delete_note('note');
+
+        storage_revive_note('note');
+        $note = storage_get_note('note');
+        $this->assertNotNull($note);
+        $this->assertCount(2, $note['versions']);
+        $this->assertSame('v2', $note['versions'][$note['current']]['content']);
+    }
+
+    public function testHardDeleteNote(): void
+    {
+        storage_apply_write('foo', 'content', 'alice');
+        storage_delete_note('foo');
+        $this->assertTrue(note_is_deleted('foo'));
+
+        storage_hard_delete_note('foo');
+        $this->assertFalse(note_is_deleted('foo'));
+        $this->assertFalse(file_exists(deleted_path('foo')));
+    }
+
+    public function testHardDeleteNoteIdempotent(): void
+    {
+        storage_hard_delete_note('nonexistent');
+        $this->assertFalse(note_is_deleted('nonexistent'));
+    }
+
+    public function testListDeletedNotes(): void
+    {
+        storage_apply_write('a', 'content', 'alice');
+        storage_apply_write('b', 'content', 'alice');
+        storage_delete_note('a');
+        storage_delete_note('b');
+
+        $list = storage_list_deleted_notes();
+        $this->assertCount(2, $list);
+        // Sorted by id
+        $this->assertSame('a', $list[0]['id']);
+        $this->assertSame('b', $list[1]['id']);
+        $this->assertNotNull($list[0]['deleted_at']);
+        $this->assertNotNull($list[1]['deleted_at']);
+    }
+
+    public function testListDeletedNotesExcludesLiveNotes(): void
+    {
+        storage_apply_write('live', 'content', 'alice');
+        storage_apply_write('dead', 'content', 'alice');
+        storage_delete_note('dead');
+
+        $list = storage_list_deleted_notes();
+        $this->assertCount(1, $list);
+        $this->assertSame('dead', $list[0]['id']);
+    }
+
+    public function testPurgeDeletedNotes(): void
+    {
+        storage_apply_write('old', 'content', 'alice');
+        storage_delete_note('old');
+
+        // Manually set deleted_at far in the past
+        $path = deleted_path('old');
+        $data = json_decode(file_get_contents($path), true);
+        $data['deleted_at'] = time() - (DELETED_NOTE_TTL_DAYS + 1) * 86400;
+        file_put_contents($path, json_encode($data));
+
+        $removed = storage_purge_deleted_notes();
+        $this->assertSame(1, $removed);
+        $this->assertFalse(note_is_deleted('old'));
+    }
+
+    public function testPurgeDeletedNotesSkipsRecent(): void
+    {
+        storage_apply_write('recent', 'content', 'alice');
+        storage_delete_note('recent');
+
+        // deleted_at is now (within TTL)
+        $removed = storage_purge_deleted_notes();
+        $this->assertSame(0, $removed);
+        $this->assertTrue(note_is_deleted('recent'));
+    }
+
+    public function testPurgeDeletedNotesSkipsLegacyTombstone(): void
+    {
+        storage_apply_write('legacy', 'content', 'alice');
+        storage_delete_note('legacy');
+
+        // Remove deleted_at to simulate a legacy tombstone
+        $path = deleted_path('legacy');
+        $data = json_decode(file_get_contents($path), true);
+        unset($data['deleted_at']);
+        file_put_contents($path, json_encode($data));
+
+        $removed = storage_purge_deleted_notes();
+        $this->assertSame(0, $removed, 'Legacy tombstones without deleted_at must not be purged');
+        $this->assertTrue(note_is_deleted('legacy'));
     }
 
     // ── Changelog ──────────────────────────────────────────────────────────

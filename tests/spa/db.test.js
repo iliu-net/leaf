@@ -10,12 +10,13 @@ import {
   db, dbListNotes, dbGetNote, dbSaveNote, dbDeleteNote,
   dbCreateNote, dbRenameNote, dbApplyServerChange,
   queueChange, queueGetPending, queueMarkSent, queuePruneSent,
-} from '../../spa/js/db.js';
+  dbPurgeDeletedNotes,
+} from '../../src/ts/db.ts';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 async function seedNote(id, content = '', extra = {}) {
-  await db.notes.put({ id, content, created_at: 1, updated_at: 1, deleted: 0, ...extra });
+  await db.notes.put({ id, content, created_at: 1, updated_at: 1, deleted: 0, current: 'local', ...extra });
 }
 
 // ── Notes CRUD ──────────────────────────────────────────────────────────────
@@ -73,14 +74,21 @@ describe('notes table', () => {
     expect(note.updated_at).toBeTruthy();
   });
 
-  it('dbSaveNote updates an existing note preserving created_at', async () => {
-    await seedNote('existing', 'original', { created_at: 100, updated_at: 100 });
+  it('dbSaveNote updates an existing note preserving created_at and current', async () => {
+    await seedNote('existing', 'original', { created_at: 100, updated_at: 100, current: 'v1' });
     await dbSaveNote('existing', 'updated');
 
     const note = await dbGetNote('existing');
     expect(note.content).toBe('updated');
     expect(note.created_at).toBe(100);  // preserved
     expect(note.updated_at).toBeGreaterThan(100);
+    expect(note.current).toBe('v1');    // preserved
+  });
+
+  it('dbSaveNote sets current to "local" for a new note', async () => {
+    await dbSaveNote('new-note', 'content!');
+    const note = await dbGetNote('new-note');
+    expect(note.current).toBe('local');
   });
 
   it('dbDeleteNote soft-deletes a note', async () => {
@@ -100,11 +108,12 @@ describe('notes table', () => {
     await dbDeleteNote('ghost');
   });
 
-  it('dbCreateNote creates an empty note if it does not exist', async () => {
+  it('dbCreateNote creates an empty note with current="local"', async () => {
     const result = await dbCreateNote('brand-new');
     const note = await dbGetNote('brand-new');
     expect(note.content).toBe('');
     expect(note.deleted).toBe(0);
+    expect(note.current).toBe('local');
   });
 
   it('dbCreateNote is a no-op if note already exists', async () => {
@@ -161,16 +170,18 @@ describe('dbRenameNote()', () => {
 
 describe('dbApplyServerChange()', () => {
   it('applies CREATE for a new note', async () => {
-    await dbApplyServerChange('CREATE', 'remote-note', 'remote content');
+    await dbApplyServerChange('CREATE', 'remote-note', 'remote content', 'server:v1');
     const note = await dbGetNote('remote-note');
     expect(note.content).toBe('remote content');
+    expect(note.current).toBe('server:v1');
   });
 
   it('applies UPDATE for an existing note', async () => {
-    await seedNote('my-note', 'old');
-    await dbApplyServerChange('UPDATE', 'my-note', 'new content');
+    await seedNote('my-note', 'old', { current: 'v1' });
+    await dbApplyServerChange('UPDATE', 'my-note', 'new content', 'v2');
     const note = await dbGetNote('my-note');
     expect(note.content).toBe('new content');
+    expect(note.current).toBe('v2');
   });
 
   it('applies DELETE for an existing note', async () => {
@@ -186,10 +197,12 @@ describe('dbApplyServerChange()', () => {
   });
 
   it('applies RENAME', async () => {
-    await seedNote('old-name', 'content');
+    await seedNote('old-name', 'content', { current: 'v1' });
     await dbApplyServerChange('RENAME', 'old-name', 'new-name');
     expect(await dbGetNote('old-name')).toBeNull();
-    expect(await dbGetNote('new-name')).not.toBeNull();
+    const note = await dbGetNote('new-name');
+    expect(note).not.toBeNull();
+    expect(note.current).toBe('v1');
   });
 
   it('RENAME is a no-op if old id does not exist', async () => {
@@ -198,22 +211,29 @@ describe('dbApplyServerChange()', () => {
   });
 
   it('RENAME rewrites pending queue entries', async () => {
-    await seedNote('old', 'data');
-    await queueChange('UPDATE', 'old', 'data');
+    await seedNote('old', 'data', { current: 'local' });
+    await queueChange('UPDATE', 'old', 'data', 'local');
     await dbApplyServerChange('RENAME', 'old', 'new');
     const pending = await queueGetPending();
     expect(pending.find(e => e.id === 'new')).toBeTruthy();
     expect(pending.find(e => e.id === 'old')).toBeUndefined();
   });
 
-  it('CREATE preserves existing note if it already exists', async () => {
-    await seedNote('existing', 'original', { created_at: 100 });
+  it('CREATE preserves existing note current if no version sent', async () => {
+    await seedNote('existing', 'original', { created_at: 100, current: 'v1' });
     await dbApplyServerChange('CREATE', 'existing', 'overwrite');
     const note = await dbGetNote('existing');
-    // Content should be updated
     expect(note.content).toBe('overwrite');
-    // created_at should be preserved
     expect(note.created_at).toBe(100);
+    expect(note.current).toBe('v1');
+  });
+
+  it('CREATE overwrites current when version is sent', async () => {
+    await seedNote('existing', 'original', { created_at: 100, current: 'v1' });
+    await dbApplyServerChange('CREATE', 'existing', 'overwrite', 'v2');
+    const note = await dbGetNote('existing');
+    expect(note.content).toBe('overwrite');
+    expect(note.current).toBe('v2');
   });
 });
 
@@ -228,6 +248,7 @@ describe('queue operations', () => {
     expect(pending[0].id).toBe('my-note');
     expect(pending[0].content).toBe('content');
     expect(pending[0].status).toBe('pending');
+    expect(pending[0].version).toBe('local');
   });
 
   it('queueChange collapses duplicate pending entries for the same note', async () => {
@@ -256,10 +277,11 @@ describe('queue operations', () => {
     expect(pending[0].content).toBe('content');
   });
 
-  it('queueChange with extra stores additional properties', async () => {
-    await queueChange('RENAME', 'old', null, { renamed_to: 'new' });
+  it('queueChange with extra stores additional properties and version', async () => {
+    await queueChange('RENAME', 'old', null, 'local', { renamed_to: 'new' });
     const pending = await queueGetPending();
     expect(pending[0].renamed_to).toBe('new');
+    expect(pending[0].version).toBe('local');
   });
 
   it('queueMarkSent marks an entry as sent', async () => {
@@ -305,5 +327,34 @@ describe('queue operations', () => {
 
     const pending = await queueGetPending();
     expect(pending.map(e => e.id)).toEqual(['first', 'second', 'third']);
+  });
+});
+
+// ── Purge ───────────────────────────────────────────────────────────────────
+
+describe('dbPurgeDeletedNotes()', () => {
+  const DAY_MS = 86400 * 1000;
+
+  it('removes deleted notes older than 7 days', async () => {
+    const old = Date.now() - 10 * DAY_MS;
+    await db.notes.put({ id: 'stale', content: '', created_at: old, updated_at: old, deleted: 1 });
+    await dbPurgeDeletedNotes();
+    const note = await db.notes.get('stale');
+    expect(note).toBeUndefined();
+  });
+
+  it('keeps deleted notes newer than 7 days', async () => {
+    const recent = Date.now() - 3 * DAY_MS;
+    await db.notes.put({ id: 'fresh', content: '', created_at: recent, updated_at: recent, deleted: 1 });
+    await dbPurgeDeletedNotes();
+    const note = await db.notes.get('fresh');
+    expect(note).not.toBeUndefined();
+  });
+
+  it('does not touch live (non-deleted) notes', async () => {
+    await db.notes.put({ id: 'alive', content: 'hey', created_at: Date.now(), updated_at: Date.now(), deleted: 0 });
+    await dbPurgeDeletedNotes();
+    const note = await db.notes.get('alive');
+    expect(note).not.toBeUndefined();
   });
 });

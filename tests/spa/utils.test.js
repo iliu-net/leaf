@@ -1,9 +1,10 @@
 /**
- * Tests for spa/js/utils.js — pure functions, no mocking needed.
+ * Tests for src/ts/utils.ts — pure functions, no mocking needed.
  */
 
 import { describe, it, expect } from 'vitest';
-import { safeName } from '../../spa/js/utils.js';
+import { safeName } from '../../src/ts/utils.ts';
+import { updateFrontmatter } from '../../src/ts/frontmatter.ts';
 
 describe('safeName()', () => {
   it('trims whitespace', () => {
@@ -73,5 +74,44 @@ describe('safeName()', () => {
 
   it('allows @ symbol in names', () => {
     expect(safeName('note@#$%^')).toBe('note@#$%^');
+  });
+});
+
+describe('updateFrontmatter()', () => {
+  it('creates frontmatter when none exists', () => {
+    const result = updateFrontmatter('Body text', { author: 'alice' });
+    expect(result).toBe('---\nauthor: alice\n---\nBody text');
+  });
+
+  it('merges into existing frontmatter', () => {
+    const content = '---\ntitle: foo\n---\nBody';
+    const result = updateFrontmatter(content, { author: 'alice' });
+    expect(result).toContain('title: foo');
+    expect(result).toContain('author: alice');
+    expect(result).toContain('Body');
+  });
+
+  it('overwrites existing frontmatter key', () => {
+    const content = '---\nauthor: bob\n---\nBody';
+    const result = updateFrontmatter(content, { author: 'alice' });
+    expect(result).toBe('---\nauthor: alice\n---\nBody');
+  });
+
+  it('handles empty content', () => {
+    const result = updateFrontmatter('', { author: 'alice' });
+    expect(result).toBe('---\nauthor: alice\n---\n');
+  });
+
+  it('preserves body unchanged when updating frontmatter', () => {
+    const content = '---\ntitle: foo\n---\nBody text\nwith multiple lines';
+    const result = updateFrontmatter(content, { author: 'alice' });
+    expect(result).toContain('Body text\nwith multiple lines');
+  });
+
+  it('handles multiple updates at once', () => {
+    const result = updateFrontmatter('Body', { a: '1', b: '2' });
+    expect(result).toContain('a: 1');
+    expect(result).toContain('b: 2');
+    expect(result).toContain('Body');
   });
 });

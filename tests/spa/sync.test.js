@@ -1,5 +1,5 @@
 /**
- * Tests for spa/js/sync.js — sync engine.
+ * Tests for src/ts/sync.ts — sync engine.
  *
  * Mocks the auth module entirely (sync only uses authFetch from auth.js).
  * Uses vi.mock() which is hoisted to the top of the file, before any imports.
@@ -8,12 +8,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { db, queueChange, dbGetNote } from '../../spa/js/db.js';
+import { db, queueChange, dbGetNote } from '../../src/ts/db.ts';
 
 // ── Mock auth.js — sync only uses authFetch from it ───────────────────────
 
 const mockAuthFetch = vi.fn();
-vi.mock('../../spa/js/auth.js', () => ({
+vi.mock('../../src/ts/auth.ts', () => ({
   authFetch: (...args) => mockAuthFetch(...args),
 }));
 
@@ -31,7 +31,7 @@ function apiResponse(status, body) {
 
 async function freshSync() {
   vi.resetModules();
-  return await import('../../spa/js/sync.js');
+  return await import('../../src/ts/sync.ts');
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -91,6 +91,7 @@ describe('sync tick (push)', () => {
     expect(callBody.changes).toHaveLength(1);
     expect(callBody.changes[0].type).toBe(1); // CREATE = 1
     expect(callBody.changes[0].key).toBe('test-note');
+    expect(callBody.changes[0].obj.version).toBe('local');
   });
 
   it('marks pushed entries as sent after successful push', async () => {
@@ -145,7 +146,7 @@ describe('sync tick (pull)', () => {
     const sync = await freshSync();
     mockAuthFetch.mockResolvedValue(apiResponse(200, {
       changes: [
-        { type: 1, key: 'server-note', obj: { content: 'from server' } },
+        { type: 1, key: 'server-note', obj: { content: 'from server', version: 'server:v1' } },
       ],
       currentRevision: 42,
     }));
@@ -175,7 +176,7 @@ describe('sync tick (pull)', () => {
 
     mockAuthFetch.mockResolvedValue(apiResponse(200, {
       changes: [
-        { type: 1, key: 'new-note', obj: { content: 'hello' } },
+        { type: 1, key: 'new-note', obj: { content: 'hello', version: 'server:v1' } },
       ],
       currentRevision: 5,
     }));

@@ -1,5 +1,5 @@
 /**
- * Tests for spa/js/store.js — state management & frontmatter parser.
+ * Tests for src/ts/store.ts — state management & frontmatter parser.
  *
  * Note: store.js has module-level state. We use vi.resetModules() + dynamic
  * import to give each test a fresh instance.
@@ -7,45 +7,43 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
+// parseFrontmatter moved to frontmatter.ts
+import { parseFrontmatter } from '../../src/ts/frontmatter.ts';
+
 // ── Helper — get a fresh store module ───────────────────────────────────────
 
 async function freshStore() {
   vi.resetModules();
-  return await import('../../spa/js/store.js');
+  return await import('../../src/ts/store.ts');
 }
 
 // ── Frontmatter parser (pure function, no state needed) ─────────────────────
 
 describe('parseFrontmatter()', () => {
-  it('returns empty meta and full body when no frontmatter', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('returns empty meta and full body when no frontmatter', () => {
     const result = parseFrontmatter('Hello world\nThis is a note.');
     expect(result.meta).toEqual({});
     expect(result.body).toBe('Hello world\nThis is a note.');
   });
 
-  it('returns empty meta and body when input is empty string', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('returns empty meta and body when input is empty string', () => {
     const result = parseFrontmatter('');
     expect(result.meta).toEqual({});
     expect(result.body).toBe('');
   });
 
-  it('returns empty meta and body when input is only whitespace', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('returns empty meta and body when input is only whitespace', () => {
     const result = parseFrontmatter('   \n  ');
     expect(result.meta).toEqual({});
     expect(result.body).toBe('   \n  ');
   });
 
-  it('handles null / undefined input gracefully', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('handles null / undefined input gracefully', () => {
     expect(parseFrontmatter(null)).toEqual({ meta: {}, body: '' });
     expect(parseFrontmatter(undefined)).toEqual({ meta: {}, body: '' });
   });
 
-  it('parses simple frontmatter with string values', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('parses simple frontmatter with string values', () => {
     const raw = `---
 title: My Note
 path: work/meetings
@@ -56,8 +54,7 @@ Body text here`;
     expect(result.body).toBe('Body text here');
   });
 
-  it('parses inline array values in frontmatter', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('parses inline array values in frontmatter', () => {
     const raw = `---
 tags: [work, meetings, standup]
 ---
@@ -66,8 +63,7 @@ Content`;
     expect(result.meta).toEqual({ tags: ['work', 'meetings', 'standup'] });
   });
 
-  it('handles empty array in frontmatter', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('handles empty array in frontmatter', () => {
     const raw = `---
 tags: []
 ---
@@ -76,16 +72,14 @@ Content`;
     expect(result.meta).toEqual({ tags: [] });
   });
 
-  it('handles CRLF line endings', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('handles CRLF line endings', () => {
     const raw = '---\r\ntitle: Test\r\n---\r\nBody';
     const result = parseFrontmatter(raw);
     expect(result.meta).toEqual({ title: 'Test' });
     expect(result.body).toBe('Body');
   });
 
-  it('handles frontmatter with no body', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('handles frontmatter with no body', () => {
     const raw = `---
 title: Empty
 ---`;
@@ -94,8 +88,7 @@ title: Empty
     expect(result.body).toBe('');
   });
 
-  it('skips malformed frontmatter lines', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('skips malformed frontmatter lines', () => {
     const raw = `---
 title: Valid
 bad-line-no-colon
@@ -106,8 +99,7 @@ Body`;
     expect(result.meta).toEqual({ title: 'Valid', another: 'value' });
   });
 
-  it('handles body with multiple lines after frontmatter', async () => {
-    const { parseFrontmatter } = await freshStore();
+  it('handles body with multiple lines after frontmatter', () => {
     const raw = `---
 title: Multi
 ---
@@ -136,9 +128,9 @@ describe('state management', () => {
 
   it('setNotes replaces the note list and applies filter', async () => {
     const store = await freshStore();
-    const notes = [{ id: 'b' }, { id: 'a' }];
+    const notes = [{ id: 'b', created_at: 1, updated_at: 1, current: 'local' }, { id: 'a', created_at: 2, updated_at: 2, current: 'local' }];
     store.setNotes(notes);
-    expect(store.getNotes()).toEqual([{ id: 'b' }, { id: 'a' }]);
+    expect(store.getNotes()).toEqual([{ id: 'b', created_at: 1, updated_at: 1, current: 'local' }, { id: 'a', created_at: 2, updated_at: 2, current: 'local' }]);
     expect(store.getState().notes).toEqual(notes);
   });
 
@@ -148,7 +140,7 @@ describe('state management', () => {
     // "alpha" has 'a', "beta" has no 'a', "gamma" has 'a'
     // Wait — "beta" DOES contain 'a'! b-e-t-a
     // Use different names: "foo", "bar", "baz"
-    store.setNotes([{ id: 'Foo' }, { id: 'Bar' }, { id: 'Baz' }]);
+    store.setNotes([{ id: 'Foo', created_at: 1, updated_at: 1, current: 'local' }, { id: 'Bar', created_at: 2, updated_at: 2, current: 'local' }, { id: 'Baz', created_at: 3, updated_at: 3, current: 'local' }]);
 
     // 'o' matches only Foo
     store.setQuery('o');
@@ -170,7 +162,7 @@ describe('state management', () => {
 
   it('setQuery with no match returns empty list', async () => {
     const store = await freshStore();
-    store.setNotes([{ id: 'Alpha' }, { id: 'Beta' }]);
+    store.setNotes([{ id: 'Alpha', created_at: 1, updated_at: 1, current: 'local' }, { id: 'Beta', created_at: 2, updated_at: 2, current: 'local' }]);
     store.setQuery('zzz');
     expect(store.getNotes()).toEqual([]);
   });
@@ -237,13 +229,13 @@ describe('state management', () => {
     const handler = vi.fn();
     store.on('notes-changed', handler);
 
-    store.setNotes([{ id: 'a' }]);
-    expect(handler).toHaveBeenCalledWith([{ id: 'a' }]);
+    store.setNotes([{ id: 'a', created_at: 1, updated_at: 1, current: 'local' }]);
+    expect(handler).toHaveBeenCalledWith([{ id: 'a', created_at: 1, updated_at: 1, current: 'local' }]);
   });
 
   it('setQuery triggers count-changed event', async () => {
     const store = await freshStore();
-    store.setNotes([{ id: 'a' }, { id: 'b' }]);
+    store.setNotes([{ id: 'a', created_at: 1, updated_at: 1, current: 'local' }, { id: 'b', created_at: 2, updated_at: 2, current: 'local' }]);
     const handler = vi.fn();
     store.on('count-changed', handler);
 

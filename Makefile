@@ -1,4 +1,6 @@
-.PHONY: help test test-js test-phpunit test-integration test-integration-auth test-integration-sync clean
+.PHONY: help test test-js test-phpunit test-integration \
+				test-integration-auth test-integration-sync clean t\
+				ypecheck build-spa build serve
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' Makefile | sort | \
@@ -24,3 +26,14 @@ test-integration-sync: ## Run sync integration test against PORT (default 8080)
 
 clean: ## Remove leftover test temp directories
 	rm -rf /tmp/leaf-phpunit-* /tmp/leaf-integration-* /tmp/leaf-integration-env-*
+
+typecheck: ## Run TypeScript type checking (no emit)
+	cd src && ./node_modules/.bin/tsc --noEmit
+
+build-spa: typecheck ## Build the SPA bundle from TypeScript sources
+	cd src && ./node_modules/.bin/esbuild ts/app.ts --bundle --outfile=../spa/app.js
+
+build: build-spa ## Build everything (alias for build-spa)
+
+serve: ## Run test web server
+	php -S localhost:9000

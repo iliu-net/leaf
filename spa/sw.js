@@ -4,34 +4,23 @@
 // correctly regardless of install path (e.g. /v6/spa/, /, /notes/).
 // self.location.pathname = '/v6/spa/sw.js' → base = '/v6/spa'
 const BASE  = self.location.pathname.replace(/\/sw\.js$/, '');
-const CACHE = 'leaf-v1';
+const CACHE = 'leaf-v3';
 
 const SHELL = [
   `${BASE}/`,
   `${BASE}/index.html`,
   `${BASE}/css/app.css`,
-  `${BASE}/js/app.js`,
-  `${BASE}/js/notes.js`,
-  `${BASE}/js/auth.js`,
-  `${BASE}/js/db.js`,
-  `${BASE}/js/sync.js`,
-  `${BASE}/js/store.js`,
-  `${BASE}/js/ui.js`,
+  `${BASE}/app.js`,
   `${BASE}/manifest.json`,
   `${BASE}/icons/icon-192.svg`,
   `${BASE}/icons/icon-512.svg`,
 ];
 
-// Dexie core from CDN — cached so the app works fully offline
-const CDN = [
-  'https://unpkg.com/dexie@3/dist/dexie.js',
-];
-
-// ── Install: pre-cache app shell + Dexie ─────────────────────────────────
+// ── Install: pre-cache app shell ─────────────────────────────────────────
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE)
-      .then(c => c.addAll([...SHELL, ...CDN]))
+      .then(c => c.addAll(SHELL))
       .then(() => self.skipWaiting())
   );
 });
@@ -51,11 +40,17 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // API, sync, and auth calls → network only, never cached
+  // Auth calls → network only, no fallback (let network errors propagate
+  // so the app can distinguish "server unreachable" from "auth rejected")
+  if (url.pathname.endsWith('auth.php')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+
+  // API and sync calls → network only, never cached, offline fallback
   if (
     url.pathname.endsWith('api.php')  ||
-    url.pathname.endsWith('sync.php') ||
-    url.pathname.endsWith('auth.php')
+    url.pathname.endsWith('sync.php')
   ) {
     e.respondWith(
       fetch(e.request).catch(() =>
@@ -87,5 +82,12 @@ self.addEventListener('fetch', e => {
 self.addEventListener('sync', e => {
   if (e.tag === 'sync-notes') {
     console.log('[SW] Background sync triggered');
+  }
+});
+
+// ── Message: allow the app to trigger immediate activation ───────────────
+self.addEventListener('message', e => {
+  if (e.data?.action === 'SKIP_WAITING') {
+    self.skipWaiting();
   }
 });

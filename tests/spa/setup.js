@@ -2,17 +2,15 @@
  * Test setup — runs before every test file.
  *
  * 1. Installs fake-indexeddb so Dexie works without a real browser.
- * 2. Sets window.Dexie to the real Dexie constructor (spa/js/db.js reads it
- *    from window).
- * 3. Clears all IndexedDB tables between tests (not the whole DB, so the
+ * 2. Clears all IndexedDB tables between tests (not the whole DB, so the
  *    Dexie instance stays alive).
+ *
+ * Note: db.ts now imports Dexie directly via ES import — no need for
+ * window.Dexie hack.
  */
 
 import 'fake-indexeddb/auto';
 import Dexie from 'dexie';
-
-// spa/js/db.js does `const { Dexie } = window` — give it the real thing
-window.Dexie = Dexie;
 
 // spy on console methods so tests can assert on warnings/errors
 beforeEach(() => {

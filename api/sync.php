@@ -75,6 +75,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $author = require_auth();   // exits with 401 if token missing/invalid
 
+// ── Daily purge of expired tombstones ──────────
+$purgeFile = DATA_ROOT . 'last_purge.txt';
+$lastPurge = file_exists($purgeFile) ? (int)file_get_contents($purgeFile) : 0;
+if (time() - $lastPurge > 86400) {
+    storage_purge_deleted_notes();
+    file_put_contents($purgeFile, (string)time());
+}
+
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
@@ -145,6 +153,15 @@ function apply_client_change(array $change, string $author): ?array {
 
     if ($key === '') return null;
 
+    // ── All non-DELETE operations require a version field ──────
+    if ($type !== DEXIE_DELETE && $obj !== null) {
+        $incoming_version = $obj['version'] ?? null;
+        if ($incoming_version === null || $incoming_version === '') {
+            // Version is required — reject
+            return null;
+        }
+    }
+
     // ── CREATE or UPDATE ──────────────────────
     if ($type === DEXIE_CREATE || $type === DEXIE_UPDATE) {
         $content = (string)($obj['content'] ?? '');
@@ -155,7 +172,17 @@ function apply_client_change(array $change, string $author): ?array {
             storage_revive_note($key);
         }
 
-        $is_new = !storage_note_exists($key);
+        // Capture current version before the write for conflict detection
+        $pre_note  = storage_get_note($key);
+        $is_new    = $pre_note === null;
+
+        // Conflict detection: if the note already existed and the client's
+        // base version doesn't match the server's current version, another
+        // client has made a competing edit.  We still accept the write (both
+        // versions survive in the chain) and flag it for future UI.
+        if (!$is_new && $pre_note['current'] !== null && $pre_note['current'] !== $incoming_version) {
+            error_log("Conflict on {$key}: client {$incoming_version} != server {$pre_note['current']}");
+        }
 
         $vkey = storage_apply_write($key, $content, $author);
 
@@ -204,8 +231,9 @@ function apply_client_change(array $change, string $author): ?array {
         if ($new_id === '') return null;
         if (!storage_note_exists($key)) return null;
         if (storage_note_exists($new_id)) return null;
-        // If target is tombstoned, revive it so the rename succeeds
-        if (note_is_deleted($new_id)) storage_revive_note($new_id);
+        // If target is tombstoned, remove it so the rename succeeds
+        // (the target's old content is replaced by the source's content)
+        if (note_is_deleted($new_id)) storage_hard_delete_note($new_id);
 
         if (!storage_rename_note($key, $new_id)) return null;
 
@@ -242,6 +270,9 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
     $key  = $entry['file'] ?? '';
     $type = $entry['type'] ?? '';
 
+    $version      = $entry['version'] ?? null;
+    $prev_version = $entry['prev_version'] ?? null;
+
     if ($type === 'DELETE') {
         return [
             'type' => DEXIE_DELETE,
@@ -254,7 +285,11 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
         return [
             'type' => DEXIE_RENAME,
             'key'  => $key,
-            'obj'  => ['renamed_to' => $entry['renamed_to'] ?? ''],
+            'obj'  => [
+                'renamed_to'   => $entry['renamed_to'] ?? '',
+                'version'      => $version,
+                'prev_version' => $prev_version,
+            ],
         ];
     }
 
@@ -273,8 +308,10 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
         'type' => $dexie_type,
         'key'  => $key,
         'obj'  => [
-            'id'      => $key,
-            'content' => $content,   // opaque — not inspected
+            'id'           => $key,
+            'content'      => $content,   // opaque — not inspected
+            'version'      => $version,
+            'prev_version' => $prev_version,
         ],
     ];
 }
@@ -322,6 +359,22 @@ foreach (array_reverse($changelog_entries) as $entry) {
 
 // Restore chronological order for the client
 $server_changes = array_reverse($server_changes);
+
+// ── Step 3: Mark returned versions as seen by a different author ──
+// If the current version of any returned note was not authored by the
+// requesting user, clear its exclusive flag so the next save by the
+// original author creates a new version rather than overwriting.
+foreach ($server_changes as $change) {
+    if ($change['type'] === DEXIE_DELETE) continue;
+
+    $note_id = ($change['type'] === DEXIE_RENAME)
+        ? ($change['obj']['renamed_to'] ?? null)
+        : $change['key'];
+
+    if ($note_id) {
+        storage_mark_version_seen($note_id, $author);
+    }
+}
 
 respond([
     'changes'         => $server_changes,

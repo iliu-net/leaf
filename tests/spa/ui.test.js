@@ -1,5 +1,5 @@
 /**
- * Tests for spa/js/ui.js — DOM rendering & interaction layer.
+ * Tests for src/ts/ui.ts — DOM rendering & interaction layer.
  *
  * Uses vitest's built-in jsdom environment — no need to create a JSDOM instance.
  * We just set document.body.innerHTML before importing the module.
@@ -14,6 +14,7 @@ function setupDOM() {
     <!-- Login screen -->
     <div id="login-screen">
       <div id="login-card">
+        <button id="login-close" class="btn-icon">×</button>
         <form id="login-form">
           <input id="login-username" type="text">
           <input id="login-password" type="password">
@@ -26,12 +27,21 @@ function setupDOM() {
     <!-- App shell -->
     <div id="app">
       <header id="header">
+        <div id="header-brand">
+          <button id="btn-toggle-sidebar" class="btn-icon">◀</button>
+          <button id="btn-menu">Leaf</button>
+          <div id="app-menu">
+            <button id="menu-update">Update App</button>
+            <button id="menu-reset-db">Reset Database</button>
+          </div>
+        </div>
         <div id="header-center">
           <span id="current-file">No file selected</span>
           <div id="dirty-dot"></div>
         </div>
         <div id="header-actions">
           <span id="username-display"></span>
+          <button id="btn-signin" style="display:none">Sign in</button>
           <button id="btn-save" disabled>Save</button>
           <button id="btn-logout">Sign out</button>
         </div>
@@ -56,7 +66,56 @@ function setupDOM() {
           <div id="empty-state">
             <p>Select a note or create a new one</p>
           </div>
-          <textarea id="note-area"></textarea>
+
+          <!-- Tab bar -->
+          <div id="editor-tabs" style="display:none" role="tablist">
+            <button id="tab-btn-raw"  class="tab-btn active" role="tab">Raw</button>
+            <button id="tab-btn-meta" class="tab-btn"        role="tab">Meta</button>
+          </div>
+
+          <!-- Raw tab -->
+          <div id="tab-raw" class="tab-panel" style="display:none">
+            <textarea id="note-area"></textarea>
+          </div>
+
+          <!-- Meta tab -->
+          <div id="tab-meta" class="tab-panel" style="display:none">
+            <div id="meta-panel">
+              <div class="meta-field">
+                <label for="meta-title">Title</label>
+                <input id="meta-title" type="text" class="meta-input" />
+              </div>
+              <div class="meta-field">
+                <label for="meta-summary">Summary</label>
+                <textarea id="meta-summary" class="meta-textarea" rows="3"></textarea>
+              </div>
+              <div class="meta-field">
+                <label for="meta-tags">Tags</label>
+                <input id="meta-tags" type="text" class="meta-input" />
+              </div>
+              <div id="meta-custom-section">
+                <div class="meta-section-header">
+                  <span>Custom Fields</span>
+                  <button id="btn-add-custom" class="btn-small">+ Add</button>
+                </div>
+                <div id="meta-custom-rows"></div>
+              </div>
+              <div id="meta-stats-section">
+                <div class="meta-section-header">Size (body only)</div>
+                <div id="meta-stats" class="meta-stats"></div>
+              </div>
+              <div id="meta-system-section">
+                <div class="meta-section-header">System Info</div>
+                <table id="meta-system-table" class="meta-system-table">
+                  <tr><td>Version</td><td id="meta-sys-current"></td></tr>
+                  <tr><td>Created</td><td id="meta-sys-created"></td></tr>
+                  <tr><td>Updated</td><td id="meta-sys-updated"></td></tr>
+                  <tr><td>Created by</td><td id="meta-sys-created-by"></td></tr>
+                  <tr><td>Updated by</td><td id="meta-sys-updated-by"></td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
         </main>
       </div>
 
@@ -64,8 +123,6 @@ function setupDOM() {
         <span id="status-msg"></span>
         <span id="offline-badge" class="status-item"></span>
         <span id="sync-status" class="status-item"></span>
-        <span id="line-count" class="status-item"></span>
-        <span id="char-count" class="status-item"></span>
       </div>
     </div>
 
@@ -82,6 +139,12 @@ function setupDOM() {
 
     <!-- Toast container -->
     <div id="toast-container"></div>
+
+    <!-- Context menu -->
+    <div id="item-context-menu" class="item-context-menu" role="menu">
+      <button class="context-menu-item" data-action="rename">Rename</button>
+      <button class="context-menu-item danger" data-action="delete">Delete</button>
+    </div>
   `;
 }
 
@@ -99,7 +162,10 @@ afterEach(() => {
 async function getUI() {
   // Need to reset module so it re-reads DOM elements
   vi.resetModules();
-  return await import('../../spa/js/ui.js');
+  const ui = await import('../../src/ts/ui.ts');
+  // Initialise panels to cache DOM refs (required for editor functionality)
+  ui.initPanels(() => {});
+  return ui;
 }
 
 // ── File list ───────────────────────────────────────────────────────────────
@@ -108,8 +174,8 @@ describe('renderFileList()', () => {
   it('renders notes in the file list', async () => {
     const ui = await getUI();
     const notes = [
-      { id: 'alpha', created_at: 1, updated_at: 2 },
-      { id: 'beta',  created_at: 3, updated_at: 4 },
+      { id: 'alpha', created_at: 1, updated_at: 2, current: 'local' },
+      { id: 'beta',  created_at: 3, updated_at: 4, current: 'local' },
     ];
 
     ui.renderFileList(notes, null);
@@ -123,8 +189,8 @@ describe('renderFileList()', () => {
   it('highlights the active note', async () => {
     const ui = await getUI();
     const notes = [
-      { id: 'a', created_at: 1, updated_at: 2 },
-      { id: 'b', created_at: 3, updated_at: 4 },
+      { id: 'a', created_at: 1, updated_at: 2, current: 'local' },
+      { id: 'b', created_at: 3, updated_at: 4, current: 'local' },
     ];
 
     ui.renderFileList(notes, 'b');
@@ -142,14 +208,12 @@ describe('renderFileList()', () => {
     expect(item.textContent).toBe('No notes found');
   });
 
-  it('renders rename and delete buttons', async () => {
+  it('renders the more-actions button on each note', async () => {
     const ui = await getUI();
-    ui.renderFileList([{ id: 'test', created_at: 1, updated_at: 2 }], null);
+    ui.renderFileList([{ id: 'test', created_at: 1, updated_at: 2, current: 'local' }], null);
 
-    const renameBtn = document.querySelector('.file-item-rename');
-    const delBtn = document.querySelector('.file-item-del');
-    expect(renameBtn).not.toBeNull();
-    expect(delBtn).not.toBeNull();
+    const moreBtn = document.querySelector('.file-item-more');
+    expect(moreBtn).not.toBeNull();
   });
 });
 
@@ -157,8 +221,8 @@ describe('setActiveFile()', () => {
   it('toggles the active class', async () => {
     const ui = await getUI();
     ui.renderFileList([
-      { id: 'a', created_at: 1, updated_at: 2 },
-      { id: 'b', created_at: 3, updated_at: 4 },
+      { id: 'a', created_at: 1, updated_at: 2, current: 'local' },
+      { id: 'b', created_at: 3, updated_at: 4, current: 'local' },
     ], 'a');
 
     ui.setActiveFile('b');
@@ -201,18 +265,56 @@ describe('setSidebarLoading()', () => {
   });
 });
 
+describe('clearSearch()', () => {
+  it('clears the search input and dispatches input event', async () => {
+    const ui = await getUI();
+    const input = document.getElementById('search');
+
+    // Set initial search value
+    input.value = 'something';
+
+    // Spy on dispatchEvent to verify the input event is fired
+    const dispatchSpy = vi.spyOn(input, 'dispatchEvent');
+
+    ui.clearSearch();
+
+    expect(input.value).toBe('');
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'input', bubbles: true })
+    );
+  });
+
+  it('does nothing when search is already empty', async () => {
+    const ui = await getUI();
+    const input = document.getElementById('search');
+    input.value = '';
+
+    const dispatchSpy = vi.spyOn(input, 'dispatchEvent');
+
+    ui.clearSearch();
+
+    expect(input.value).toBe('');
+    expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+});
+
 // ── Editor ──────────────────────────────────────────────────────────────────
 
 describe('showEditor() / hideEditor()', () => {
   it('shows editor with content', async () => {
     const ui = await getUI();
-    ui.showEditor('my-note', 'Hello World');
+    ui.showEditor({ id: 'my-note', content: 'Hello World', created_at: 1000, updated_at: 2000, current: 'abc', meta: {} });
 
     const noteArea = document.getElementById('note-area');
     const emptyState = document.getElementById('empty-state');
     const currentFile = document.getElementById('current-file');
+    const editorTabs = document.getElementById('editor-tabs');
+    const tabRaw = document.getElementById('tab-raw');
+    const tabMeta = document.getElementById('tab-meta');
 
-    expect(noteArea.style.display).toBe('block');
+    expect(editorTabs.style.display).toBe('flex');
+    expect(tabRaw.classList.contains('active')).toBe(true);
+    expect(tabMeta.classList.contains('active')).toBe(false);
     expect(noteArea.value).toBe('Hello World');
     expect(emptyState.style.display).toBe('none');
     expect(currentFile.innerHTML).toContain('my-note');
@@ -225,15 +327,22 @@ describe('showEditor() / hideEditor()', () => {
     const noteArea = document.getElementById('note-area');
     const emptyState = document.getElementById('empty-state');
 
-    expect(noteArea.style.display).toBe('none');
     expect(emptyState.style.display).toBe('flex');
     expect(document.getElementById('current-file').textContent).toBe('No file selected');
+    // Textarea exists but its value is preserved; panel visibility is handled via classes
+    expect(noteArea).toBeTruthy();
   });
 
-  it('getEditorContent returns textarea value', async () => {
+  it('flushAndGetContent returns textarea value', async () => {
     const ui = await getUI();
     document.getElementById('note-area').value = 'typed content';
-    expect(ui.getEditorContent()).toBe('typed content');
+    expect(ui.flushAndGetContent()).toBe('typed content');
+  });
+
+  it('getRawContent reads textarea without side effects', async () => {
+    const ui = await getUI();
+    document.getElementById('note-area').value = 'raw content';
+    expect(ui.getRawContent()).toBe('raw content');
   });
 });
 
@@ -356,6 +465,42 @@ describe('modal operations', () => {
     expect(input.value).toBe('');
   });
 
+  it('openModal pre-fills from search text when present', async () => {
+    const ui = await getUI();
+    const searchInput = document.getElementById('search');
+    searchInput.value = 'search-me';
+
+    ui.openModal();
+
+    const input = document.getElementById('modal-input');
+    expect(input.value).toBe('search-me');
+  });
+
+  it('openModal uses active note parent path as prefix', async () => {
+    const ui = await getUI();
+    // Simulate having a nested note open in the editor
+    ui.showEditor({ id: 'one:two:three', content: 'some content', created_at: 0, updated_at: 0, current: '', meta: {} });
+
+    ui.openModal();
+
+    const input = document.getElementById('modal-input');
+    expect(input.value).toBe('one:two:');
+  });
+
+  it('openModal combines search text with active note prefix', async () => {
+    const ui = await getUI();
+    // Simulate having a nested note open in the editor
+    ui.showEditor({ id: 'one:two:three', content: 'some content', created_at: 0, updated_at: 0, current: '', meta: {} });
+
+    const searchInput = document.getElementById('search');
+    searchInput.value = 'search-me';
+
+    ui.openModal();
+
+    const input = document.getElementById('modal-input');
+    expect(input.value).toBe('one:two:search-me');
+  });
+
   it('openRenameModal shows the modal in rename mode', async () => {
     const ui = await getUI();
     const input = document.getElementById('modal-input');
@@ -413,19 +558,63 @@ describe('login screen', () => {
     loginScreen.style.display = 'none';
 
     ui.showLoginScreen();
+    expect(loginScreen.classList.contains('visible')).toBe(true);
     expect(loginScreen.style.display).toBe('flex');
     expect(appShell.style.display).toBe('none');
   });
 
-  it('showAppShell shows app and hides login', async () => {
+  it('showAppShell shows app and hides login (authed)', async () => {
+    const ui = await getUI();
+    const loginScreen = document.getElementById('login-screen');
+    const appShell = document.getElementById('app');
+    const usernameDisp = document.getElementById('username-display');
+    const btnSignin = document.getElementById('btn-signin');
+    const btnLogout = document.getElementById('btn-logout');
+
+    ui.showAppShell('alice');
+    expect(loginScreen.classList.contains('visible')).toBe(false);
+    expect(loginScreen.style.display).toBe('none');
+    expect(appShell.style.display).toBe('flex');
+    expect(usernameDisp.textContent).toBe('alice');
+    expect(usernameDisp.style.display).toBe('inline');
+    expect(btnSignin.style.display).toBe('none');
+    expect(btnLogout.style.display).toBe('inline-block');
+  });
+
+  it('showAppShell shows app with sign-in button (unauthed)', async () => {
+    const ui = await getUI();
+    const loginScreen = document.getElementById('login-screen');
+    const appShell = document.getElementById('app');
+    const usernameDisp = document.getElementById('username-display');
+    const btnSignin = document.getElementById('btn-signin');
+    const btnLogout = document.getElementById('btn-logout');
+
+    ui.showAppShell(null);
+    expect(loginScreen.style.display).toBe('none');
+    expect(appShell.style.display).toBe('flex');
+    expect(usernameDisp.style.display).toBe('none');
+    expect(btnSignin.style.display).toBe('inline-block');
+    expect(btnLogout.style.display).toBe('none');
+  });
+
+  it('hideLoginScreen hides login and shows app', async () => {
     const ui = await getUI();
     const loginScreen = document.getElementById('login-screen');
     const appShell = document.getElementById('app');
 
-    ui.showAppShell('alice');
+    ui.hideLoginScreen();
+    expect(loginScreen.classList.contains('visible')).toBe(false);
     expect(loginScreen.style.display).toBe('none');
     expect(appShell.style.display).toBe('flex');
-    expect(document.getElementById('username-display').textContent).toBe('alice');
+  });
+
+  it('showOfflineFirstVisit renders inline message in file list', async () => {
+    const ui = await getUI();
+    const fileList = document.getElementById('file-list');
+
+    ui.showOfflineFirstVisit();
+    expect(fileList.innerHTML).toContain('No notes yet');
+    expect(fileList.innerHTML).toContain('Sign in to sync');
   });
 
   it('setLoginError sets error text', async () => {
@@ -460,6 +649,8 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin, onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     document.getElementById('login-username').value = 'alice';
@@ -480,6 +671,8 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout,
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     document.getElementById('btn-logout').click();
@@ -495,6 +688,8 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     ui.renderFileList([{ id: 'my-note', created_at: 1, updated_at: 2 }], null);
@@ -504,7 +699,7 @@ describe('bindEvents()', () => {
     expect(onOpen).toHaveBeenCalledWith('my-note');
   });
 
-  it('wires file list delete button', async () => {
+  it('wires file list delete via context menu', async () => {
     const ui = await getUI();
     const onDelete = vi.fn();
 
@@ -513,16 +708,23 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     ui.renderFileList([{ id: 'doomed', created_at: 1, updated_at: 2 }], null);
 
-    const delBtn = document.querySelector('.file-item-del');
+    // Click the ⋮ button to open the context menu
+    const moreBtn = document.querySelector('.file-item-more');
+    moreBtn.click();
+
+    // Then click the Delete item in the context menu
+    const delBtn = document.querySelector('[data-action="delete"]');
     delBtn.click();
     expect(onDelete).toHaveBeenCalledWith('doomed');
   });
 
-  it('wires file list rename button', async () => {
+  it('wires file list rename via context menu', async () => {
     const ui = await getUI();
     const onRename = vi.fn();
 
@@ -531,11 +733,18 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename, onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     ui.renderFileList([{ id: 'rename-me', created_at: 1, updated_at: 2 }], null);
 
-    const renameBtn = document.querySelector('.file-item-rename');
+    // Click the ⋮ button to open the context menu
+    const moreBtn = document.querySelector('.file-item-more');
+    moreBtn.click();
+
+    // Then click the Rename item in the context menu
+    const renameBtn = document.querySelector('[data-action="rename"]');
     renameBtn.click();
     expect(onRename).toHaveBeenCalledWith('rename-me');
   });
@@ -549,6 +758,8 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     const searchInput = document.getElementById('search');
@@ -556,6 +767,28 @@ describe('bindEvents()', () => {
     searchInput.dispatchEvent(new Event('input'));
 
     expect(onSearch).toHaveBeenCalledWith('test');
+  });
+
+  it('wires Escape key to clear search', async () => {
+    const ui = await getUI();
+    const onSearch = vi.fn();
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch,
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    const searchInput = document.getElementById('search');
+    searchInput.value = 'some query';
+
+    searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(searchInput.value).toBe('');
+    expect(onSearch).toHaveBeenCalledWith('');
   });
 
   it('wires save button', async () => {
@@ -567,6 +800,8 @@ describe('bindEvents()', () => {
       onSave, onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     // btn-save starts disabled — enable it so click fires
@@ -584,6 +819,8 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew, onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     document.getElementById('btn-new').click();
@@ -599,6 +836,8 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate,
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     document.getElementById('modal-create').click();
@@ -614,6 +853,8 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal, onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     document.getElementById('modal-cancel').click();
@@ -629,6 +870,8 @@ describe('bindEvents()', () => {
       onSave, onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
@@ -644,6 +887,8 @@ describe('bindEvents()', () => {
       onSave, onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true }));
@@ -659,6 +904,8 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal, onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     // Open the modal first
@@ -677,6 +924,8 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate,
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     const input = document.getElementById('modal-input');
@@ -693,6 +942,8 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm,
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     // Open in rename mode first
@@ -712,10 +963,12 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
     // Show editor and mark dirty
-    ui.showEditor('test', 'content');
+    ui.showEditor({ id: 'test', content: 'content', created_at: 0, updated_at: 0, current: '', meta: {} });
     ui.setDirty(true);
 
     const event = new Event('beforeunload');
@@ -723,5 +976,124 @@ describe('bindEvents()', () => {
     window.dispatchEvent(event);
 
     expect(preventDefault).toHaveBeenCalled();
+  });
+
+  // ── App menu dropdown ───────────────────────────────────────────────────
+
+  it('btnMenu click toggles .open on header-brand', async () => {
+    const ui = await getUI();
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    const brand = document.getElementById('header-brand');
+    const btn = document.getElementById('btn-menu');
+
+    expect(brand.classList.contains('open')).toBe(false);
+
+    btn.click();
+    expect(brand.classList.contains('open')).toBe(true);
+
+    btn.click();
+    expect(brand.classList.contains('open')).toBe(false);
+  });
+
+  it('menuUpdate calls onUpdateSW and closes dropdown', async () => {
+    const ui = await getUI();
+    const onUpdateSW = vi.fn();
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW, onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    const brand = document.getElementById('header-brand');
+    const btn = document.getElementById('btn-menu');
+    const menuUpdate = document.getElementById('menu-update');
+
+    // Open the dropdown first
+    btn.click();
+    expect(brand.classList.contains('open')).toBe(true);
+
+    menuUpdate.click();
+    expect(onUpdateSW).toHaveBeenCalledOnce();
+    expect(brand.classList.contains('open')).toBe(false);
+  });
+
+  it('menuResetDb calls onResetDB and closes dropdown', async () => {
+    const ui = await getUI();
+    const onResetDB = vi.fn();
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB,
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    const brand = document.getElementById('header-brand');
+    const btn = document.getElementById('btn-menu');
+    const menuResetDb = document.getElementById('menu-reset-db');
+
+    btn.click();
+    expect(brand.classList.contains('open')).toBe(true);
+
+    menuResetDb.click();
+    expect(onResetDB).toHaveBeenCalledOnce();
+    expect(brand.classList.contains('open')).toBe(false);
+  });
+
+  it('click outside dropdown closes it', async () => {
+    const ui = await getUI();
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    const brand = document.getElementById('header-brand');
+    const btn = document.getElementById('btn-menu');
+
+    btn.click();
+    expect(brand.classList.contains('open')).toBe(true);
+
+    document.body.click();
+    expect(brand.classList.contains('open')).toBe(false);
+  });
+
+  it('click inside dropdown (non-button) does not close it', async () => {
+    const ui = await getUI();
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    const brand = document.getElementById('header-brand');
+    const btn = document.getElementById('btn-menu');
+    const appMenu = document.getElementById('app-menu');
+
+    btn.click();
+    expect(brand.classList.contains('open')).toBe(true);
+
+    appMenu.click();
+    expect(brand.classList.contains('open')).toBe(true);
   });
 });

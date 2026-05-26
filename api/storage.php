@@ -164,30 +164,32 @@ function storage_put_note(string $id, array $data): void {
 }
 
 /**
- * Soft-delete a note by renaming .json → .deleted.json.
+ * Soft-delete a note by embedding a deleted_at timestamp and writing
+ * the .deleted.json tombstone (preserving full version history).
  *
  * Idempotent — safe to call on an already-deleted note.
- *
- * MySQL equivalent:
- *   UPDATE notes SET deleted = 1 WHERE id = ?
  *
  * @param string $id  Note identifier
  * @return void
  */
 function storage_delete_note(string $id): void {
     $path = note_path($id);
-    if (file_exists($path) && !note_is_deleted($id)) {
-        rename($path, deleted_path($id));
+    if (!file_exists($path) || note_is_deleted($id)) return;
+
+    $data = json_decode(file_get_contents($path), true);
+    if (is_array($data)) {
+        $data['deleted_at'] = time();
+        file_put_contents(deleted_path($id), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
+    unlink($path);
 }
 
 /**
- * Revive a soft-deleted note by removing its tombstone.
+ * Revive a soft-deleted note by restoring its full content from the
+ * tombstone (including version history).
  *
- * Removes the .deleted.json marker so the note can be re-created or
- * updated as if it had never been deleted.  The old .json file was
- * renamed away when the note was deleted, so this does NOT restore
- * content — it simply clears the way for a fresh CREATE or UPDATE.
+ * Reads .deleted.json, strips the deleted_at field, writes .json,
+ * then removes the tombstone.
  *
  * Idempotent — safe to call on a note that is not deleted.
  *
@@ -196,9 +198,85 @@ function storage_delete_note(string $id): void {
  */
 function storage_revive_note(string $id): void {
     $path = deleted_path($id);
-    if (file_exists($path)) {
-        @unlink($path);
+    if (!file_exists($path)) return;
+
+    $data = json_decode(file_get_contents($path), true);
+    if (is_array($data)) {
+        unset($data['deleted_at']);
+        file_put_contents(note_path($id), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
+    unlink($path);
+}
+
+// ─────────────────────────────────────────────
+// Soft-delete maintenance
+// ─────────────────────────────────────────────
+
+/**
+ * Permanently remove tombstones whose deleted_at is older than
+ * DELETED_NOTE_TTL_DAYS.
+ *
+ * Called by the daily purge hook in sync.php.  Tombstones without a
+ * deleted_at field (legacy format) are treated as exempt so we never
+ * accidentally lose data from before the feature was added.
+ *
+ * @return int  Number of tombstones removed
+ */
+function storage_purge_deleted_notes(): int {
+    $cutoff  = time() - (DELETED_NOTE_TTL_DAYS * 86400);
+    $removed = 0;
+
+    foreach (glob(NOTES_DIR . '*.deleted.json') ?: [] as $path) {
+        $data = json_decode(file_get_contents($path), true);
+        $ts   = $data['deleted_at'] ?? null;
+        if ($ts !== null && (int)$ts < $cutoff) {
+            unlink($path);
+            $removed++;
+        }
+    }
+
+    return $removed;
+}
+
+/**
+ * Immediately hard-delete a single tombstone (no TTL check).
+ *
+ * Idempotent — no-op if the tombstone does not exist.
+ *
+ * @param string $id  Note identifier
+ * @return void
+ */
+function storage_hard_delete_note(string $id): void {
+    $path = deleted_path($id);
+    if (file_exists($path)) {
+        unlink($path);
+    }
+}
+
+/**
+ * Return metadata for all soft-deleted notes.
+ *
+ * Each entry includes the deleted_at timestamp from the tombstone.
+ * Entries without a deleted_at field (legacy) return null for deleted_at.
+ *
+ * @return array<int, array{id: string, deleted_at: int|null}>
+ */
+function storage_list_deleted_notes(): array {
+    $paths = glob(NOTES_DIR . '*.deleted.json') ?: [];
+    $notes = [];
+
+    foreach ($paths as $path) {
+        $data = json_decode(file_get_contents($path), true);
+        $notes[] = [
+            'id'         => basename($path, '.deleted.json'),
+            'deleted_at' => (isset($data['deleted_at']) && is_int($data['deleted_at']))
+                ? $data['deleted_at']
+                : null,
+        ];
+    }
+
+    usort($notes, fn($a, $b) => strcmp($a['id'], $b['id']));
+    return $notes;
 }
 
 /**
@@ -272,12 +350,14 @@ function storage_list_notes(): array {
 /**
  * Compute the version key for an incoming save and whether it overwrites.
  *
- * Overwrite rule: same author AND same UTC date as the current version.
+ * Overwrite rule: same author AND same UTC date AND the current version's
+ *                 exclusive flag is still true (nobody else has received it).
  * New version:    everything else — find highest counter for (date, author)
  *                 in existing keys and increment.
  *
- * Author and date are encoded in the key "{date}:{counter}:{author}",
- * so they are parsed back out rather than stored redundantly.
+ * The exclusive flag is set to false when a *different* user syncs/receives
+ * this version.  This prevents overwriting a version that another client
+ * may have already seen — the next save creates a new version instead.
  *
  * @param array  $note    Note data array with 'versions' and 'current' keys
  * @param string $author  Username making the write
@@ -292,8 +372,9 @@ function storage_resolve_version(array $note, string $author): array {
         $parts      = explode(':', $current, 3);   // [date, counter, author]
         $cur_date   = $parts[0] ?? '';
         $cur_author = $parts[2] ?? '';
+        $exclusive  = $note['versions'][$current]['exclusive'] ?? false;
 
-        if ($cur_author === $author && $cur_date === $today) {
+        if ($cur_author === $author && $cur_date === $today && $exclusive) {
             return [$current, true];               // overwrite same slot
         }
     }
@@ -314,10 +395,9 @@ function storage_resolve_version(array $note, string $author): array {
 }
 
 /**
- * Apply a write (CREATE or UPDATE) to a note and persist it.
- *
- * This is the single write path shared by all endpoints that modify notes.
- * Creates the note if it doesn't exist yet.
+ * Write a new version of a note's content.  Each version carries an
+ * `exclusive` flag that starts true and is cleared when another user
+ * receives this version via sync (see storage_mark_version_seen).
  *
  * @param string $id       Note identifier
  * @param string $content  Note content (opaque — not inspected)
@@ -338,9 +418,10 @@ function storage_apply_write(string $id, string $content, string $author): strin
         : $note['current'];
 
     $note['versions'][$vkey] = [
-        'saved_at' => time(),
-        'content'  => $content,
-        'prev'     => $prev_vkey,
+        'saved_at'  => time(),
+        'content'   => $content,
+        'prev'      => $prev_vkey,
+        'exclusive' => true,
     ];
 
     ksort($note['versions']);
@@ -348,6 +429,40 @@ function storage_apply_write(string $id, string $content, string $author): strin
 
     storage_put_note($id, $note);
     return $vkey;
+}
+
+// ─────────────────────────────────────────────
+// Version-exclusive flag
+// ─────────────────────────────────────────────
+
+/**
+ * Mark the current version of a note as "seen" by a user who is not its
+ * author, setting exclusive to false so the next save by the original
+ * author creates a new version instead of overwriting.
+ *
+ * Called during sync response building for every note whose content is
+ * being delivered to a client whose username differs from the version
+ * author.  Idempotent — safe to call multiple times.
+ *
+ * @param string $id      Note identifier
+ * @param string $viewer  Username receiving this version
+ * @return void
+ */
+function storage_mark_version_seen(string $id, string $viewer): void {
+    $note = storage_get_note($id);
+    if (!$note) return;
+
+    $current_vkey = $note['current'] ?? null;
+    if (!$current_vkey) return;
+
+    $parts  = explode(':', $current_vkey, 3);
+    $author = $parts[2] ?? '';
+
+    if ($author !== $viewer) {
+        // Another user is receiving this version → clear exclusivity
+        $note['versions'][$current_vkey]['exclusive'] = false;
+        storage_put_note($id, $note);
+    }
 }
 
 // ─────────────────────────────────────────────

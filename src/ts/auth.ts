@@ -1,5 +1,5 @@
 /**
- * auth.js — client-side authentication
+ * auth.ts — client-side authentication
  *
  * Manages the JWT access token lifecycle:
  *   - Login:   POST to auth.php?action=login, store token in memory
@@ -20,25 +20,37 @@
  *     callbacks fire so app.js can show the login screen.
  */
 
+// ── Types ────────────────────────────────────────────────────────────────
+
+export interface LoginResult {
+  ok: boolean;
+  username?: string;
+  error?: string;
+}
+
+type AuthFailureListener = () => void;
+
+// ── Constants ────────────────────────────────────────────────────────────
+
 const AUTH_URL = '../api/auth.php';
 
 // ── Token store (memory only) ─────────────────────────────────────────────
 
-let _token    = null;   // current JWT string
-let _username = null;   // logged-in username
-let _expires  = 0;      // token expiry unix timestamp (seconds)
+let _token: string | null = null;
+let _username: string | null = null;
+let _expires = 0;   // token expiry unix timestamp (seconds)
 
-export function getToken()    { return _token; }
-export function getUsername() { return _username; }
-export function isLoggedIn()  { return _token !== null && Date.now() / 1000 < _expires; }
+export function getToken(): string | null { return _token; }
+export function getUsername(): string | null { return _username; }
+export function isLoggedIn(): boolean { return _token !== null && Date.now() / 1000 < _expires; }
 
-function setToken(token, username, expires) {
+function setToken(token: string, username: string, expires: number): void {
   _token    = token;
   _username = username;
   _expires  = expires;
 }
 
-function clearToken() {
+function clearToken(): void {
   _token    = null;
   _username = null;
   _expires  = 0;
@@ -47,9 +59,9 @@ function clearToken() {
 // ── Auth failure listeners ────────────────────────────────────────────────
 // Called when the token cannot be refreshed — user must log in again
 
-const authFailureListeners = [];
+const authFailureListeners: AuthFailureListener[] = [];
 
-export function onAuthFailure(fn) {
+export function onAuthFailure(fn: AuthFailureListener): () => void {
   authFailureListeners.push(fn);
   return () => {
     const i = authFailureListeners.indexOf(fn);
@@ -57,7 +69,7 @@ export function onAuthFailure(fn) {
   };
 }
 
-function notifyAuthFailure() {
+function notifyAuthFailure(): void {
   clearToken();
   authFailureListeners.forEach(fn => fn());
 }
@@ -68,12 +80,8 @@ function notifyAuthFailure() {
  * Attempt to log in with username and password.
  * On success, stores the token and returns {ok, username}.
  * On failure, returns {ok: false, error: string}.
- *
- * @param {string} username
- * @param {string} password
- * @returns {Promise<{ok: boolean, username?: string, error?: string}>}
  */
-export async function login(username, password) {
+export async function login(username: string, password: string): Promise<LoginResult> {
   try {
     const res = await fetch(`${AUTH_URL}?action=login`, {
       method:  'POST',
@@ -81,32 +89,46 @@ export async function login(username, password) {
       body:    JSON.stringify({ username, password }),
     });
 
-    const data = await res.json();
+    const data = await res.json() as Record<string, unknown>;
 
     if (!res.ok || !data.ok) {
-      return { ok: false, error: data.error ?? 'Login failed' };
+      return { ok: false, error: (data.error as string) ?? 'Login failed' };
     }
 
-    setToken(data.token, data.username, data.expires);
-    return { ok: true, username: data.username };
+    setToken(data.token as string, data.username as string, data.expires as number);
+    return { ok: true, username: data.username as string };
 
-  } catch (err) {
+  } catch {
     return { ok: false, error: 'Network error — check your connection' };
   }
 }
 
 // ── Silent refresh ────────────────────────────────────────────────────────
 
-let _refreshPromise = null;   // deduplicate concurrent refresh attempts
+type RefreshResult =
+  | { ok: true; token: string }
+  | { ok: false; reason: 'auth' | 'network' };
 
 /**
  * Silently refresh the access token using the httpOnly refresh cookie.
  * Returns the new token string, or null if refresh failed.
  * Multiple simultaneous calls share one in-flight request.
- *
- * @returns {Promise<string|null>}
  */
-export async function refreshToken() {
+export async function refreshToken(): Promise<string | null> {
+  const result = await refreshTokenImpl(true);
+  return result.ok ? result.token : null;
+}
+
+/**
+ * Internal refresh with configurable auth-failure signaling.
+ *
+ * @param signalAuthFailure — if true, calls notifyAuthFailure() when the
+ *   server explicitly rejects the refresh (401 or ok: false).  Set to
+ *   false for boot-time silent restore so the caller can decide the UX.
+ */
+let _refreshPromise: Promise<RefreshResult> | null = null;
+
+async function refreshTokenImpl(signalAuthFailure: boolean): Promise<RefreshResult> {
   if (_refreshPromise) return _refreshPromise;
 
   _refreshPromise = (async () => {
@@ -117,23 +139,31 @@ export async function refreshToken() {
       });
 
       if (!res.ok) {
-        notifyAuthFailure();
-        return null;
+        if (signalAuthFailure) notifyAuthFailure();
+        return { ok: false, reason: 'auth' };
       }
 
-      const data = await res.json();
+      const data = await res.json() as Record<string, unknown>;
+
+      // If the response doesn't have a boolean ok field, it's not a
+      // valid auth response — treat as network error (e.g. SW fallback
+      // or proxy returning an unexpected body).
+      if (typeof data.ok !== 'boolean') {
+        return { ok: false, reason: 'network' };
+      }
+
       if (!data.ok) {
-        notifyAuthFailure();
-        return null;
+        if (signalAuthFailure) notifyAuthFailure();
+        return { ok: false, reason: 'auth' };
       }
 
-      setToken(data.token, data.username, data.expires);
-      return data.token;
+      setToken(data.token as string, data.username as string, data.expires as number);
+      return { ok: true, token: data.token as string };
 
     } catch {
       // Network error — don't notify auth failure, just return null
       // so the caller can treat it as a temporary offline state
-      return null;
+      return { ok: false, reason: 'network' };
     } finally {
       _refreshPromise = null;
     }
@@ -147,10 +177,8 @@ export async function refreshToken() {
 /**
  * Log out the current user.
  * Clears the server-side refresh token and the in-memory access token.
- *
- * @returns {Promise<void>}
  */
-export async function logout() {
+export async function logout(): Promise<void> {
   try {
     await fetch(`${AUTH_URL}?action=logout`, {
       method:      'POST',
@@ -172,14 +200,10 @@ export async function logout() {
  *   3. If refresh fails, fires onAuthFailure() listeners
  *
  * Use this for all requests to api.php and sync.php.
- *
- * @param {string}  url
- * @param {object}  options  — standard fetch options
- * @returns {Promise<Response>}
  */
-export async function authFetch(url, options = {}) {
-  const makeHeaders = (token) => ({
-    ...options.headers,
+export async function authFetch(url: string | URL | Request, options: RequestInit = {}): Promise<Response> {
+  const makeHeaders = (token: string | null): Record<string, string> => ({
+    ...(options.headers as Record<string, string> | undefined),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   });
 
@@ -206,10 +230,10 @@ export async function authFetch(url, options = {}) {
  * refresh cookie without requiring the user to log in again.
  *
  * Returns true if a valid session was restored, false otherwise.
- *
- * @returns {Promise<boolean>}
  */
-export async function tryRestoreSession() {
-  const token = await refreshToken();
-  return token !== null;
+export async function tryRestoreSession(): Promise<'ok' | 'auth-failed' | 'network-error'> {
+  const result = await refreshTokenImpl(false);
+  if (result.ok) return 'ok';
+  if (result.reason === 'auth') return 'auth-failed';
+  return 'network-error';
 }

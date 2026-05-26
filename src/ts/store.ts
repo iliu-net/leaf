@@ -1,70 +1,51 @@
 /**
- * store.js — application state
+ * store.ts — application state
  *
  * A minimal reactive store using a simple event emitter.
  * Components subscribe to state changes via store.on(event, handler).
  */
 
-const listeners = {};
+// ── Types ────────────────────────────────────────────────────────────────
 
-function emit(event, data) {
+export interface NoteMeta {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  current: string;
+}
+
+interface AppState {
+  notes: NoteMeta[];
+  filtered: NoteMeta[];
+  current: string | null;
+  content: string;
+  dirty: boolean;
+  query: string;
+  online: boolean;
+}
+
+type Listener = (data: unknown) => void;
+
+// ── Event emitter ────────────────────────────────────────────────────────
+
+const listeners: Record<string, Listener[]> = {};
+
+function emit(event: string, data?: unknown): void {
   (listeners[event] ?? []).forEach(fn => fn(data));
 }
 
 /** Subscribe to a state event. Returns an unsubscribe function. */
-export function on(event, fn) {
+export function on(event: string, fn: Listener): () => void {
   if (!listeners[event]) listeners[event] = [];
   listeners[event].push(fn);
   return () => { listeners[event] = listeners[event].filter(f => f !== fn); };
 }
 
 // ─────────────────────────────────────────────
-// Frontmatter parser
-//
-// Parses YAML-lite frontmatter from note content:
-//   ---
-//   title: My note
-//   path: work/meetings/standup
-//   tags: [work, meetings]
-//   created: 2025-05-20
-//   ---
-//   Body text...
-//
-// Returns { meta: {title, path, tags, created, ...}, body: string }
-// If no frontmatter block is present, returns { meta: {}, body: rawContent }
-// ─────────────────────────────────────────────
-export function parseFrontmatter(raw) {
-  if (typeof raw !== 'string') return { meta: {}, body: '' };
-
-  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  if (!match) return { meta: {}, body: raw };
-
-  const meta = {};
-  for (const line of match[1].split('\n')) {
-    const m = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.*)$/);
-    if (!m) continue;
-    const [, key, val] = m;
-    const trimmed = val.trim();
-    // Parse inline arrays:  [one, two, three]
-    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      meta[key] = trimmed
-        .slice(1, -1)
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-    } else {
-      meta[key] = trimmed;
-    }
-  }
-
-  return { meta, body: match[2] };
-}
-
-// ─────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────
 
-const state = {
+const state: AppState = {
   // notes: array of objects from server — [{id, created_at, updated_at, current}]
   notes:    [],
   filtered: [],
@@ -76,27 +57,27 @@ const state = {
 };
 
 // ── Getters ──
-export const getState   = () => ({ ...state });
-export const getNotes   = () => state.filtered;
-export const getCurrent = () => state.current;
-export const getContent = () => state.content;
-export const isDirty    = () => state.dirty;
-export const isOnline   = () => state.online;
+export const getState   = (): AppState => ({ ...state });
+export const getNotes   = (): NoteMeta[] => state.filtered;
+export const getCurrent = (): string | null => state.current;
+export const getContent = (): string => state.content;
+export const isDirty    = (): boolean => state.dirty;
+export const isOnline   = (): boolean => state.online;
 
 // ── Mutations ──
 
 /** Replace the full note list (array of server objects). */
-export function setNotes(notes) {
+export function setNotes(notes: NoteMeta[]): void {
   state.notes = notes;
   applyFilter();
 }
 
-export function setQuery(q) {
+export function setQuery(q: string): void {
   state.query = q.toLowerCase().trim();
   applyFilter();
 }
 
-function applyFilter() {
+function applyFilter(): void {
   // Search matches against note id (filename) only — kept simple intentionally
   state.filtered = state.query
     ? state.notes.filter(n => n.id.toLowerCase().includes(state.query))
@@ -105,7 +86,7 @@ function applyFilter() {
   emit('count-changed', { total: state.notes.length, shown: state.filtered.length });
 }
 
-export function openNote(id, content) {
+export function openNote(id: string, content: string): void {
   state.current = id;
   state.content = content;
   state.dirty   = false;
@@ -113,20 +94,25 @@ export function openNote(id, content) {
   emit('dirty-changed', false);
 }
 
-export function updateContent(content) {
+export function updateContent(content: string): void {
   state.content = content;
+  // Only mark dirty if a note is actually open — browser form restoration can
+  // fire extraneous input events on the hidden textarea after page load,
+  // which would otherwise falsely enable the Save button and trigger an
+  // unsaved-changes warning on navigation.
+  if (state.current === null) return;
   if (!state.dirty) {
     state.dirty = true;
     emit('dirty-changed', true);
   }
 }
 
-export function markClean() {
+export function markClean(): void {
   state.dirty = false;
   emit('dirty-changed', false);
 }
 
-export function closeNote() {
+export function closeNote(): void {
   state.current = null;
   state.content = '';
   state.dirty   = false;
@@ -134,7 +120,7 @@ export function closeNote() {
   emit('dirty-changed', false);
 }
 
-export function setOnline(val) {
+export function setOnline(val: boolean): void {
   state.online = val;
   emit('online-changed', val);
 }
