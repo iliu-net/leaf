@@ -4,3 +4,7 @@ tests/vendor
 tests/spa/node_modules
 src/node_modules
 spa/app.js
+*.bak
+
+# Some test directories...
+cookbook

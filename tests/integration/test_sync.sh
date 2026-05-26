@@ -14,7 +14,7 @@ pass() { echo -n "."; }
 
 # Helper: login and return the JWT
 do_login() {
-    curl -s -X POST "$BASE/auth.php?action=login" \
+    curl -s -X POST "$BASE/api/index.php/auth?action=login" \
         -H 'Content-Type: application/json' \
         -d '{"username":"testuser","password":"test1234"}' | jq -r '.token'
 }
@@ -26,7 +26,7 @@ AUTH=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
 
 # ── 1. Empty initial sync ─────────────────────────────────────────────────
 
-EMPTY=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+EMPTY=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d '{"baseRevision":0,"syncedRevision":0,"changes":[],"partial":false}')
 
 EMPTY_REV=$(echo "$EMPTY" | jq -r '.currentRevision // empty')
@@ -37,7 +37,7 @@ pass
 
 # ── 2. Create a note via push ──────────────────────────────────────────────
 
-CREATE=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+CREATE=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d '{"baseRevision":0,"syncedRevision":0,"changes":[{"type":1,"key":"test-note","obj":{"id":"test-note","content":"hello world","version":"0"}}],"partial":false}')
 
 CREATE_REV=$(echo "$CREATE" | jq -r '.currentRevision')
@@ -48,7 +48,7 @@ pass
 
 # ── 3. Pull after create receives the new note ─────────────────────────────
 
-PULL=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+PULL=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[],\"partial\":false}")
 
 PULL_COUNT=$(echo "$PULL" | jq '.changes | length')
@@ -70,7 +70,7 @@ pass
 
 # ── 4. Update a note ───────────────────────────────────────────────────────
 
-UPDATE=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+UPDATE=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":1,\"syncedRevision\":1,\"changes\":[{\"type\":2,\"key\":\"test-note\",\"obj\":{\"id\":\"test-note\",\"content\":\"updated content\",\"version\":\"0\"}}],\"partial\":false}")
 
 UPDATE_REV=$(echo "$UPDATE" | jq -r '.currentRevision')
@@ -79,7 +79,7 @@ pass
 
 # ── 5. Verify content after pull with syncedRevision ───────────────────────
 
-PULL2=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+PULL2=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":1,\"syncedRevision\":1,\"changes\":[],\"partial\":false}")
 
 PULL2_CONTENT=$(echo "$PULL2" | jq -r '.changes[0].obj.content')
@@ -88,7 +88,7 @@ pass
 
 # ── 6. Delete a note ───────────────────────────────────────────────────────
 
-DELETE=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+DELETE=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":2,\"syncedRevision\":2,\"changes\":[{\"type\":3,\"key\":\"test-note\",\"obj\":null}],\"partial\":false}")
 
 DELETE_REV=$(echo "$DELETE" | jq -r '.currentRevision')
@@ -97,7 +97,7 @@ pass
 
 # ── 7. Pull after delete shows deletion ────────────────────────────────────
 
-PULL3=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+PULL3=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":2,\"syncedRevision\":2,\"changes\":[],\"partial\":false}")
 
 PULL3_TYPE=$(echo "$PULL3" | jq -r '.changes[0].type // empty')
@@ -109,7 +109,7 @@ pass
 
 # ── 8. Create note with special characters in name ─────────────────────────
 
-SPECIAL=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+SPECIAL=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d '{"baseRevision":0,"syncedRevision":0,"changes":[{"type":1,"key":"work/meetings/notes","obj":{"id":"work/meetings/notes","content":"slash mapped to colon","version":"0"}}],"partial":false}')
 
 SPECIAL_KEY=$(echo "$SPECIAL" | jq -r '.changes[0].key // empty')
@@ -119,7 +119,7 @@ SPECIAL_KEY=$(echo "$SPECIAL" | jq -r '.changes[0].key // empty')
 pass
 
 # Pull to verify the key was transformed
-PULL4=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+PULL4=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d '{"baseRevision":0,"syncedRevision":0,"changes":[],"partial":false}')
 
 # Find our note with the slash
@@ -133,11 +133,11 @@ pass
 REN_SRC="note-to-rename"
 REN_DST="renamed-note"
 
-curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":1,\"key\":\"$REN_SRC\",\"obj\":{\"id\":\"$REN_SRC\",\"content\":\"will be renamed\",\"version\":\"0\"}}],\"partial\":false}" > /dev/null
 
 # Now push a RENAME change
-REV_AFTER_CREATE=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+REV_AFTER_CREATE=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":4,\"key\":\"$REN_SRC\",\"obj\":{\"renamed_to\":\"$REN_DST\",\"version\":\"0\"}}],\"partial\":false}" | jq -r '.currentRevision')
 
 [ "$REV_AFTER_CREATE" -gt 0 ] || fail "rename: got empty currentRevision"
@@ -145,7 +145,7 @@ pass
 
 # ── 10. Pull after rename shows RENAME change ───────────────────────────────
 
-PULL_RENAME=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+PULL_RENAME=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[],\"partial\":false}")
 
 # Find the RENAME entry (type 4)
@@ -163,7 +163,7 @@ pass
 # ── 11. Renamed note content is accessible under new name ───────────────────
 
 # Push an UPDATE under the new name to verify the note exists and content is intact
-UPDATE_RENAMED=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+UPDATE_RENAMED=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":2,\"key\":\"$REN_DST\",\"obj\":{\"id\":\"$REN_DST\",\"content\":\"rename verified\",\"version\":\"0\"}}],\"partial\":false}")
 
 UPDATE_RENAMED_REV=$(echo "$UPDATE_RENAMED" | jq -r '.currentRevision')
@@ -171,7 +171,7 @@ UPDATE_RENAMED_REV=$(echo "$UPDATE_RENAMED" | jq -r '.currentRevision')
 pass
 
 # Pull after syncedRevision to see the update on renamed note
-PULL_RENAMED=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+PULL_RENAMED=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[],\"partial\":false}")
 
 # The renamed note should appear under the new key with updated content
@@ -182,11 +182,11 @@ pass
 # ── 12. Rename to already-existing name should fail ─────────────────────────
 
 # Create another note
-curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":1,\"key\":\"existing-target\",\"obj\":{\"id\":\"existing-target\",\"content\":\"i exist\",\"version\":\"0\"}}],\"partial\":false}" > /dev/null
 
 # Try to rename REN_DST to existing-target — server returns no change entry for it
-RENAME_FAIL=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+RENAME_FAIL=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":4,\"key\":\"$REN_DST\",\"obj\":{\"renamed_to\":\"existing-target\",\"version\":\"0\"}}],\"partial\":false}")
 
 # The response should NOT include a RENAME entry for this key
@@ -197,11 +197,11 @@ pass
 # ── 13. Rename to tombstoned name should succeed ──────────────────────────
 
 # Delete existing-target to create a tombstone
-curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":3,\"key\":\"existing-target\",\"obj\":null}],\"partial\":false}" > /dev/null
 
 # Now rename something to the tombstoned name — should work
-RENAME_TOMB=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+RENAME_TOMB=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":4,\"key\":\"$REN_DST\",\"obj\":{\"renamed_to\":\"existing-target\",\"version\":\"0\"}}],\"partial\":false}")
 
 RENAME_TOMB_ENTRIES=$(echo "$RENAME_TOMB" | jq '[.changes[] | select(.key == "'"$REN_DST"'" and .type == 4)] | length')
@@ -214,19 +214,19 @@ pass
 # ── 14. Create over a tombstone should succeed ────────────────────────────
 
 # Create a note, delete it (creates tombstone), then create again with same name
-curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":1,\"key\":\"tomb-create-test\",\"obj\":{\"id\":\"tomb-create-test\",\"content\":\"first life\",\"version\":\"0\"}}],\"partial\":false}" > /dev/null
 
 # Delete it — creates tombstone
-curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":3,\"key\":\"tomb-create-test\",\"obj\":null}],\"partial\":false}" > /dev/null
 
 # Now CREATE again with the same name — should revive the tombstone and create fresh
-curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":1,\"key\":\"tomb-create-test\",\"obj\":{\"id\":\"tomb-create-test\",\"content\":\"second life\",\"version\":\"0\"}}],\"partial\":false}" > /dev/null
 
 # Pull to verify the revived note exists with new content
-PULL_REVIVE=$(curl -s "${AUTH[@]}" -X POST "$BASE/sync.php" \
+PULL_REVIVE=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[],\"partial\":false}")
 
 REVIVE_CONTENT=$(echo "$PULL_REVIVE" | jq -r '.changes[] | select(.key == "tomb-create-test") | .obj.content // empty')

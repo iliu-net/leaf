@@ -62,8 +62,6 @@
  *   );
  */
 
-require_once __DIR__ . '/config.php';
-
 if (!is_dir(NOTES_DIR)) mkdir(NOTES_DIR, 0755, true);
 
 // ─────────────────────────────────────────────

@@ -59,7 +59,7 @@ interface SyncResponseBody {
 // ── Config ────────────────────────────────────────────────────────────────
 
 const _NS            = getNamespace();
-const SYNC_URL       = apiUrl('sync.php');
+const SYNC_URL       = apiUrl('sync');
 const POLL_INTERVAL  = 30_000;   // ms between polls when online
 const RETRY_DELAY    = 10_000;   // ms before retrying after an error
 const REVISION_KEY   = _NS ? `notes_sync_revision:${_NS}` : 'notes_sync_revision';

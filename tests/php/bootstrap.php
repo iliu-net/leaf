@@ -23,8 +23,8 @@ define('COOKIE_PATH', '/');
 @mkdir(DATA_ROOT, 0755, true);
 @mkdir(NOTES_DIR, 0755, true);
 
-$apiDir = __DIR__ . '/../../api';
+$phpDir = __DIR__ . '/../../src/php';
 
-@require_once $apiDir . '/jwt.php';
-@require_once $apiDir . '/storage.php';
-@require_once $apiDir . '/users.php';
+@require_once $phpDir . '/jwt.php';
+@require_once $phpDir . '/storage.php';
+@require_once $phpDir . '/users.php';

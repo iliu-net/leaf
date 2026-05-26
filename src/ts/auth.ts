@@ -36,7 +36,7 @@ import { apiUrl } from './config.js';
 
 // ── Constants ────────────────────────────────────────────────────────────
 
-const AUTH_URL = apiUrl('auth.php');
+const AUTH_URL = apiUrl('auth');
 
 // ── Token store (memory only) ─────────────────────────────────────────────
 

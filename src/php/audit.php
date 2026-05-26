@@ -44,8 +44,6 @@
  *   }
  */
 
-require_once __DIR__ . '/config.php';
-
 /**
  * Append one entry to the audit log.
  *

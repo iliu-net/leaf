@@ -21,8 +21,6 @@
  * bcrypt only. adduser.php always writes bcrypt entries.
  */
 
-require_once __DIR__ . '/config.php';
-
 /**
  * Validate a username and password against the htpasswd file.
  *

@@ -60,9 +60,9 @@ export function getApiBaseUrl(): string {
   return _apiBaseUrl;
 }
 
-/** Build a full API URL, e.g. apiUrl("auth.php") → "/app1/spa/../api/auth.php". */
+/** Build a full API URL, e.g. apiUrl("auth") → "/app1/spa/../api/index.php/auth". */
 export function apiUrl(endpoint: string): string {
-  return _apiBaseUrl + endpoint;
+  return _apiBaseUrl + 'index.php/' + endpoint;
 }
 
 // ── Boot ────────────────────────────────────────────────────────────────────

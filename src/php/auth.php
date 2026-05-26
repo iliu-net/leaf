@@ -25,7 +25,6 @@
  *   - Invalidated on logout
  */
 
-require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/jwt.php';
 require_once __DIR__ . '/users.php';
 require_once __DIR__ . '/audit.php';

@@ -5,10 +5,11 @@
  * Points all storage to temp directories inside the test environment
  * so tests never touch production data. Replaces api/config.php.
  *
- * __DIR__ resolves to the test environment directory (a temp copy).
+ * This file is placed at $ENV_DIR/api/ alongside index.php.
+ * dirname(__DIR__) resolves to the test environment root.
  */
 
-define('DATA_ROOT',           __DIR__ . '/data/');
+define('DATA_ROOT',           dirname(__DIR__) . '/data/');
 define('NOTES_DIR',           DATA_ROOT . 'notes/');
 define('CHANGELOG_FILE',      DATA_ROOT . 'changelog.jsonl');
 define('HTPASSWD_FILE',       DATA_ROOT . 'users.htpasswd');

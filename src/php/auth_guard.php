@@ -18,7 +18,6 @@
  * for silently refreshing via auth.php?action=refresh before expiry.
  */
 
-require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/jwt.php';
 
 /**

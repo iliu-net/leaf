@@ -1,9 +1,11 @@
 <?php
 /**
- * config.php — environment configuration
+ * config.php — per-instance environment configuration
  *
- * All deployment-specific paths and settings live here.
- * Every other PHP file does: require_once __DIR__ . '/config.php';
+ * This is one of only three files in the api/ directory.  The others are
+ * index.php (the front controller) and adduser.php (CLI user management).
+ * All shared PHP handler code lives in src/php/.  The SPA lives in spa/
+ * and is symlinked from a shared build.
  *
  * To move files outside the web root (recommended for production):
  *   define('NOTES_DIR',           '/home/user/private/notes/');

@@ -13,8 +13,6 @@
  *   $payload = jwt_decode($token);   // false if invalid or expired
  */
 
-require_once __DIR__ . '/config.php';
-
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 /**
