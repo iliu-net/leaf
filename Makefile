@@ -18,12 +18,6 @@ test-phpunit: ## Run PHPUnit unit tests
 test-integration: ## Run integration tests (starts server, runs curl scripts)
 	bash tests/integration/run.sh
 
-test-integration-auth: ## Run auth integration test against PORT (default 8080)
-	BASE_URL="http://127.0.0.1:$${PORT:-8080}" bash tests/integration/test_auth.sh
-
-test-integration-sync: ## Run sync integration test against PORT (default 8080)
-	BASE_URL="http://127.0.0.1:$${PORT:-8080}" bash tests/integration/test_sync.sh
-
 clean: ## Remove leftover test temp directories
 	rm -rf /tmp/leaf-phpunit-* /tmp/leaf-integration-* /tmp/leaf-integration-env-*
 
