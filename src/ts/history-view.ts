@@ -1,119 +1,24 @@
 /**
- * history.ts — version history modal
+ * history-view.ts — version history modal UI
+ *
+ * Extracted from history.ts. Fetches version data and renders the DOM
+ * modal with diff preview between selected versions.
  *
  * Lazy-loaded via dynamic import() when the user clicks "View History".
- * Fetches version metadata (list) and content (get) from /api/history,
- * renders a modal with diff preview between selected versions.
  */
 
-import { apiUrl } from './config.js';
-import { getToken } from './auth.js';
+import type { DiffLine } from './diff.js';
+import { computeDiff } from './diff.js';
+import type { VersionMeta, VersionListResponse } from './history-service.js';
+import { fetchVersionList, fetchVersionContent } from './history-service.js';
 
-// ── Types ─────────────────────────────────────────────────────────────────
-
-interface VersionMeta {
-  key: string;
-  author: string;
-  saved_at: number;
-  prev: string | null;
-}
-
-interface VersionListResponse {
-  ok: true;
-  current: string | null;
-  versions: VersionMeta[];
-}
-
-export interface DiffLine {
-  type: '+' | '-' | ' ';
-  text: string;
-}
+// ── Public types ────────────────────────────────────────────────────────────
 
 export interface HistoryCallbacks {
   onRestore: (content: string) => void;
 }
 
-// ── API layer ─────────────────────────────────────────────────────────────
-
-async function authFetch(url: string, body: unknown): Promise<Response> {
-  const token = getToken();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  return fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
-}
-
-async function fetchVersionList(id: string): Promise<VersionListResponse> {
-  const res = await authFetch(apiUrl('history'), { action: 'list', id });
-  if (!res.ok) throw new Error(`Server error: ${res.status}`);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data as VersionListResponse;
-}
-
-async function fetchVersionContent(
-  id: string,
-  versions: string[],
-): Promise<Record<string, string | null>> {
-  const res = await authFetch(apiUrl('history'), { action: 'get', id, versions });
-  if (!res.ok) throw new Error(`Server error: ${res.status}`);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.contents ?? {};
-}
-
-// ── Diff utility ──────────────────────────────────────────────────────────
-
-/**
- * Line-based diff between two strings.
- * Returns an array of DiffLine: unchanged (' '), added ('+'), removed ('-').
- * Simple LCS-based approach — adequate for note-sized text.
- */
-export function computeDiff(a: string, b: string): DiffLine[] {
-  const aLines = a.split('\n');
-  const bLines = b.split('\n');
-  const m = aLines.length;
-  const n = bLines.length;
-
-  // Build LCS table
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (aLines[i - 1] === bLines[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
-      } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-      }
-    }
-  }
-
-  // Backtrack to produce diff
-  const result: DiffLine[] = [];
-  let i = m, j = n;
-  const stack: DiffLine[] = [];
-
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && aLines[i - 1] === bLines[j - 1]) {
-      stack.push({ type: ' ', text: aLines[i - 1] });
-      i--; j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      stack.push({ type: '+', text: bLines[j - 1] });
-      j--;
-    } else {
-      stack.push({ type: '-', text: aLines[i - 1] });
-      i--;
-    }
-  }
-
-  // Reverse stack for chronological order
-  while (stack.length > 0) result.push(stack.pop()!);
-  return result;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(ts: number): string {
   if (!ts) return '';
@@ -128,7 +33,7 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-// ── DOM builder ───────────────────────────────────────────────────────────
+// ── DOM builder ─────────────────────────────────────────────────────────────
 
 interface HistoryModal {
   el: HTMLElement;
@@ -446,7 +351,6 @@ ${htmlLines}
       callbacks.onRestore(content);
       close();
     } catch (err) {
-      // Could show error inline, but for simplicity let the caller handle it
       console.error('[history] Restore failed:', err);
     }
   }
@@ -498,11 +402,11 @@ ${htmlLines}
   return { el: overlay, close };
 }
 
-// ── Public entry point ───────────────────────────────────────────────────
+// ── Public entry point ─────────────────────────────────────────────────────
 
 /**
  * Open the version history modal for a note.
- * Called via dynamic import(): `const { open } = await import('./history.js');`
+ * Called via dynamic import(): `const { open } = await import('./history-view.js');`
  *
  * @param noteId    The note identifier
  * @param callbacks Callbacks for restore action

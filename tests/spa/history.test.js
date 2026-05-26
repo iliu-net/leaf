@@ -1,9 +1,9 @@
 /**
- * Tests for src/ts/history.ts — version history client module.
+ * Tests for src/ts/diff.ts — line-based diff utility.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { computeDiff } from '../../src/ts/history.ts';
+import { computeDiff } from '../../src/ts/diff.ts';
 
 // ── computeDiff ────────────────────────────────────────────────────────────
 

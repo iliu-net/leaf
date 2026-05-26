@@ -14,12 +14,13 @@
 
 import * as notes from './notes.js';
 import * as store from './store.js';
-import * as ui    from './ui.js';
+import * as ui      from './ui.js';
+import * as pwa     from './pwa.js';
+import * as appAuth from './app-auth.js';
 import { db, dbPurgeDeletedNotes } from './db.js';
 import { syncStart, syncNow, stopSync, clearRevision, onSyncStatus, onRemoteChange } from './sync.js';
 import {
-  login, logout, getUsername,
-  tryRestoreSession, onAuthFailure,
+  getUsername, tryRestoreSession, onAuthFailure,
 } from './auth.js';
 import { safeName } from './utils.js';
 import type { NoteData } from './notes.js';
@@ -265,43 +266,7 @@ function showLogin(): void {
   ui.showLoginScreen();
 }
 
-// ── Login form handler ────────────────────────────────────────────────────
-
-async function handleLogin(username: string, password: string): Promise<void> {
-  ui.setLoginError('');
-  ui.setLoginLoading(true);
-
-  const result = await login(username, password);
-
-  ui.setLoginLoading(false);
-
-  if (!result.ok) {
-    ui.setLoginError(result.error ?? '');
-    return;
-  }
-
-  showApp(true);
-}
-
-// ── Dismiss login overlay ─────────────────────────────────────────────────
-
-function handleDismissLogin(): void {
-  ui.hideLoginScreen();
-  // Stay in offline mode — user chose not to authenticate
-}
-
-// ── Manual sign-in trigger ────────────────────────────────────────────────
-
-function handleSignIn(): void {
-  ui.showLoginScreen();
-}
-
-// ── Logout handler ────────────────────────────────────────────────────────
-
-async function handleLogout(): Promise<void> {
-  await logout();
-  // onAuthFailure will fire and call showLogin()
-}
+// ── Auth handlers (delegated to app-auth.ts) ───────────────────────────────
 
 // ── Store subscriptions ───────────────────────────────────────────────────
 
@@ -346,14 +311,14 @@ ui.bindEvents({
   onNew:           ()       => ui.openModal(),
   onCreate:        ()       => createFile(),
   onCancelModal:   ()       => ui.closeModal(),
-  onLogin:         (u, p)   => handleLogin(u, p),
-  onLogout:        ()       => handleLogout(),
+  onLogin:         (u, p)   => appAuth.handleLogin(u, p, () => showApp(true)),
+  onLogout:        ()       => appAuth.handleLogout(),
   onRename:        id       => handleRenameClick(id),
   onRenameConfirm: oldId    => handleRenameConfirm(oldId),
   onUpdateSW:      ()       => handleUpdateApp(),
   onResetDB:       ()       => handleResetDB(),
-  onSignIn:        ()       => handleSignIn(),
-  onDismissLogin:  ()       => handleDismissLogin(),
+  onSignIn:        ()       => appAuth.handleSignIn(),
+  onDismissLogin:  ()       => appAuth.handleDismissLogin(),
 });
 
 // Initialize panels (tab system, meta panel, etc.)
@@ -368,7 +333,7 @@ document.getElementById('btn-view-history')?.addEventListener('click', async () 
   const currentId = store.getCurrent();
   if (!currentId) return;
   try {
-    const { open } = await import('./history.js');
+    const { open } = await import('./history-view.js');
     open(currentId, {
       onRestore: (content: string) => {
         ui.setRawContent(content);
@@ -380,55 +345,12 @@ document.getElementById('btn-view-history')?.addEventListener('click', async () 
   }
 });
 
-// ── PWA: service worker ───────────────────────────────────────────────────
-
-let swRegistration: ServiceWorkerRegistration | null = null;
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js')
-    .then(reg => {
-      swRegistration = reg;
-      console.log('[SW] Registered, scope:', reg.scope);
-      reg.addEventListener('updatefound', () => {
-        const worker = reg.installing;
-        if (worker) {
-          worker.addEventListener('statechange', () => {
-            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-              ui.toast('Update available — refresh to apply.');
-            }
-          });
-        }
-      });
-    })
-    .catch(err => console.warn('[SW] Registration failed:', err));
-}
+// ── PWA: service worker (delegated to pwa.ts) ──────────────────────────────
 
 async function handleUpdateApp(): Promise<void> {
-  if (!swRegistration) {
-    ui.toast('No service worker registration found', true);
-    return;
-  }
-
-  try {
-    await swRegistration.update();
-
-    // If a new worker is installing, wait for it to finish
-    if (swRegistration.installing) {
-      await new Promise<void>(resolve => {
-        swRegistration!.installing!.addEventListener('statechange', () => {
-          if (swRegistration?.installing?.state === 'installed') {
-            resolve();
-          }
-        });
-      });
-
-      // Tell the waiting worker to activate immediately
-      swRegistration.active?.postMessage({ action: 'SKIP_WAITING' });
-    }
-
-    location.reload();
-  } catch (err) {
-    ui.toast(`Update failed: ${(err as Error).message}`, true);
+  const result = await pwa.updateApp();
+  if (!result.ok) {
+    ui.toast(result.message, true);
   }
 }
 
@@ -454,6 +376,10 @@ if (new URLSearchParams(location.search).get('action') === 'new') {
 async function boot(): Promise<void> {
   // Must be first — derives namespace before any storage is accessed
   loadConfig();
+
+  // Register service worker (fire-and-forget)
+  pwa.initPwa().catch(err => console.warn('[boot] PWA init failed:', err));
+  pwa.onUpdateFound(msg => ui.toast(msg));
 
   ui.setOffline(!navigator.onLine);
 
