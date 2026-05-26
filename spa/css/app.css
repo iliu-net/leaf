@@ -18,15 +18,15 @@
   --border-mid:  #3a3a3a;
   --border-hi:   #505050;
 
-  /* Text — significantly brighter than before */
-  --text-1:      #f0ece4;   /* was #e8e2d9 */
-  --text-2:      #b8b0a4;   /* was #a09890 */
-  --text-3:      #7a7269;   /* was #6a6460 */
+  /* Text */
+  --text-1:      #f5f2eb;
+  --text-2:      #d4ccc2;
+  --text-3:      #a0978e;
 
   /* Accent — warmer and more visible */
-  --accent:      #d4c4a0;   /* was #c8b89a */
-  --accent-dim:  #9a8c74;   /* was #8a7d6a */
-  --accent-glow: rgba(212,196,160,.15);  /* was .12 */
+  --accent:      #d4c4a0;
+  --accent-dim:  #b0a38b;
+  --accent-glow: rgba(212,196,160,.15);
 
   --danger:      #e05050;   /* was #c0392b — brighter red */
   --danger-bg:   rgba(224,80,80,.15);
@@ -149,6 +149,20 @@ body {
 .dropdown-item:hover {
   background: var(--bg-hover);
   color: var(--text-1);
+}
+
+.dropdown-check {
+  display: inline-block;
+  width: 16px;
+  font-size: 10px;
+  color: var(--accent);
+  visibility: hidden;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--border-mid);
+  margin: 4px 0;
 }
 
 #header-center {
@@ -1299,3 +1313,211 @@ kbd {
   display: block;
   margin: 0 auto;
 }
+
+/* ─────────────────────────────────────────────
+   Trash
+───────────────────────────────────────────── */
+
+/* ── Trash badge ── */
+.trash-badge {
+  font-size: 10px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-radius: 99px;
+  padding: 0 5px;
+  min-width: 16px;
+  text-align: center;
+  font-family: var(--font-mono);
+  line-height: 16px;
+}
+
+/* ── Trash toolbar ── */
+#trash-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-mid);
+  flex-shrink: 0;
+}
+.trash-toolbar-icon {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+#trash-search-wrap {
+  flex: 1;
+}
+
+#trash-search {
+  width: 120px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-1);
+  outline: none;
+  transition: border-color var(--transition);
+}
+#trash-search::placeholder { color: var(--text-3); }
+#trash-search:focus { border-color: var(--accent); }
+
+/* ── Trash row ── */
+.trash-row {
+  display: flex;
+  align-items: center;
+  padding: 7px 10px;
+  gap: 8px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  margin: 1px 5px;
+  color: var(--text-2);
+  transition: background var(--transition), color var(--transition);
+}
+.trash-row:hover { background: var(--bg-hover); color: var(--text-1); }
+.trash-row-icon { flex-shrink: 0; color: var(--text-3); opacity: 0.6; }
+.trash-row-info  { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.trash-row-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trash-row-meta {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+.trash-row-source {
+  font-size: 9px;
+  color: var(--accent-dim);
+  margin-left: 4px;
+}
+
+/* ⋯ button — same pattern as tree.ts .file-item-more */
+.trash-row .file-item-more {
+  flex-shrink: 0;
+  opacity: 0;
+}
+.trash-row:hover .file-item-more { opacity: 1; }
+
+/* ── Trash empty state ── */
+.trash-empty {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
+/* ── Trash footer ── */
+#trash-footer {
+  padding: 8px 10px;
+  border-top: 1px solid var(--border-mid);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+#trash-item-count {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
+/* ── Trash preview banner ── */
+#trash-banner {
+  border-bottom: 1px solid var(--border-mid);
+  background: var(--bg-2);
+  max-height: 100%;
+  overflow-y: auto;
+}
+.trash-banner-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+.trash-banner-icon { font-size: 14px; }
+
+#trash-banner-body {
+  padding: 24px 36px;
+  max-width: 800px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Horizontal key-value row for trash preview (mimics meta tab structure) */
+.trash-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-lo);
+}
+.trash-meta-row label {
+  flex-shrink: 0;
+  width: 120px;
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+/* Read-only meta values (like meta inputs but non-editable) */
+.trash-meta-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-1);
+  padding: 2px 0;
+  min-height: 18px;
+  word-break: break-word;
+  flex: 1;
+}
+
+/* Frontmatter table (custom fields) */
+.trash-fm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+.trash-fm-table td {
+  padding: 3px 8px;
+  color: var(--text-2);
+}
+.trash-fm-key {
+  color: var(--text-3) !important;
+  width: 120px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-size: 10px;
+}
+
+/* Content display */
+.trash-banner-content {
+  padding: 0;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+/* ── Shared ── */
+.btn-small.danger { color: var(--danger); border-color: rgba(224,80,80,.3); }
+.btn-small.danger:hover { background: var(--danger-bg); }

@@ -289,6 +289,82 @@ export async function queuePruneSent(): Promise<void> {
   await db.queue.where('status').equals('sent').delete();
 }
 
+// ── Trash helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Return all local tombstones (deleted: 1).
+ * Does NOT include purged (already removed) records.
+ */
+export async function dbListDeletedNotes(): Promise<{
+  id: string; deleted_at: number; updated_by: string
+}[]> {
+  await ensureDbOpen();
+  const notes = await db.notes.where('deleted').equals(1).toArray();
+  return notes.map(n => ({
+    id: n.id,
+    deleted_at: n.updated_at,
+    updated_by: n.updated_by,
+  }));
+}
+
+/**
+ * Restore a soft-deleted note: flip deleted to 0.
+ * Idempotent — no-op if the note doesn't exist or isn't deleted.
+ * Updates updated_by to the current user (consistent with dbSaveNote).
+ */
+export async function dbRestoreNote(id: string): Promise<void> {
+  await ensureDbOpen();
+  const existing = await db.notes.get(id);
+  if (!existing || !existing.deleted) return;
+  await db.notes.put({
+    ...existing,
+    deleted: 0 as const,
+    updated_at: Date.now(),
+    updated_by: getUsername() ?? 'unknown',
+  });
+}
+
+/**
+ * Hard-delete a note row from IndexedDB entirely.
+ * Idempotent — no-op if the note doesn't exist.
+ * Always calls ensureDbOpen() — Firefox may close the connection
+ * under storage pressure.
+ */
+export async function dbPermanentDelete(id: string): Promise<void> {
+  await ensureDbOpen();
+  await db.notes.delete(id);
+}
+
+/**
+ * Read a note regardless of its deleted flag.
+ * Unlike dbGetNote (which filters out deleted records), this returns
+ * tombstones too so getTrashContent can preview them.
+ * Returns null only if the record doesn't exist at all.
+ *
+ * Includes `current` (the version key) so restoreTrashItem can pass
+ * it to queueChange for conflict resolution when the note was
+ * previously synced from the server.
+ */
+export async function dbGetNoteAny(id: string): Promise<{
+  id: string; content: string; deleted: 0 | 1; current: string;
+  created_at: number; updated_at: number;
+  created_by: string; updated_by: string;
+} | null> {
+  await ensureDbOpen();
+  const note = await db.notes.get(id);
+  if (!note) return null;
+  return {
+    id: note.id,
+    content: note.content,
+    deleted: note.deleted,
+    current: note.current,
+    created_at: note.created_at,
+    updated_at: note.updated_at,
+    created_by: note.created_by,
+    updated_by: note.updated_by,
+  };
+}
+
 // ── Purge helpers ────────────────────────────────────────────────────────
 
 /**

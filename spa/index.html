@@ -88,7 +88,13 @@
         <span class="brand-text">Leaf</span>
       </button>
       <div id="app-menu" class="dropdown-menu">
-        <button id="menu-update" class="dropdown-item">Update App</button>
+        <button id="menu-folder" class="dropdown-item" data-view="notes">
+          <span class="dropdown-check">✓</span> Folder
+        </button>
+        <button id="menu-trash" class="dropdown-item" data-view="trash">
+          <span class="dropdown-check">✓</span> Trash
+        </button>
+        <div class="dropdown-divider"></div>
         <button id="menu-reset-db" class="dropdown-item">Reset Database</button>
       </div>
     </div>
@@ -135,6 +141,18 @@
         </button>
       </div>
 
+      <!-- Trash mode toolbar (hidden by default) -->
+      <div id="trash-toolbar" style="display:none">
+        <svg class="trash-toolbar-icon" width="14" height="14" fill="none"
+             stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14"/>
+        </svg>
+        <div id="trash-search-wrap">
+          <input id="trash-search" type="search" placeholder="Filter…"
+                 aria-label="Filter trash" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+
       <div id="file-list" role="list" aria-label="Notes"></div>
 
       <!-- Shown only on first visit while initial sync is in progress -->
@@ -147,10 +165,27 @@
         <span id="note-count" aria-live="polite">0 notes</span>
       </div>
 
+      <!-- Trash mode footer (hidden by default) -->
+      <div id="trash-footer" style="display:none">
+        <span id="trash-item-count">0 items</span>
+        <button id="btn-empty-trash" class="btn-small danger">Empty trash</button>
+      </div>
+
     </aside>
 
     <!-- Editor -->
     <main id="editor-wrap">
+
+      <!-- Trash preview banner (hidden by default) -->
+      <div id="trash-banner" style="display:none">
+        <div class="trash-banner-bar">
+          <span class="trash-banner-icon">⚠</span>
+          <span id="trash-banner-title"></span>
+          <button id="trash-banner-restore" class="btn-small">Restore</button>
+          <button id="trash-banner-purge" class="btn-small danger">Delete forever</button>
+        </div>
+        <div id="trash-banner-body"></div>
+      </div>
 
       <div id="empty-state" aria-label="No note selected">
         <div class="empty-icon" aria-hidden="true">

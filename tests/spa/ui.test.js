@@ -31,7 +31,9 @@ function setupDOM() {
           <button id="btn-toggle-sidebar" class="btn-icon">◀</button>
           <button id="btn-menu">Leaf</button>
           <div id="app-menu">
-            <button id="menu-update">Update App</button>
+            <button id="menu-folder"><span class="dropdown-check">✓</span> Folder</button>
+            <button id="menu-trash"><span class="dropdown-check">✓</span> Trash</button>
+            <div class="dropdown-divider"></div>
             <button id="menu-reset-db">Reset Database</button>
           </div>
         </div>
@@ -1000,29 +1002,34 @@ describe('bindEvents()', () => {
     expect(brand.classList.contains('open')).toBe(false);
   });
 
-  it('menuUpdate calls onUpdateSW and closes dropdown', async () => {
+  it('menuFolder switches to notes mode and closes dropdown', async () => {
     const ui = await getUI();
-    const onUpdateSW = vi.fn();
+    const onToggleTrash = vi.fn();
+
+    // Put sidebar in trash mode first so the switch fires
+    ui.setSidebarMode('trash');
 
     ui.bindEvents({
       onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW, onResetDB: vi.fn(),
+      onResetDB: vi.fn(), onToggleTrash,
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+      onTrashPreview: vi.fn(), onTrashRestore: vi.fn(),
+      onTrashPurge: vi.fn(), onTrashEmpty: vi.fn(),
     });
 
     const brand = document.getElementById('header-brand');
     const btn = document.getElementById('btn-menu');
-    const menuUpdate = document.getElementById('menu-update');
+    const menuFolder = document.getElementById('menu-folder');
 
     // Open the dropdown first
     btn.click();
     expect(brand.classList.contains('open')).toBe(true);
 
-    menuUpdate.click();
-    expect(onUpdateSW).toHaveBeenCalledOnce();
+    menuFolder.click();
+    expect(onToggleTrash).toHaveBeenCalledOnce();
     expect(brand.classList.contains('open')).toBe(false);
   });
 

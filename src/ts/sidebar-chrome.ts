@@ -24,7 +24,7 @@ const appShell     = $('app');
 // ── State ───────────────────────────────────────────────────────────────────
 
 /** Active sidebar view — defaults to TreeView on first render. */
-let currentView: SidebarView | null = null;
+let currentView: SidebarView<any> | null = null;
 
 // ── File list ───────────────────────────────────────────────────────────────
 
@@ -37,6 +37,14 @@ let currentView: SidebarView | null = null;
 export function renderFileList(notes: NoteMeta[], currentId: string | null): void {
   currentView = TreeView;
   TreeView.render(notes, currentId);
+}
+
+/**
+ * Set the active sidebar view for event delegation.
+ * Called by app.ts when switching sidebar modes (notes ↔ trash).
+ */
+export function setCurrentView(view: SidebarView<any>): void {
+  currentView = view;
 }
 
 export function setActiveFile(id: string): void {
@@ -64,7 +72,7 @@ export function toggleSidebar(): void {
 }
 
 /** Get the active sidebar view (for event delegation in bindEvents). */
-export function getCurrentView(): SidebarView | null {
+export function getCurrentView(): SidebarView<any> | null {
   return currentView;
 }
 

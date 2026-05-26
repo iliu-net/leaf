@@ -13,7 +13,8 @@
 
 /** Shape of the message sent between tabs. */
 export interface CrossTabMessage {
-  type: 'saved' | 'created' | 'deleted' | 'renamed' | 'server-sync';
+  type: 'saved' | 'created' | 'deleted' | 'renamed' | 'server-sync'
+      | 'restored' | 'trash-emptied';
   id: string;           // affected note id (old id for renames)
   newId?: string;       // new note id (only present for 'renamed')
 }

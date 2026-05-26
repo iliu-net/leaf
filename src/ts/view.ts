@@ -24,10 +24,16 @@ export interface UIEventHandlers {
   onLogout:        () => void;
   onRename:        (id: string) => void;
   onRenameConfirm: (oldId: string) => void;
-  onUpdateSW:      () => void;
+  onUpdateSW?:     () => void;  // optional — moved out of menu
   onResetDB:       () => void;
   onSignIn:        () => void;
   onDismissLogin:  () => void;
+  // ── Trash ──
+  onToggleTrash:   () => void;
+  onTrashPreview:  (id: string, source: 'local' | 'server') => void;
+  onTrashRestore:  (id: string, source: 'local' | 'server') => void;
+  onTrashPurge:    (id: string, source: 'local' | 'server' | 'both') => void;
+  onTrashEmpty:    () => void;
 }
 
 /** Handlers for raw-panel events. */
@@ -44,9 +50,9 @@ export interface MetaEventHandlers {
 
 // ── Sidebar view contract ───────────────────────────────────────────────
 
-export interface SidebarView {
+export interface SidebarView<T = NoteMeta> {
   /** Render the note list (flat or tree depending on implementation). */
-  render(notes: NoteMeta[], currentId: string | null): void;
+  render(items: T[], currentId: string | null): void;
 
   /** Delegate a click event on the file-list to the view. */
   handleClick(e: MouseEvent, handlers: UIEventHandlers): void;
@@ -56,4 +62,7 @@ export interface SidebarView {
 
   /** Tear down any ephemeral state (context menus, listeners, etc.). */
   destroy(): void;
+
+  /** Optional: filter the rendered list (used by TrashView for search). */
+  setFilter?(query: string): void;
 }
