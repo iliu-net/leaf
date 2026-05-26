@@ -28,6 +28,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/jwt.php';
 require_once __DIR__ . '/users.php';
+require_once __DIR__ . '/audit.php';
 
 header('Access-Control-Allow-Origin: ' . CORS_ALLOW_POLICY);
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -150,10 +151,13 @@ if ($action === 'login') {
 
     $valid = validate_user($username, $password);
     if (!$valid) {
+        audit_log('AUTH_LOGIN_FAIL', ['user' => $username]);
         // Constant-time response to avoid user enumeration via timing
         sleep(random_int(7, 12));
         respond(['error' => 'Invalid username or password'], 401);
     }
+
+    audit_log('AUTH_LOGIN', ['user' => $valid]);
 
     // Issue access token
     $access = issue_access_token($valid);
@@ -199,6 +203,7 @@ if ($action === 'refresh') {
 
     // Issue new access token
     $access = issue_access_token($username);
+    audit_log('AUTH_REFRESH', ['user' => $username]);
     respond(['ok' => true, ...$access]);
 }
 
@@ -209,6 +214,10 @@ if ($action === 'logout') {
 
     if ($refresh_token !== '') {
         $tokens = load_refresh_tokens();
+        $username = $tokens[$refresh_token]['user'] ?? null;
+        if ($username !== null) {
+            audit_log('AUTH_LOGOUT', ['user' => $username]);
+        }
         unset($tokens[$refresh_token]);
         save_refresh_tokens($tokens);
     }

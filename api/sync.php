@@ -51,6 +51,7 @@
 
 require_once __DIR__ . '/storage.php';
 require_once __DIR__ . '/auth_guard.php';
+require_once __DIR__ . '/audit.php';
 
 // ── Dexie change type constants ────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ $purgeFile = DATA_ROOT . 'last_purge.txt';
 $lastPurge = file_exists($purgeFile) ? (int)file_get_contents($purgeFile) : 0;
 if (time() - $lastPurge > 86400) {
     storage_purge_deleted_notes();
+    audit_purge();
     file_put_contents($purgeFile, (string)time());
 }
 
@@ -199,6 +201,7 @@ function apply_client_change(array $change, string $author): ?array {
             'prev_version' => $prev_vkey,
         ];
         changelog_append($entry);
+        audit_log('NOTE_WRITE', ['user' => $author, 'note_id' => $key, 'version' => $vkey]);
         return $entry;
     }
 
@@ -222,6 +225,7 @@ function apply_client_change(array $change, string $author): ?array {
             'prev_version' => $current,
         ];
         changelog_append($entry);
+        audit_log('NOTE_DELETE', ['user' => $author, 'note_id' => $key]);
         return $entry;
     }
 
@@ -247,6 +251,7 @@ function apply_client_change(array $change, string $author): ?array {
             'prev_version' => null,
         ];
         changelog_append($entry);
+        audit_log('NOTE_RENAME', ['user' => $author, 'note_id' => $key, 'renamed_to' => $new_id]);
         return $entry;
     }
 
@@ -370,6 +375,16 @@ foreach ($server_changes as $change) {
     $note_id = ($change['type'] === DEXIE_RENAME)
         ? ($change['obj']['renamed_to'] ?? null)
         : $change['key'];
+
+    // Log every note whose content is delivered to the client (CREATE/UPDATE)
+    // RENAME does not deliver content, so it is excluded from NOTE_READ.
+    if ($change['type'] === DEXIE_CREATE || $change['type'] === DEXIE_UPDATE) {
+        audit_log('NOTE_READ', [
+            'user'    => $author,
+            'note_id' => $note_id,
+            'version' => $change['obj']['version'] ?? null,
+        ]);
+    }
 
     if ($note_id) {
         storage_mark_version_seen($note_id, $author);

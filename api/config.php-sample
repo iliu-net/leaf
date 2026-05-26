@@ -35,6 +35,16 @@ define('JWT_SECRET',   'CHANGE_ME_TO_A_LONG_RANDOM_STRING');
 define('JWT_EXPIRY',     15 * 60);          // access token lifetime:  15 minutes
 define('REFRESH_EXPIRY', 30 * 24 * 3600);   // refresh token lifetime: 30 days
 
+// ── Soft-delete TTL ───────────────────────────────────────────────────────
+// Tombstone files older than this are permanently removed during daily purge.
+define('DELETED_NOTE_TTL_DAYS', 30);
+
+// ── Audit log ───────────────────────────────────────────────────────────────
+// Monthly audit files older than this are removed during daily purge.
+define('AUDIT_RETENTION_DAYS', 90);
+// Set to false to omit IP addresses from audit log entries.
+define('AUDIT_LOG_IPS',       true);
+
 // ── CORS policy ──────────────────────────────────────────────────────────
 // CORS — tighten Access-Control-Allow-Origin in production
 define('CORS_ALLOW_POLICY', '*'); # Set to the actual SPA origin
