@@ -128,4 +128,4 @@ if ($action === 'get') {
 
 // ── Unknown action ────────────────────────────────────────────────────────────
 
-fail('Unknown action: ' . $action);
+fail('Unknown action: ' . $action, 404);

@@ -291,7 +291,7 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
             'key'  => $key,
             'obj'  => [
                 'deleted_by' => $entry['deleted_by'] ?? '',
-                'deleted_at' => $entry['ts']        ?? null,
+                'deleted_at' => $entry['ts']        ?? 0,
             ],
         ];
     }
@@ -303,7 +303,7 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
             'obj'  => [
                 'renamed_to'   => $entry['renamed_to'] ?? '',
                 'renamed_by'   => $entry['renamed_by'] ?? '',
-                'renamed_at'   => $entry['ts']         ?? null,
+                'renamed_at'   => $entry['ts']         ?? 0,
                 'version'      => $version,
                 'prev_version' => $prev_version,
             ],
@@ -335,10 +335,10 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
     // Needed because deduplication may collapse a CREATE+UPDATE into just an UPDATE,
     // so the client can't derive the original creator from the change type alone.
     $created_by = $note['created_by'] ?? '';
-    $created_at = $note['created_at'] ?? null;
+    $created_at = $note['created_at'] ?? 0;
     $updated_at = ($current && isset($note['versions'][$current]))
-        ? ($note['versions'][$current]['saved_at'] ?? null)
-        : null;
+        ? ($note['versions'][$current]['saved_at'] ?? 0)
+        : 0;
 
     $dexie_type = ($type === 'CREATE') ? DEXIE_CREATE : DEXIE_UPDATE;
 
@@ -346,7 +346,6 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
         'type' => $dexie_type,
         'key'  => $key,
         'obj'  => [
-            'id'           => $key,
             'content'      => $content,   // opaque — not inspected
             'version'      => $version,
             'prev_version' => $prev_version,
@@ -421,16 +420,15 @@ if ($synced_revision === 0) {
             'type' => DEXIE_CREATE,
             'key'  => $meta['id'],
             'obj'  => [
-                'id'           => $meta['id'],
                 'content'      => $content,
                 'version'      => $current,
                 'prev_version' => ($current && isset($note['versions'][$current]))
                     ? ($note['versions'][$current]['prev'] ?? null) : null,
                 'author'       => $author,
                 'created_by'   => $note['created_by'] ?? '',
-                'created_at'   => $note['created_at'] ?? null,
+                'created_at'   => $note['created_at'] ?? 0,
                 'updated_at'   => ($current && isset($note['versions'][$current]))
-                    ? ($note['versions'][$current]['saved_at'] ?? null) : null,
+                    ? ($note['versions'][$current]['saved_at'] ?? 0) : 0,
             ],
         ];
     }
@@ -442,7 +440,7 @@ if ($synced_revision === 0) {
             'key'  => $tombstone['id'],
             'obj'  => [
                 'deleted_by' => $tombstone['deleted_by'] ?? '',
-                'deleted_at' => $tombstone['deleted_at'] ?? null,
+                'deleted_at' => $tombstone['deleted_at'] ?? 0,
             ],
         ];
     }

@@ -107,7 +107,11 @@ Access-Control-Allow-Methods: POST, OPTIONS
 Access-Control-Allow-Headers: Content-Type, Authorization
 ```
 
-(Except `spa-config`, which uses `GET, OPTIONS` methods.)
+Exceptions:
+- `spa-config` uses `GET, OPTIONS` methods.
+- `auth` does not include `Authorization` in `Allow-Headers` (it is the
+  endpoint that issues tokens, so clients never send an Authorization
+  header to it).
 
 The `CORS_ALLOW_POLICY` constant (default `'*'`) can be tightened in
 `config.php` for production.
@@ -221,7 +225,6 @@ a single POST.  This is the core of the offline-first sync protocol.
       "type": 1,
       "key":  "note-id",
       "obj": {
-        "id":         "note-id",
         "content":    "# Hello\n\nWorld",
         "version":    "2026-05-27:1:alice",
         "author":     "alice",
@@ -246,7 +249,7 @@ a single POST.  This is the core of the offline-first sync protocol.
 
 | Type | Meaning  | `obj` shape                                                  |
 |------|----------|--------------------------------------------------------------|
-| 1    | CREATE   | `{ id, content, version }` + optional `author`, `created_by`, `created_at`, `updated_at` |
+| 1    | CREATE   | `{ content, version }` + optional `author`, `created_by`, `created_at`, `updated_at` |
 | 2    | UPDATE   | Same as CREATE                                               |
 | 3    | DELETE   | `null` (or `{ deleted_by }`)                                 |
 | 4    | RENAME   | `{ renamed_to, version }`                                    |
@@ -283,7 +286,6 @@ server records its own timestamps and author.
   "type": 1,
   "key":  "welcome",
   "obj": {
-    "id":          "welcome",
     "content":     "# Welcome\n\nThis is the first note.",
     "version":     "2026-05-27:1:alice",
     "prev_version": null,
@@ -297,7 +299,6 @@ server records its own timestamps and author.
 
 | Field          | Type      | Description                                                    |
 |----------------|-----------|----------------------------------------------------------------|
-| `id`           | `string`  | Note identifier (same as `key`)                                |
 | `content`      | `string`  | Opaque note content (server never inspects it)                 |
 | `version`      | `string`  | Version key of this revision (format: `date:counter:author`)   |
 | `prev_version` | `string`  | Previous version key in the chain, or `null`                   |

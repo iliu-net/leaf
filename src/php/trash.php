@@ -138,9 +138,9 @@ switch ($action) {
             'note' => [
                 'id'         => $id,
                 'content'    => $content,
-                'created_at' => $data['created_at'] ?? null,
-                'created_by' => $data['created_by'] ?? null,
-                'deleted_at' => $data['deleted_at'] ?? null,
+                'created_at' => $data['created_at'] ?? 0,
+                'created_by' => $data['created_by'] ?? '',
+                'deleted_at' => $data['deleted_at'] ?? 0,
                 'deleted_by' => $data['deleted_by'] ?? '',
             ],
         ], JSON_UNESCAPED_UNICODE);
@@ -173,7 +173,7 @@ switch ($action) {
         exit;
 
     default:
-        http_response_code(400);
+        http_response_code(404);
         echo json_encode(['error' => 'Unknown action. Supported: list, restore, preview, purge, empty']);
         exit;
 }
