@@ -8,7 +8,6 @@
 import * as store from './store.js';
 import * as ui    from './ui.js';
 import * as notes from './notes.js';
-import { syncNow } from './sync.js';
 import { safeName } from './utils.js';
 import type { NoteData } from './notes.js';
 
@@ -50,7 +49,6 @@ export async function saveFile(): Promise<void> {
     ui.setDirty(false);
     ui.setStatus(`Saved "${id}"`);
     ui.toast(`Saved "${id}"`);
-    syncNow();
   } catch (err) {
     ui.toast(`Save failed: ${(err as Error).message}`, true);
   }
@@ -67,7 +65,6 @@ export async function deleteFile(id: string): Promise<void> {
     await refreshList();
     ui.setStatus(`Deleted "${id}"`);
     ui.toast(`Deleted "${id}"`);
-    syncNow();
   } catch (err) {
     ui.toast(`Delete failed: ${(err as Error).message}`, true);
   }
@@ -88,7 +85,6 @@ export async function handleRenameConfirm(oldId: string): Promise<void> {
     ui.closeModal();
     await refreshList(newId);
     ui.toast(`Renamed to "${newId}"`);
-    syncNow();
   } catch (err) {
     ui.setModalError((err as Error).message || 'Could not rename note.');
   }
@@ -106,7 +102,6 @@ export async function createFile(): Promise<void> {
     ui.clearSearch();
     await refreshList(data.file);
     ui.toast(`Created "${data.file}"`);
-    syncNow();
   } catch (err) {
     ui.setModalError((err as Error).message || 'Could not create note.');
   }

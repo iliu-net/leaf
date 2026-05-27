@@ -9,7 +9,7 @@ import * as store from './store.js';
 import * as ui    from './ui.js';
 import * as notes from './notes.js';
 import type { NoteData } from './notes.js';
-import type { CrossTabMessage } from './cross-tab.js';
+import type { ChangeEvent } from './change-bus.js';
 import { refreshList } from './app-files.js';
 import { refreshTrashList } from './app-trash.js';
 import { loadTrashEntries } from './trash-service.js';
@@ -42,7 +42,7 @@ async function reloadOpenNoteAs(newId: string): Promise<void> {
 
 // ── Handler ───────────────────────────────────────────────────────────────
 
-export async function handleCrossTabChange(msg: CrossTabMessage): Promise<void> {
+export async function handleChange(msg: ChangeEvent): Promise<void> {
   const currentId = store.getCurrent();
   const inTrashMode = ui.getSidebarMode() === 'trash';
 

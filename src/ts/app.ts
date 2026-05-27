@@ -24,9 +24,9 @@ import * as ui       from './ui.js';
 import * as pwa      from './pwa.js';
 import * as sidebar  from './sidebar-chrome.js';
 import { db, dbPurgeDeletedNotes } from './db.js';
-import { syncStart, stopSync, clearRevision, onSyncStatus, onRemoteChange } from './sync.js';
+import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
-import { onCrossTabChange } from './cross-tab.js';
+import { subscribe } from './change-bus.js';
 import { loadConfig, fetchSpaConfig } from './config.js';
 import { loadTrashEntries, flushPendingPurges } from './trash-service.js';
 
@@ -37,29 +37,18 @@ import * as appCrossTab from './app-cross-tab.js';
 
 // ── Store subscriptions ──────────────────────────────────────────────────
 
-store.on('dirty-changed',  val => ui.setDirty(val as boolean));
-store.on('online-changed', val => ui.setOffline(!(val as boolean)));
+store.on('dirty-changed', val => ui.setDirty(val as boolean));
 
 // ── Sync status → UI ─────────────────────────────────────────────────────
 
 onSyncStatus((statusText, isOnline) => {
-  store.setOnline(isOnline);
+  ui.setOffline(!isOnline);
   ui.setSyncStatus(statusText);
   if (statusText === 'SYNCING') ui.setStatus('Syncing…', 2000);
   if (statusText === 'IDLE' || statusText === 'ERROR' || statusText === 'OFFLINE') {
     ui.setSidebarLoading(false);
   }
   if (statusText === 'ERROR') ui.toast('Sync error — will retry shortly', true);
-});
-
-onRemoteChange(() => {
-  ui.setSidebarLoading(false);
-  if (ui.getSidebarMode() === 'trash') {
-    appTrash.refreshTrashList();
-  } else {
-    appFiles.refreshList();
-    loadTrashEntries().then(e => ui.setTrashCount(e.length));
-  }
 });
 
 // ── Auth failure → show login ─────────────────────────────────────────────
@@ -132,9 +121,10 @@ async function showShell(): Promise<void> {
     );
   });
 
-  onCrossTabChange(msg => {
-    appCrossTab.handleCrossTabChange(msg).catch(err =>
-      console.warn('[cross-tab] Handler error:', err)
+  subscribe(event => {
+    ui.setSidebarLoading(false);
+    appCrossTab.handleChange(event).catch(err =>
+      console.warn('[change-bus] Handler error:', err)
     );
   });
 

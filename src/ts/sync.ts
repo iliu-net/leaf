@@ -16,20 +16,21 @@ import {
   queueGetPending,
   queueMarkSent,
   queuePruneSent,
+  queueChange,
   dbApplyServerChange,
+  dbGetNote,
+  dbGetNoteAny,
 } from './db.js';
 import type { QueueRecord } from './db.js';
 
 import { authFetch } from './auth.js';
-import { notifyServerSync } from './cross-tab.js';
+import { publish, subscribe } from './change-bus.js';
 import { apiUrl, getNamespace } from './config.js';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
 type SyncStatus = 'OFFLINE' | 'IDLE' | 'SYNCING' | 'ERROR';
 type StatusListener = (status: SyncStatus, isOnline: boolean) => void;
-type ChangeListener = () => void;
-
 interface SyncRequestBody {
   baseRevision: number | null;
   syncedRevision: number | null;
@@ -65,6 +66,45 @@ const SYNC_URL       = apiUrl('sync');
 const POLL_INTERVAL  = 30_000;   // ms between polls when online
 const RETRY_DELAY    = 10_000;   // ms before retrying after an error
 const REVISION_KEY   = _NS ? `notes_sync_revision:${_NS}` : 'notes_sync_revision';
+
+// ── Sync trigger via change-bus ───────────────────────────────────────────
+// Subscribe to change-bus events to:
+//   1. Enqueue outbound changes for server push (queueChange)
+//   2. Trigger immediate sync (syncNow)
+//
+// 'server-sync' comes *from* us (infinite loop).
+// 'restored' is excluded — trash-service handles queue + sync explicitly.
+
+subscribe(async (event) => {
+  switch (event.type) {
+    case 'saved': {
+      const note = await dbGetNote(event.id);
+      if (note) await queueChange('UPDATE', event.id, note.content, note.current);
+      break;
+    }
+    case 'created': {
+      const note = await dbGetNote(event.id);
+      if (note) await queueChange('CREATE', event.id, '', note.current);
+      break;
+    }
+    case 'deleted': {
+      const note = await dbGetNoteAny(event.id);
+      if (note) await queueChange('DELETE', event.id, null, note.current);
+      break;
+    }
+    case 'renamed': {
+      if (event.newId) {
+        const note = await dbGetNote(event.newId);
+        if (note) await queueChange('RENAME', event.id, null, note.current, { renamed_to: event.newId });
+      }
+      break;
+    }
+  }
+
+  if (event.type !== 'restored' && event.type !== 'server-sync') {
+    syncNow();  // fire-and-forget; tick() guards concurrent calls
+  }
+});
 
 // ── Status ────────────────────────────────────────────────────────────────
 
@@ -105,22 +145,6 @@ function setRevision(rev: number | null | undefined): void {
   if (rev !== null && rev !== undefined) {
     localStorage.setItem(REVISION_KEY, String(rev));
   }
-}
-
-// ── Change listeners ──────────────────────────────────────────────────────
-
-const changeListeners: ChangeListener[] = [];
-
-export function onRemoteChange(fn: ChangeListener): () => void {
-  changeListeners.push(fn);
-  return () => {
-    const i = changeListeners.indexOf(fn);
-    if (i !== -1) changeListeners.splice(i, 1);
-  };
-}
-
-function notifyRemoteChange(): void {
-  changeListeners.forEach(fn => fn());
 }
 
 // ── Authenticated sync request ────────────────────────────────────────────
@@ -217,8 +241,7 @@ async function applyServerChanges(
   }
   setRevision(currentRevision);
   if (count > 0) {
-    notifyRemoteChange();
-    notifyServerSync();
+    publish({ type: 'server-sync', id: '' });
   }
   return count;
 }

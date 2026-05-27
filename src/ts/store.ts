@@ -21,7 +21,6 @@ interface AppState {
   content: string;
   dirty: boolean;
   query: string;
-  online: boolean;
 }
 
 type Listener = (data: unknown) => void;
@@ -53,7 +52,6 @@ const state: AppState = {
   content:  '',      // string — full raw textarea content (includes frontmatter)
   dirty:    false,
   query:    '',      // search query — matched against note id only
-  online:   navigator.onLine,
 };
 
 // ── Getters ──
@@ -62,7 +60,6 @@ export const getNotes   = (): NoteMeta[] => state.filtered;
 export const getCurrent = (): string | null => state.current;
 export const getContent = (): string => state.content;
 export const isDirty    = (): boolean => state.dirty;
-export const isOnline   = (): boolean => state.online;
 
 // ── Mutations ──
 
@@ -82,15 +79,12 @@ function applyFilter(): void {
   state.filtered = state.query
     ? state.notes.filter(n => n.id.toLowerCase().includes(state.query))
     : [...state.notes];
-  emit('notes-changed', state.filtered);
-  emit('count-changed', { total: state.notes.length, shown: state.filtered.length });
 }
 
 export function openNote(id: string, content: string): void {
   state.current = id;
   state.content = content;
   state.dirty   = false;
-  emit('note-opened', { id, content });
   emit('dirty-changed', false);
 }
 
@@ -116,15 +110,5 @@ export function closeNote(): void {
   state.current = null;
   state.content = '';
   state.dirty   = false;
-  emit('note-closed');
   emit('dirty-changed', false);
 }
-
-export function setOnline(val: boolean): void {
-  state.online = val;
-  emit('online-changed', val);
-}
-
-// ── Online/offline tracking ──
-window.addEventListener('online',  () => setOnline(true));
-window.addEventListener('offline', () => setOnline(false));

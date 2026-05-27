@@ -16,7 +16,7 @@ import {
   queueChange,
 } from './db.js';
 import { authFetch, getUsername } from './auth.js';
-import { notifyLocalChange } from './cross-tab.js';
+import { publish } from './change-bus.js';
 import { getNamespace, apiUrl } from './config.js';
 import { syncNow } from './sync.js';
 
@@ -295,7 +295,7 @@ export async function restoreTrashItem(
     await dbRestoreNote(id);
     const note = await dbGetNoteAny(id);
     await queueChange('CREATE', id, note?.content ?? '', note?.current ?? 'local');
-    notifyLocalChange('restored', id);
+    publish({ type: 'restored', id });
     await syncNow();
   } else {
     // Server path: the server revives the note + appends a changelog entry.
@@ -315,7 +315,7 @@ export async function restoreTrashItem(
       created_by: note.created_by ?? getUsername() ?? 'unknown',
     });
 
-    notifyLocalChange('restored', id);
+    publish({ type: 'restored', id });
     // No queueChange — server already has the note.
     // No syncNow — we just talked to the server.
   }
@@ -339,7 +339,7 @@ export async function purgeTrashItem(
   }
 
   await dbPermanentDelete(id);
-  notifyLocalChange('deleted', id);
+  publish({ type: 'deleted', id });
 }
 
 // ── Empty ───────────────────────────────────────────────────────────────────
@@ -361,5 +361,5 @@ export async function emptyTrash(): Promise<void> {
 
   await ensureDbOpen();
   await db.notes.bulkDelete(ids);
-  notifyLocalChange('trash-emptied', '');
+  publish({ type: 'trash-emptied', id: '' });
 }

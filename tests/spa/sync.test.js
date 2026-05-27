@@ -60,11 +60,14 @@ describe('sync status', () => {
     expect(typeof unsub).toBe('function');
   });
 
-  it('onRemoteChange registers a listener (does not fire immediately)', async () => {
-    const sync = await freshSync();
+  it('subscribe registers a listener (does not fire immediately)', async () => {
+    vi.resetModules();
+    const { subscribe } = await import('../../src/ts/change-bus.ts');
     const handler = vi.fn();
-    sync.onRemoteChange(handler);
+    const unsub = subscribe(handler);
     expect(handler).not.toHaveBeenCalled();
+    expect(typeof unsub).toBe('function');
+    unsub();
   });
 });
 
@@ -169,10 +172,12 @@ describe('sync tick (pull)', () => {
     expect(localStorage.getItem('notes_sync_revision')).toBe('99');
   });
 
-  it('notifies remote change listeners when changes arrive', async () => {
-    const sync = await freshSync();
+  it('publishes server-sync event when changes arrive', async () => {
+    vi.resetModules();
+    const { subscribe } = await import('../../src/ts/change-bus.ts');
+    const sync = await import('../../src/ts/sync.ts');
     const handler = vi.fn();
-    sync.onRemoteChange(handler);
+    subscribe(handler);
 
     mockAuthFetch.mockResolvedValue(apiResponse(200, {
       changes: [
@@ -183,12 +188,15 @@ describe('sync tick (pull)', () => {
 
     await sync.syncNow();
     expect(handler).toHaveBeenCalledOnce();
+    expect(handler.mock.calls[0][0].type).toBe('server-sync');
   });
 
-  it('does not notify remote change listeners when no changes', async () => {
-    const sync = await freshSync();
+  it('does not publish server-sync when no changes arrive', async () => {
+    vi.resetModules();
+    const { subscribe } = await import('../../src/ts/change-bus.ts');
+    const sync = await import('../../src/ts/sync.ts');
     const handler = vi.fn();
-    sync.onRemoteChange(handler);
+    subscribe(handler);
 
     mockAuthFetch.mockResolvedValue(apiResponse(200, {
       changes: [],

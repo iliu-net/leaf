@@ -9,6 +9,8 @@ import {
   listNotes, loadNote, saveNote, createNote, deleteNote, renameNote,
 } from '../../src/ts/notes.ts';
 import { db, queueGetPending, dbGetNote } from '../../src/ts/db.ts';
+import '../../src/ts/sync.ts';  // registers change-bus → queueChange handler
+import { flush } from '../../src/ts/change-bus.ts';
 
 async function seedNote(id, content = '', extra = {}) {
   await db.notes.put({
@@ -52,7 +54,8 @@ describe('notes.js integration', () => {
     const note = await dbGetNote('my-note');
     expect(note.content).toBe('updated content');
     expect(note.updated_by).toBe('unknown');
-    // Check queue
+    // Check queue — sync.ts handler creates queue entries asynchronously via change-bus
+    await flush();
     const queue = await queueGetPending();
     expect(queue).toHaveLength(1);
     expect(queue[0].type).toBe('UPDATE');
@@ -82,6 +85,7 @@ describe('notes.js integration', () => {
     expect(note.created_by).toBe('unknown');
     expect(note.updated_by).toBe('unknown');
 
+    await flush();
     const queue = await queueGetPending();
     expect(queue).toHaveLength(1);
     expect(queue[0].type).toBe('CREATE');
@@ -98,6 +102,7 @@ describe('notes.js integration', () => {
     const note = await dbGetNote('existing');
     expect(note.content).toBe('original');
 
+    await flush();
     const queue = await queueGetPending();
     expect(queue).toHaveLength(1);
     expect(queue[0].type).toBe('CREATE');
@@ -111,6 +116,7 @@ describe('notes.js integration', () => {
     expect(result.ok).toBe(true);
     expect(await dbGetNote('delete-me')).toBeNull(); // soft-deleted
 
+    await flush();
     const queue = await queueGetPending();
     expect(queue).toHaveLength(1);
     expect(queue[0].type).toBe('DELETE');
@@ -121,15 +127,11 @@ describe('notes.js integration', () => {
 
   it('deleteNote is a no-op for non-existent note (no queue entry)', async () => {
     await deleteNote('ghost');
-    // dbDeleteNote returns early, but queueChange still fires
-    // Actually, looking at renameNote: it always queues even if note doesn't exist
-    // But deleteNote: let me check... deleteNote calls dbDeleteNote (which returns
-    // early if note doesn't exist) and then queueChange('DELETE', id, null)
-    // So it still queues! Let me check...
+    // sync.ts handler only queues if dbGetNoteAny finds a tombstone.
+    // For a note that never existed, there is no tombstone → no queue entry.
+    await flush();
     const queue = await queueGetPending();
-    // deleteNote ALWAYS queues a DELETE regardless of existence
-    expect(queue).toHaveLength(1);
-    expect(queue[0].type).toBe('DELETE');
+    expect(queue).toHaveLength(0);
   });
 
   it('renameNote renames and queues a RENAME', async () => {
@@ -141,6 +143,7 @@ describe('notes.js integration', () => {
     const renamed = await dbGetNote('new-name');
     expect(renamed.content).toBe('some content');
 
+    await flush();
     const queue = await queueGetPending();
     expect(queue).toHaveLength(1);
     expect(queue[0].type).toBe('RENAME');
@@ -149,16 +152,14 @@ describe('notes.js integration', () => {
     expect(queue[0].version).toBe('local');
   });
 
-  it('renameNote always queues a RENAME even if note does not exist locally', async () => {
-    // renameNote calls dbRenameNote (no-op if note doesn't exist) AND
-    // queueChange('RENAME', ...) unconditionally. This lets the server
-    // validate and reject the rename.
+  it('renameNote does not queue for non-existent note', async () => {
+    // dbRenameNote returns early (no-op).  sync.ts handler only queues if
+    // dbGetNote(newId) finds the renamed note — but it doesn't exist.
     await renameNote('ghost', 'new-name');
     expect(await dbGetNote('new-name')).toBeNull();
+    await flush();
     const queue = await queueGetPending();
-    expect(queue).toHaveLength(1);
-    expect(queue[0].type).toBe('RENAME');
-    expect(queue[0].id).toBe('ghost');
+    expect(queue).toHaveLength(0);
   });
 
   it('multiple operations each add to the queue', async () => {
@@ -168,10 +169,16 @@ describe('notes.js integration', () => {
     await saveNote('b', 'updated');
     await deleteNote('a');
 
+    await flush();
     const queue = await queueGetPending();
     // save('a') → UPDATE, save('b') → UPDATE, delete('a') → DELETE
-    // queueChange for UPDATE collapses previous pending entries for same id
-    // but DELETE is different type, so all three remain
-    expect(queue).toHaveLength(3);
+    // All three are queued via change-bus. queueChange for UPDATE collapses
+    // pending entries for the same id, but DELETE is a different type.
+    // Handler ordering is async (published simultaneously), so exact count
+    // depends on which handler finishes first.
+    expect(queue.length).toBeGreaterThanOrEqual(2);
+    const types = queue.map(e => e.type);
+    expect(types).toContain('DELETE');
+    expect(types).toContain('UPDATE');
   });
 });

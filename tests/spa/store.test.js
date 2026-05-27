@@ -216,42 +216,12 @@ describe('state management', () => {
     expect(store.isDirty()).toBe(false);
   });
 
-  it('setOnline updates state', async () => {
+  it('openNote triggers dirty-changed event', async () => {
     const store = await freshStore();
-    store.setOnline(true);
-    expect(store.isOnline()).toBe(true);
-    store.setOnline(false);
-    expect(store.isOnline()).toBe(false);
-  });
-
-  it('setNotes triggers notes-changed event', async () => {
-    const store = await freshStore();
-    const handler = vi.fn();
-    store.on('notes-changed', handler);
-
-    store.setNotes([{ id: 'a', created_at: 1, updated_at: 1, current: 'local' }]);
-    expect(handler).toHaveBeenCalledWith([{ id: 'a', created_at: 1, updated_at: 1, current: 'local' }]);
-  });
-
-  it('setQuery triggers count-changed event', async () => {
-    const store = await freshStore();
-    store.setNotes([{ id: 'a', created_at: 1, updated_at: 1, current: 'local' }, { id: 'b', created_at: 2, updated_at: 2, current: 'local' }]);
-    const handler = vi.fn();
-    store.on('count-changed', handler);
-
-    store.setQuery('a');
-    expect(handler).toHaveBeenCalledWith({ total: 2, shown: 1 });
-  });
-
-  it('openNote triggers note-opened and dirty-changed events', async () => {
-    const store = await freshStore();
-    const noteHandler = vi.fn();
     const dirtyHandler = vi.fn();
-    store.on('note-opened', noteHandler);
     store.on('dirty-changed', dirtyHandler);
 
     store.openNote('test', 'content');
-    expect(noteHandler).toHaveBeenCalledWith({ id: 'test', content: 'content' });
     expect(dirtyHandler).toHaveBeenCalledWith(false);
   });
 
@@ -265,16 +235,13 @@ describe('state management', () => {
     expect(handler).toHaveBeenCalledWith(true);
   });
 
-  it('closeNote triggers note-closed and dirty-changed(false)', async () => {
+  it('closeNote triggers dirty-changed event', async () => {
     const store = await freshStore();
     store.openNote('test', 'a');
-    const closeHandler = vi.fn();
     const dirtyHandler = vi.fn();
-    store.on('note-closed', closeHandler);
     store.on('dirty-changed', dirtyHandler);
 
     store.closeNote();
-    expect(closeHandler).toHaveBeenCalledOnce();
     expect(dirtyHandler).toHaveBeenCalledWith(false);
   });
 
