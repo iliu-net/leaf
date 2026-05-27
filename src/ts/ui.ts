@@ -224,14 +224,15 @@ export function showTrashBanner(
   onPurge: () => void,
 ): void {
   if (!trashBanner || !trashBannerBody) return;
-  const editorTabs = document.getElementById('editor-tabs');
-  const tabRaw = document.getElementById('tab-raw');
-  const tabMeta = document.getElementById('tab-meta');
-  const emptyState = document.getElementById('empty-state');
 
+  // Hide all editor panels
+  const editorTabs = document.getElementById('editor-tabs');
+  for (const panelId of ['tab-view', 'tab-raw', 'tab-meta']) {
+    const panel = document.getElementById(panelId);
+    if (panel) panel.classList.remove('active');
+  }
+  const emptyState = document.getElementById('empty-state');
   if (editorTabs) editorTabs.style.display = 'none';
-  if (tabRaw) tabRaw.classList.remove('active');
-  if (tabMeta) tabMeta.classList.remove('active');
   if (emptyState) emptyState.style.display = 'none';
 
   trashBanner.style.display = 'block';
@@ -239,86 +240,23 @@ export function showTrashBanner(
   if (trashBannerRestore) trashBannerRestore.onclick = onRestore;
   if (trashBannerPurge) trashBannerPurge.onclick = onPurge;
 
-  // ── Parse frontmatter ──────────────────────────────────────────────
+  // ── Build synthetic NoteData ───────────────────────────────────────
   const fm = parseFrontmatter(content);
-  const fmMeta = fm.meta;
-  const body = fm.body;
-
-  const knownKeys = new Set(['title', 'summary', 'user-tags', 'created', 'updated', 'created_by', 'updated_by']);
-  const customFields: [string, string][] = [];
-  for (const [k, v] of Object.entries(fmMeta)) {
-    if (!knownKeys.has(k)) customFields.push([k, fmtVal(v)]);
-  }
-
-  // ── Build body HTML ─────────────────────────────────────────────────
-  const parts: string[] = [];
-
-  // Title
-  parts.push('<div class="trash-meta-row">');
-  parts.push('<label>Title</label>');
-  parts.push(`<div class="trash-meta-value">${esc(fmtVal(fmMeta['title']))}</div>`);
-  parts.push('</div>');
-
-  // Summary
-  parts.push('<div class="trash-meta-row">');
-  parts.push('<label>Summary</label>');
-  parts.push(`<div class="trash-meta-value">${esc(fmtVal(fmMeta['summary']))}</div>`);
-  parts.push('</div>');
-
-  // Tags
-  parts.push('<div class="trash-meta-row">');
-  parts.push('<label>Tags</label>');
-  parts.push(`<div class="trash-meta-value">${esc(fmtVal(fmMeta['user-tags']))}</div>`);
-  parts.push('</div>');
-
-  // Custom fields
-  if (customFields.length > 0) {
-    parts.push('<div class="meta-section-header">Custom Fields</div>');
-    parts.push('<table class="trash-fm-table">');
-    for (const [k, v] of customFields) {
-      parts.push(`<tr><td class="trash-fm-key">${esc(k)}</td><td class="trash-fm-val">${esc(v)}</td></tr>`);
-    }
-    parts.push('</table>');
-  }
-
-  // Content stats (body only)
-  const wordCount = body.trim() ? body.trim().split(/\s+/).length : 0;
-  const charCount = body.length;
-  const lineCount = body ? body.split('\n').length : 0;
-  parts.push('<div class="meta-section-header">Size (body only)</div>');
-  parts.push(`<div class="meta-stats">${wordCount} words · ${charCount} chars · ${lineCount} lines</div>`);
-
-  // System info
-  const fmt = (ts: number | undefined): string => {
-    if (!ts) return '—';
-    return new Date(ts).toLocaleString();
+  const noteData = {
+    id,
+    content,
+    created_at: meta.created_at ?? 0,
+    updated_at: meta.updated_at ?? 0,
+    current: meta.current ?? '',
+    created_by: meta.created_by ?? '',
+    updated_by: meta.updated_by ?? '',
+    meta: fm.meta,
   };
-  parts.push('<div class="meta-section-header">System Info</div>');
-  parts.push('<table class="meta-system-table">');
-  if (meta.current) parts.push(`<tr><td>Version</td><td>${esc(meta.current)}</td></tr>`);
-  if (meta.created_at) parts.push(`<tr><td>Created</td><td>${fmt(meta.created_at)}</td></tr>`);
-  if (meta.updated_at) parts.push(`<tr><td>Updated</td><td>${fmt(meta.updated_at)}</td></tr>`);
-  if (meta.created_by) parts.push(`<tr><td>Created by</td><td>${esc(meta.created_by)}</td></tr>`);
-  if (meta.updated_by) parts.push(`<tr><td>Updated by</td><td>${esc(meta.updated_by)}</td></tr>`);
-  parts.push('</table>');
 
-  // Content
-  parts.push('<div class="meta-section-header">Content</div>');
-  parts.push(`<pre class="trash-banner-content">${esc(body)}</pre>`);
-
-  trashBannerBody.innerHTML = parts.join('');
-}
-
-/** Convert frontmatter value to display string. */
-function fmtVal(v: string | string[] | undefined): string {
-  if (v === undefined) return '—';
-  if (Array.isArray(v)) return v.join(', ');
-  return v;
-}
-
-/** Minimal HTML-escaping for display values. */
-function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // ── Delegate to view panel (single read-only render path) ──────────
+  import('./view-panel.js').then(mod => {
+    trashBannerBody.innerHTML = `<div class="trash-fm-wrap">${mod.renderView(content, noteData)}</div>`;
+  });
 }
 
 export function hideTrashBanner(): void {

@@ -200,7 +200,8 @@
 
       <!-- Tab bar (hidden when no note is open) -->
       <div id="editor-tabs" style="display:none" role="tablist" aria-label="Editor tabs">
-        <button id="tab-btn-raw"  class="tab-btn active" role="tab" aria-selected="true">Raw</button>
+        <button id="tab-btn-view" class="tab-btn active" role="tab" aria-selected="true">View</button>
+        <button id="tab-btn-raw"  class="tab-btn"        role="tab" aria-selected="false">Raw</button>
         <button id="tab-btn-meta" class="tab-btn"        role="tab" aria-selected="false">Meta</button>
       </div>
 
@@ -212,6 +213,12 @@
           placeholder="Start writing…"
           aria-label="Note content"
         ></textarea>
+      </div>
+
+      <!-- View tab — rendered markdown view -->
+      <div id="tab-view" class="tab-panel active" role="tabpanel">
+        <div class="view-header"></div>
+        <div class="view-content"></div>
       </div>
 
       <!-- Meta tab — structured metadata view -->

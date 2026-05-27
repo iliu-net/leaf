@@ -6,6 +6,7 @@ src/node_modules
 spa/app.js
 spa/history-*.js
 spa/chunk-*.js
+spa/view-panel-*.js
 *.bak
 
 # Some test directories...

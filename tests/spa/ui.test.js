@@ -71,8 +71,15 @@ function setupDOM() {
 
           <!-- Tab bar -->
           <div id="editor-tabs" style="display:none" role="tablist">
-            <button id="tab-btn-raw"  class="tab-btn active" role="tab">Raw</button>
+            <button id="tab-btn-view" class="tab-btn active" role="tab">View</button>
+            <button id="tab-btn-raw"  class="tab-btn"        role="tab">Raw</button>
             <button id="tab-btn-meta" class="tab-btn"        role="tab">Meta</button>
+          </div>
+
+          <!-- View tab -->
+          <div id="tab-view" class="tab-panel active" role="tabpanel">
+            <div class="view-header"></div>
+            <div class="view-content"></div>
           </div>
 
           <!-- Raw tab -->
@@ -302,17 +309,19 @@ describe('clearSearch()', () => {
 describe('showEditor() / hideEditor()', () => {
   it('shows editor with content', async () => {
     const ui = await getUI();
-    ui.showEditor({ id: 'my-note', content: 'Hello World', created_at: 1000, updated_at: 2000, current: 'abc', meta: {} });
+    await ui.showEditor({ id: 'my-note', content: 'Hello World', created_at: 1000, updated_at: 2000, current: 'abc', meta: {} });
 
     const noteArea = document.getElementById('note-area');
     const emptyState = document.getElementById('empty-state');
     const currentFile = document.getElementById('current-file');
     const editorTabs = document.getElementById('editor-tabs');
+    const tabView = document.getElementById('tab-view');
     const tabRaw = document.getElementById('tab-raw');
     const tabMeta = document.getElementById('tab-meta');
 
     expect(editorTabs.style.display).toBe('flex');
-    expect(tabRaw.classList.contains('active')).toBe(true);
+    expect(tabView.classList.contains('active')).toBe(true);
+    expect(tabRaw.classList.contains('active')).toBe(false);
     expect(tabMeta.classList.contains('active')).toBe(false);
     expect(noteArea.value).toBe('Hello World');
     expect(emptyState.style.display).toBe('none');

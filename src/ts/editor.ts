@@ -7,6 +7,7 @@
 
 import * as rawPanel  from './raw-panel.js';
 import * as metaPanel from './meta-panel.js';
+import type { NoteData } from './notes.js';
 import {
   parseFrontmatter,
   updateFrontmatter,
@@ -15,15 +16,23 @@ import {
   computeStats,
 } from './frontmatter.js';
 import type { PendingMeta } from './frontmatter.js';
-import type { NoteData } from './notes.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
 
 /** ID of the note currently open in the editor (not DOM-dependent). */
 let _currentNoteId: string | null = null;
 
-/** Currently active tab: 'raw' or 'meta'. */
-let _activeTab: 'raw' | 'meta' = 'raw';
+/**
+ * Cached NoteData (IndexedDB record fields) for the currently open note.
+ * Needed by the View panel footer (system info) and re-renders on tab switch.
+ */
+let _noteData: NoteData | null = null;
+
+/** Currently active tab: 'view', 'raw', or 'meta'. */
+let _activeTab: 'view' | 'raw' | 'meta' = 'view';
+
+/** Lazy-loaded view-panel module reference. */
+let _viewMod: typeof import('./view-panel.js') | null = null;
 
 /** Pending meta state (form values before flush to textarea). */
 let _pendingMeta: PendingMeta = { title: '', summary: '', tags: [], custom: {} };
@@ -74,16 +83,19 @@ export function initPanels(onDirty: () => void): void {
   });
 
   // Tab button clicks
+  const tabBtnView = document.getElementById('tab-btn-view');
   const tabBtnRaw  = document.getElementById('tab-btn-raw');
   const tabBtnMeta = document.getElementById('tab-btn-meta');
+  if (tabBtnView) tabBtnView.addEventListener('click', () => switchTab('view'));
   if (tabBtnRaw)  tabBtnRaw.addEventListener('click',  () => switchTab('raw'));
   if (tabBtnMeta) tabBtnMeta.addEventListener('click', () => switchTab('meta'));
 }
 
 // ── Editor ──────────────────────────────────────────────────────────────────
 
-export function showEditor(noteData: NoteData): void {
+export async function showEditor(noteData: NoteData): Promise<void> {
   _currentNoteId = noteData.id;
+  _noteData = noteData;
 
   // Parse frontmatter for initial pending state
   const fm = parseFrontmatter(noteData.content);
@@ -94,13 +106,7 @@ export function showEditor(noteData: NoteData): void {
   emptyState.style.display = 'none';
   editorTabs.style.display = 'flex';
 
-  // Show raw tab by default
-  _activeTab = 'raw';
-  tabRaw.classList.add('active');
-  tabMeta.classList.remove('active');
-  updateTabButtons();
-
-  // Fill textarea
+  // Fill textarea (raw panel is the source of truth)
   rawPanel.showRawPanel(noteData.content);
 
   // Populate system info fields
@@ -109,22 +115,30 @@ export function showEditor(noteData: NoteData): void {
   // Show note name
   currentFile.innerHTML = `<span class="fname">${noteData.id}</span>`;
 
-  rawPanel.focusRawPanel();
+  // Render the View tab as the default.  Set _activeTab to a non-'view'
+  // value so switchTab('view') doesn't early-return on subsequent calls
+  // (the module-level default is already 'view').
+  _activeTab = 'raw';
+  await switchTab('view');
 }
 
 export function hideEditor(): void {
   _currentNoteId = null;
+  _noteData = null;
   _pendingMeta = { title: '', summary: '', tags: [], custom: {} };
   _pendingMetaDirty = false;
 
   // Hide panels
   editorTabs.style.display = 'none';
+  const tabView = document.getElementById('tab-view');
+  if (tabView) tabView.classList.remove('active');
   tabRaw.classList.remove('active');
   tabMeta.classList.remove('active');
 
-  // Clear textarea and meta panel
+  // Clear textarea, meta panel, and view panel
   rawPanel.hideRawPanel();
   metaPanel.resetMetaPanel();
+  if (_viewMod) _viewMod.hideViewPanel();
 
   // Show empty state
   emptyState.style.display = 'flex';
@@ -170,20 +184,27 @@ export function getCurrentNoteId(): string | null {
 
 // ── Tab switching ───────────────────────────────────────────────────────────
 
-function switchTab(tab: 'raw' | 'meta'): void {
+async function switchTab(tab: 'view' | 'raw' | 'meta'): Promise<void> {
   if (tab === _activeTab) return;
 
+  // ── Leave current tab ──────────────────────────────────────────────
+  // Only Meta can hold unflushed state — flush it to the textarea.
+  if (_activeTab === 'meta' && _pendingMetaDirty) {
+    flushPendingMeta();
+  }
+
+  const prev = _activeTab;
+  _activeTab = tab;
+
+  // ── Enter target tab ───────────────────────────────────────────────
+
   if (tab === 'raw') {
-    // Meta → Raw: flush pending meta to textarea if dirty
-    if (_pendingMetaDirty) {
-      flushPendingMeta();
-    }
-    _activeTab = 'raw';
-    tabRaw.classList.add('active');
-    tabMeta.classList.remove('active');
+    // View/Raw → Raw: show textarea, focus it
+    showPanel('tab-raw');
     rawPanel.focusRawPanel();
-  } else {
-    // Raw → Meta: re-parse frontmatter from current textarea
+
+  } else if (tab === 'meta') {
+    // Re-parse frontmatter from current textarea
     const raw = rawPanel.getRawContent();
     const fm = parseFrontmatter(raw);
     _pendingMeta = initPendingMeta(fm.meta);
@@ -195,24 +216,43 @@ function switchTab(tab: 'raw' | 'meta'): void {
     // Render meta panel
     metaPanel.renderMetaPanel(_pendingMeta, stats);
 
-    _activeTab = 'meta';
-    tabRaw.classList.remove('active');
-    tabMeta.classList.add('active');
+    showPanel('tab-meta');
+
+  } else if (tab === 'view') {
+    // Lazy-load the view-panel module on first use
+    if (!_viewMod) {
+      _viewMod = await import('./view-panel.js');
+      _viewMod.initViewPanel();
+    }
+
+    // Re-parse from current textarea and render
+    const raw = rawPanel.getRawContent();
+    if (_noteData) {
+      _viewMod.showViewPanel(raw, _noteData);
+    }
+
+    showPanel('tab-view');
   }
 
   updateTabButtons();
 }
 
-function updateTabButtons(): void {
-  const btnRaw  = document.getElementById('tab-btn-raw');
-  const btnMeta = document.getElementById('tab-btn-meta');
-  if (btnRaw) {
-    btnRaw.classList.toggle('active', _activeTab === 'raw');
-    btnRaw.setAttribute('aria-selected', String(_activeTab === 'raw'));
+/** Show one tab panel, hide the others. */
+function showPanel(activeId: string): void {
+  const panels = ['tab-view', 'tab-raw', 'tab-meta'];
+  for (const id of panels) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active', id === activeId);
   }
-  if (btnMeta) {
-    btnMeta.classList.toggle('active', _activeTab === 'meta');
-    btnMeta.setAttribute('aria-selected', String(_activeTab === 'meta'));
+}
+
+function updateTabButtons(): void {
+  for (const t of ['view', 'raw', 'meta'] as const) {
+    const btn = document.getElementById(`tab-btn-${t}`);
+    if (btn) {
+      btn.classList.toggle('active', _activeTab === t);
+      btn.setAttribute('aria-selected', String(_activeTab === t));
+    }
   }
 }
 
