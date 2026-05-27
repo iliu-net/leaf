@@ -6,7 +6,7 @@
  * implement SidebarView without importing ui.ts directly.
  */
 
-import type { NoteMeta } from './store.js';
+import type { NoteMeta } from './notes.js';
 
 // ── Event handler callbacks ──────────────────────────────────────────────
 // Moved here from ui.ts to avoid circular imports (both ui.ts and tree.ts

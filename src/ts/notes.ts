@@ -14,10 +14,17 @@ import {
   dbCreateNote,
   dbRenameNote,
 } from './db.js';
-import type { NoteMeta } from './store.js';
 import { parseFrontmatter } from './frontmatter.js';
 import type { FrontmatterResult } from './frontmatter.js';
 import { publish } from './change-bus.js';
+
+/** Note metadata returned by listNotes(). */
+export interface NoteMeta {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  current: string;
+}
 
 /**
  * Full note data returned by loadNote().

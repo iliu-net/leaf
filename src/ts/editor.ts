@@ -2,7 +2,7 @@
  * editor.ts — editor / textarea / meta-panel lifecycle
  *
  * Extracted from ui.ts. Owns all editor state and tab/meta coordination.
- * Communicates outward only via exports — no imports of store.ts.
+ * Communicates outward only via exports — no external state dependencies.
  */
 
 import * as rawPanel  from './raw-panel.js';
@@ -41,8 +41,7 @@ let _pendingMeta: PendingMeta = { title: '', summary: '', tags: [], custom: {} }
 let _pendingMetaDirty = false;
 
 /**
- * Callback to mark the store as dirty.
- * Set by initPanels() — avoids circular import of store.ts.
+ * Callback to mark editor state as dirty (set by app.ts via initPanels).
  */
 let _onDirty: (() => void) | null = null;
 

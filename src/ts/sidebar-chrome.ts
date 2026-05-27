@@ -8,7 +8,7 @@
  * Delegates list rendering to the active SidebarView (default: TreeView).
  */
 
-import type { NoteMeta } from './store.js';
+import type { NoteMeta } from './notes.js';
 import type { SidebarView } from './view.js';
 import { TreeView } from './tree.js';
 

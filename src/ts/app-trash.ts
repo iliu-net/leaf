@@ -5,7 +5,6 @@
  * trash items. Imports refreshList from app-files.ts directly — no callbacks.
  */
 
-import * as store   from './store.js';
 import * as ui      from './ui.js';
 import * as sidebar from './sidebar-chrome.js';
 import { TrashView } from './trash-view.js';

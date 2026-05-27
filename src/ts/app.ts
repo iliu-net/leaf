@@ -19,10 +19,11 @@
  *   logout        → stop sync, clear UI, show login screen
  */
 
-import * as store    from './store.js';
 import * as ui       from './ui.js';
 import * as pwa      from './pwa.js';
 import * as sidebar  from './sidebar-chrome.js';
+import * as notes    from './notes.js';
+import type { NoteData } from './notes.js';
 import { db, dbPurgeDeletedNotes } from './db.js';
 import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
@@ -33,11 +34,137 @@ import { loadTrashEntries, flushPendingPurges } from './trash-service.js';
 import * as appAuth    from './app-auth.js';
 import * as appFiles   from './app-files.js';
 import * as appTrash   from './app-trash.js';
-import * as appCrossTab from './app-cross-tab.js';
 
-// ── Store subscriptions ──────────────────────────────────────────────────
+// ── Editor state (current note, content, dirty flag) ─────────────────────
 
-store.on('dirty-changed', val => ui.setDirty(val as boolean));
+let _current: string | null = null;
+let _content = '';
+let _dirty   = false;
+
+/** Track textarea content changes — called by textarea event listeners. */
+function updateContent(newContent: string): void {
+  _content = newContent;
+  if (_current === null) return;
+  if (!_dirty) {
+    _dirty = true;
+    ui.setDirty(true);
+  }
+}
+
+// ── Cross-tab helpers ─────────────────────────────────────────────────────
+
+async function reloadOpenNote(id: string): Promise<void> {
+  try {
+    const data: NoteData = await notes.loadNote(id);
+    if (data.content === _content) return;
+    _current = id;
+    _content = data.content;
+    _dirty   = false;
+    ui.showEditor(data);
+  } catch {
+    _current = null;
+    _content = '';
+    _dirty   = false;
+    ui.hideEditor();
+  }
+}
+
+async function reloadOpenNoteAs(newId: string): Promise<void> {
+  try {
+    const data: NoteData = await notes.loadNote(newId);
+    _current = newId;
+    _content = data.content;
+    _dirty   = false;
+    ui.showEditor(data);
+    ui.setActiveFile(newId);
+  } catch {
+    _current = null;
+    _content = '';
+    _dirty   = false;
+    ui.hideEditor();
+  }
+}
+
+// ── Cross-tab change handler ──────────────────────────────────────────────
+
+async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise<void> {
+  const currentId = _current;
+  const inTrashMode = ui.getSidebarMode() === 'trash';
+
+  switch (msg.type) {
+    case 'saved':
+    case 'created': {
+      await appFiles.refreshList(currentId);
+      if (currentId && currentId === msg.id && !_dirty) {
+        await reloadOpenNote(currentId);
+      }
+      break;
+    }
+
+    case 'deleted': {
+      if (inTrashMode) {
+        await appTrash.refreshTrashList();
+      } else {
+        await appFiles.refreshList();
+        loadTrashEntries().then(e => ui.setTrashCount(e.length));
+        if (currentId && currentId === msg.id) {
+          _current = null;
+          _content = '';
+          _dirty   = false;
+          ui.hideEditor();
+          ui.toast(`"${msg.id}" was deleted in another tab`);
+        }
+      }
+      break;
+    }
+
+    case 'renamed': {
+      const newId = msg.newId;
+      await appFiles.refreshList(newId);
+      if (currentId && currentId === msg.id && newId && !_dirty) {
+        await reloadOpenNoteAs(newId);
+        ui.toast(`Renamed to "${newId}" in another tab`);
+      }
+      break;
+    }
+
+    case 'restored': {
+      if (inTrashMode) {
+        await appTrash.refreshTrashList();
+      } else {
+        await appFiles.refreshList(currentId);
+        loadTrashEntries().then(e => ui.setTrashCount(e.length));
+        if (currentId && currentId === msg.id && !_dirty) {
+          await reloadOpenNote(currentId);
+        }
+      }
+      break;
+    }
+
+    case 'trash-emptied': {
+      if (inTrashMode) {
+        await appTrash.refreshTrashList();
+        ui.toast('Trash was emptied in another tab');
+      } else {
+        ui.setTrashCount(0);
+      }
+      break;
+    }
+
+    case 'server-sync': {
+      if (inTrashMode) {
+        await appTrash.refreshTrashList();
+      } else {
+        await appFiles.refreshList(currentId);
+        loadTrashEntries().then(e => ui.setTrashCount(e.length));
+        if (currentId && !_dirty) {
+          await reloadOpenNote(currentId);
+        }
+      }
+      break;
+    }
+  }
+}
 
 // ── Sync status → UI ─────────────────────────────────────────────────────
 
@@ -77,10 +204,32 @@ async function handleResetDB(): Promise<void> {
 
 function wireUiEvents(): void {
   ui.bindEvents({
-    onOpen:          id       => appFiles.openFile(id),
-    onDelete:        id       => appFiles.deleteFile(id),
+    onOpen:          async id => {
+      if (_dirty && !confirm('You have unsaved changes. Discard?')) return;
+      try {
+        const data = await appFiles.openFile(id);
+        _current = id;
+        _content = data.content;
+        _dirty   = false;
+        ui.setDirty(false);
+      } catch { /* error toast handled in openFile */ }
+    },
+    onDelete:        async id => {
+      const { wasCurrent } = await appFiles.deleteFile(id);
+      if (wasCurrent) {
+        _current = null;
+        _content = '';
+        _dirty   = false;
+        ui.setDirty(false);
+      }
+    },
     onSearch:        q        => appFiles.handleSearch(q),
-    onSave:          ()       => appFiles.saveFile(),
+    onSave:          async () => {
+      if (!_current) return;
+      await appFiles.saveFile(_current);
+      _dirty = false;
+      ui.setDirty(false);
+    },
     onNew:           ()       => ui.openModal(),
     onCreate:        ()       => appFiles.createFile(),
     onCancelModal:   ()       => ui.closeModal(),
@@ -108,6 +257,8 @@ function wireUiEvents(): void {
 async function showShell(): Promise<void> {
   ui.showAppShell(null);
 
+  appFiles.init(() => _current);
+
   dbPurgeDeletedNotes().catch(err =>
     console.warn('[purge] Failed to purge deleted notes:', err)
   );
@@ -123,24 +274,24 @@ async function showShell(): Promise<void> {
 
   subscribe(event => {
     ui.setSidebarLoading(false);
-    appCrossTab.handleChange(event).catch(err =>
+    handleChange(event).catch(err =>
       console.warn('[change-bus] Handler error:', err)
     );
   });
 
   document.addEventListener('note-changed', () =>
-    store.updateContent(ui.getRawContent())
+    updateContent(ui.getRawContent())
   );
 
   document.getElementById('btn-view-history')?.addEventListener('click', async () => {
-    const id = store.getCurrent();
+    const id = _current;
     if (!id) return;
     try {
       const { open } = await import('./history-view.js');
       open(id, {
         onRestore: (content: string) => {
           ui.setRawContent(content);
-          store.updateContent(content);
+          updateContent(content);
         },
       });
     } catch (err) {
@@ -148,7 +299,7 @@ async function showShell(): Promise<void> {
     }
   });
 
-  ui.initPanels(() => store.updateContent(ui.getRawContent()));
+  ui.initPanels(() => updateContent(ui.getRawContent()));
 }
 
 /** Phase 2: Upgrade shell to full-app mode (authenticated user). */
@@ -185,7 +336,8 @@ async function boot(): Promise<void> {
   }
   // network-error → stay offline, shell is already visible
 
-  store.markClean();
+  _dirty = false;
+  ui.setDirty(false);
 
   // ?action=new query param
   if (new URLSearchParams(location.search).get('action') === 'new') {

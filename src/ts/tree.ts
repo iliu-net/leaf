@@ -11,7 +11,7 @@
  */
 
 import type { SidebarView, UIEventHandlers } from './view.js';
-import type { NoteMeta } from './store.js';
+import type { NoteMeta } from './notes.js';
 import * as contextMenu from './context-menu.js';
 
 // ── Tree data type ──────────────────────────────────────────────────────

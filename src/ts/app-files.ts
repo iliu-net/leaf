@@ -2,72 +2,78 @@
  * app-files.ts — note CRUD and file-list operations
  *
  * Handles creating, opening, saving, deleting, renaming, and listing notes.
- * All dependencies are imported directly — no factory function.
+ * Owns note-list state (all notes, search query, filtering).
+ * Receives a getCurrentId callback from app.ts for UI highlighting.
+ * Editor state (current, content, dirty) is owned by app.ts.
  */
 
-import * as store from './store.js';
 import * as ui    from './ui.js';
 import * as notes from './notes.js';
+import type { NoteData, NoteMeta } from './notes.js';
 import { safeName } from './utils.js';
-import type { NoteData } from './notes.js';
 
-// ── File list ────────────────────────────────────────────────────────────
+// ── Note list state ──────────────────────────────────────────────────────────
+
+let _allNotes: NoteMeta[] = [];
+let _query = '';
+
+/** Callback provided by app.ts — returns the currently open note ID. */
+let _getCurrentId: () => string | null = () => null;
+
+/** Set the callback for querying the current note ID. Called once by app.ts. */
+export function init(getCurrentId: () => string | null): void {
+  _getCurrentId = getCurrentId;
+}
+
+// ── Filtering ────────────────────────────────────────────────────────────────
+
+function applyFilter(): NoteMeta[] {
+  return _query
+    ? _allNotes.filter(n => n.id.toLowerCase().includes(_query))
+    : [..._allNotes];
+}
+
+// ── File list ────────────────────────────────────────────────────────────────
 
 export async function refreshList(selectId: string | null = null): Promise<void> {
   try {
-    const items = await notes.listNotes();
-    store.setNotes(items);
-    ui.renderFileList(store.getNotes(), store.getCurrent());
-    ui.updateNoteCount(store.getState().notes.length, store.getNotes().length);
+    _allNotes = await notes.listNotes();
+    const filtered = applyFilter();
+    ui.renderFileList(filtered, _getCurrentId());
+    ui.updateNoteCount(_allNotes.length, filtered.length);
     if (selectId) await openFile(selectId);
   } catch (err) {
     ui.toast(`Failed to load notes: ${(err as Error).message}`, true);
   }
 }
 
-export async function openFile(id: string): Promise<void> {
-  if (store.isDirty() && !confirm('You have unsaved changes. Discard?')) return;
-  try {
-    const data: NoteData = await notes.loadNote(id);
-    store.openNote(id, data.content);
-    ui.showEditor(data);
-    ui.setActiveFile(id);
-    ui.setDirty(false);
-    ui.setStatus(`Opened "${id}"`);
-  } catch (err) {
-    ui.toast(`Could not open "${id}": ${(err as Error).message}`, true);
-  }
+export async function openFile(id: string): Promise<NoteData> {
+  // Dirty check is handled by app.ts before calling this.
+  const data: NoteData = await notes.loadNote(id);
+  ui.showEditor(data);
+  ui.setActiveFile(id);
+  ui.setDirty(false);
+  ui.setStatus(`Opened "${id}"`);
+  return data;
 }
 
-export async function saveFile(): Promise<void> {
-  const id = store.getCurrent();
-  if (!id) return;
+export async function saveFile(id: string): Promise<void> {
   const content = ui.flushAndGetContent();
-  try {
-    await notes.saveNote(id, content);
-    store.markClean();
-    ui.setDirty(false);
-    ui.setStatus(`Saved "${id}"`);
-    ui.toast(`Saved "${id}"`);
-  } catch (err) {
-    ui.toast(`Save failed: ${(err as Error).message}`, true);
-  }
+  await notes.saveNote(id, content);
+  ui.setDirty(false);
+  ui.setStatus(`Saved "${id}"`);
+  ui.toast(`Saved "${id}"`);
 }
 
-export async function deleteFile(id: string): Promise<void> {
-  if (!confirm(`Move "${id}" to trash?`)) return;
-  try {
-    await notes.deleteNote(id);
-    if (store.getCurrent() === id) {
-      store.closeNote();
-      ui.hideEditor();
-    }
-    await refreshList();
-    ui.setStatus(`Deleted "${id}"`);
-    ui.toast(`Deleted "${id}"`);
-  } catch (err) {
-    ui.toast(`Delete failed: ${(err as Error).message}`, true);
-  }
+export async function deleteFile(id: string): Promise<{ wasCurrent: boolean }> {
+  if (!confirm(`Move "${id}" to trash?`)) return { wasCurrent: false };
+  await notes.deleteNote(id);
+  const wasCurrent = _getCurrentId() === id;
+  if (wasCurrent) ui.hideEditor();
+  await refreshList();
+  ui.setStatus(`Deleted "${id}"`);
+  ui.toast(`Deleted "${id}"`);
+  return { wasCurrent };
 }
 
 export async function handleRenameClick(id: string): Promise<void> {
@@ -108,8 +114,8 @@ export async function createFile(): Promise<void> {
 }
 
 export function handleSearch(query: string): void {
-  store.setQuery(query);
-  const filtered = store.getNotes();
-  ui.renderFileList(filtered, store.getCurrent());
-  ui.updateNoteCount(store.getState().notes.length, filtered.length);
+  _query = query.toLowerCase().trim();
+  const filtered = applyFilter();
+  ui.renderFileList(filtered, _getCurrentId());
+  ui.updateNoteCount(_allNotes.length, filtered.length);
 }
