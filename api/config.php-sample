@@ -63,6 +63,8 @@ $spa_config = [
     'markdown' => [
         'html' => false,  // allow raw HTML in markdown input
     ],
+    'deleted_notes_ttl_days' => 7,      // days before deleted notes are purged client-side
+    'timestamp_format'      => null,    // null = client decides; or e.g. 'YYYY-MM-DD HH:mm'
 ];
 
 // ── CORS policy ──────────────────────────────────────────────────────────

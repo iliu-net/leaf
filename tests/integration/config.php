@@ -22,4 +22,13 @@ define('AUDIT_RETENTION_DAYS', 90);
 define('AUDIT_LOG_IPS',       false);
 // Cookie path — scoped to "/" for the test server (it serves from root)
 define('COOKIE_PATH', '/');
+// ── SPA client config ─────────────────────────────────────────────────────
+$spa_config = [
+    'markdown' => [
+        'html' => false,
+    ],
+    'deleted_notes_ttl_days' => 7,
+    'timestamp_format'      => null,
+];
+
 define('CORS_ALLOW_POLICY',   '*');

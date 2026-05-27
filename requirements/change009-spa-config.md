@@ -199,3 +199,37 @@ alongside the spa-config changes — it does not block or depend on spa-config.
 
 Not tracked in git — ignored for now.  The main instance config files cover the
 pattern; demo instance can be updated separately when needed.
+
+## Added keys (change012)
+
+Two additional keys were added to `$spa_config` for client-side configuration.
+The `spa-config.php` handler passes them through unchanged — no handler changes needed.
+
+### `deleted_notes_ttl_days`
+
+| Config file | Value |
+|---|---|
+| `api/config.php-sample` | `7` |
+| `api/config.php` | `7` |
+| `demo/cookbook/api/config.php-sample` | `7` |
+| `demo/cookbook/api/config.php` | `7` |
+| `tests/integration/config.php` | `7` |
+
+Tells the SPA how many days to keep deleted notes visible in the trash before
+purging them client-side.  Defaults to 7 days.  This is separate from the
+server-side `DELETED_NOTE_TTL_DAYS` constant (default 30 days), allowing the
+client to be stricter than the server.
+
+### `timestamp_format`
+
+| Config file | Value |
+|---|---|
+| `api/config.php-sample` | `null` |
+| `api/config.php` | `null` |
+| `demo/cookbook/api/config.php-sample` | `null` |
+| `demo/cookbook/api/config.php` | `'YYYY-MM-DD HH:mm'` |
+| `tests/integration/config.php` | `null` |
+
+Arbitrary format string for the SPA to use when displaying dates and times.
+`null` means the client chooses its own default (typically the browser locale).
+The demo cookbook instance sets `"YYYY-MM-DD HH:mm"` (24-hour, dayjs-compatible).
