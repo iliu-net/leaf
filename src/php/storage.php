@@ -11,7 +11,7 @@
  *   notes/{id}.deleted.json — soft-deleted tombstone (never purged)
  *   changelog.jsonl         — append-only change log
  *
- * Note file structure:
+ * Live note file structure ({id}.json):
  * {
  *   "current":    "2026-05-26:1:alice",
  *   "created_at": 1748200000,
@@ -26,6 +26,19 @@
  *     }
  *   }
  * }
+ *
+ * Tombstone file structure ({id}.deleted.json):
+ * Same as the live note, plus two extra top-level fields:
+ * {
+ *   "current":    "2026-05-26:1:alice",
+ *   "created_at": 1748200000,
+ *   "created_by": "alice",
+ *   "deleted_at": 1748350000,
+ *   "deleted_by": "alice",
+ *   "versions": { ... }
+ * }
+ *   deleted_at  — when the note was soft-deleted (Unix seconds)
+ *   deleted_by  — username who performed the deletion
  *
  *   created_by     — original creator, set on first write, never overwritten
  *   versions.*.author     — who wrote this specific version
@@ -43,7 +56,8 @@
  * Changelog entry:
  * {"rev":N,"file":"id","type":"CREATE|UPDATE|DELETE|RENAME",
  *  "ts":N,"version":"key"|null,"prev_version":"key"|null,
- *  "renamed_to":"new-id"|null}
+ *  "renamed_to":"new-id","renamed_by":"author",          // RENAME only
+ *  "deleted_by":"author"}                                // DELETE only
  *
  * Target MySQL schema (normalized — for future migration):
  *
@@ -52,7 +66,9 @@
  *     current    VARCHAR(100),
  *     created_at INT NOT NULL,
  *     created_by VARCHAR(100) NOT NULL DEFAULT '',
- *     deleted    TINYINT NOT NULL DEFAULT 0
+ *     deleted    TINYINT NOT NULL DEFAULT 0,
+ *     deleted_at INT DEFAULT NULL,
+ *     deleted_by VARCHAR(100) NOT NULL DEFAULT ''
  *   );
  *
  *   CREATE TABLE versions (
@@ -75,6 +91,8 @@
  *     version      VARCHAR(100),
  *     prev_version VARCHAR(100),
  *     renamed_to   VARCHAR(200),
+ *     renamed_by   VARCHAR(100) NOT NULL DEFAULT '',
+ *     deleted_by   VARCHAR(100) NOT NULL DEFAULT '',
  *     INDEX (rev)
  *   );
  */
@@ -179,21 +197,23 @@ function storage_put_note(string $id, array $data): void {
 }
 
 /**
- * Soft-delete a note by embedding a deleted_at timestamp and writing
+ * Soft-delete a note by embedding deleted_at and deleted_by and writing
  * the .deleted.json tombstone (preserving full version history).
  *
  * Idempotent — safe to call on an already-deleted note.
  *
- * @param string $id  Note identifier
+ * @param string $id          Note identifier
+ * @param string $deleted_by  Username who performed the deletion
  * @return void
  */
-function storage_delete_note(string $id): void {
+function storage_delete_note(string $id, string $deleted_by = ''): void {
     $path = note_path($id);
     if (!file_exists($path) || note_is_deleted($id)) return;
 
     $data = json_decode(file_get_contents($path), true);
     if (is_array($data)) {
         $data['deleted_at'] = time();
+        $data['deleted_by'] = $deleted_by;
         file_put_contents(deleted_path($id), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
     unlink($path);
@@ -203,7 +223,7 @@ function storage_delete_note(string $id): void {
  * Revive a soft-deleted note by restoring its full content from the
  * tombstone (including version history).
  *
- * Reads .deleted.json, strips the deleted_at field, writes .json,
+ * Reads .deleted.json, strips the deleted_at / deleted_by fields, writes .json,
  * then removes the tombstone.
  *
  * Idempotent — safe to call on a note that is not deleted.
@@ -218,6 +238,7 @@ function storage_revive_note(string $id): void {
     $data = json_decode(file_get_contents($path), true);
     if (is_array($data)) {
         unset($data['deleted_at']);
+        unset($data['deleted_by']);
         file_put_contents(note_path($id), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
     unlink($path);
@@ -271,10 +292,11 @@ function storage_hard_delete_note(string $id): void {
 /**
  * Return metadata for all soft-deleted notes.
  *
- * Each entry includes the deleted_at timestamp from the tombstone.
- * Entries without a deleted_at field (legacy) return null for deleted_at.
+ * Each entry includes the deleted_at timestamp and deleted_by username
+ * from the tombstone.  Entries without these fields (legacy) return null
+ * for deleted_at and empty string for deleted_by.
  *
- * @return array<int, array{id: string, deleted_at: int|null}>
+ * @return array<int, array{id: string, deleted_at: int|null, deleted_by: string}>
  */
 function storage_list_deleted_notes(): array {
     $paths = glob(NOTES_DIR . '*.deleted.json') ?: [];
@@ -287,6 +309,7 @@ function storage_list_deleted_notes(): array {
             'deleted_at' => (isset($data['deleted_at']) && is_int($data['deleted_at']))
                 ? $data['deleted_at']
                 : null,
+            'deleted_by' => $data['deleted_by'] ?? '',
         ];
     }
 
@@ -616,4 +639,34 @@ function changelog_since(int $since): array {
  */
 function changelog_current_rev(): int {
     return next_rev() - 1;
+}
+
+/**
+ * Return the revision number of the oldest surviving changelog entry.
+ *
+ * Reads only the first non-empty line of the changelog — O(1) I/O.
+ * Used to detect when a client's syncedRevision falls before the
+ * truncated portion of the log.
+ *
+ * @return int  Earliest rev, or 1 if changelog is empty
+ */
+function changelog_earliest_rev(): int {
+    if (!file_exists(CHANGELOG_FILE)) return 1;
+
+    $fh = fopen(CHANGELOG_FILE, 'r');
+    if (!$fh) return 1;
+
+    while (($line = fgets($fh)) !== false) {
+        $line = trim($line);
+        if ($line === '') continue;
+        $entry = json_decode($line, true);
+        $rev   = is_array($entry) ? ($entry['rev'] ?? null) : null;
+        if (is_int($rev)) {
+            fclose($fh);
+            return $rev;
+        }
+    }
+
+    fclose($fh);
+    return 1;
 }

@@ -16,9 +16,14 @@
  *       {
  *         "type": 1|2|3,         // 1=CREATE 2=UPDATE 3=DELETE
  *         "key":  "note-id",
- *         "obj":  {              // null for DELETE
- *           "id":      "note-id",
- *           "content": "<opaque>"
+ *         "obj":  {              // minimal for DELETE: {"deleted_by": "alice"}
+ *           "id":        "note-id",
+ *           "content":   "<opaque>",
+ *           "version":   "2026-05-27:1:alice",
+ *           "author":    "alice",
+ *           "created_by": "bob",
+ *           "created_at": 1748000000,
+ *           "updated_at": 1748340000
  *         }
  *       }
  *     ],
@@ -214,7 +219,7 @@ function apply_client_change(array $change, string $author): ?array {
         $note    = storage_get_note($key);
         $current = $note['current'] ?? null;
 
-        storage_delete_note($key);
+        storage_delete_note($key, $author);
 
         $entry = [
             'rev'          => next_rev(),
@@ -223,6 +228,7 @@ function apply_client_change(array $change, string $author): ?array {
             'ts'           => time(),
             'version'      => null,
             'prev_version' => $current,
+            'deleted_by'   => $author,
         ];
         changelog_append($entry);
         audit_log('NOTE_DELETE', ['user' => $author, 'note_id' => $key]);
@@ -247,6 +253,7 @@ function apply_client_change(array $change, string $author): ?array {
             'type'         => 'RENAME',
             'ts'           => time(),
             'renamed_to'   => $new_id,
+            'renamed_by'   => $author,
             'version'      => null,
             'prev_version' => null,
         ];
@@ -282,7 +289,10 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
         return [
             'type' => DEXIE_DELETE,
             'key'  => $key,
-            'obj'  => null,
+            'obj'  => [
+                'deleted_by' => $entry['deleted_by'] ?? '',
+                'deleted_at' => $entry['ts']        ?? null,
+            ],
         ];
     }
 
@@ -292,6 +302,8 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
             'key'  => $key,
             'obj'  => [
                 'renamed_to'   => $entry['renamed_to'] ?? '',
+                'renamed_by'   => $entry['renamed_by'] ?? '',
+                'renamed_at'   => $entry['ts']         ?? null,
                 'version'      => $version,
                 'prev_version' => $prev_version,
             ],
@@ -323,6 +335,10 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
     // Needed because deduplication may collapse a CREATE+UPDATE into just an UPDATE,
     // so the client can't derive the original creator from the change type alone.
     $created_by = $note['created_by'] ?? '';
+    $created_at = $note['created_at'] ?? null;
+    $updated_at = ($current && isset($note['versions'][$current]))
+        ? ($note['versions'][$current]['saved_at'] ?? null)
+        : null;
 
     $dexie_type = ($type === 'CREATE') ? DEXIE_CREATE : DEXIE_UPDATE;
 
@@ -336,6 +352,8 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
             'prev_version' => $prev_version,
             'author'       => $author,
             'created_by'   => $created_by,
+            'created_at'   => $created_at,
+            'updated_at'   => $updated_at,
         ],
     ];
 }
@@ -363,26 +381,102 @@ foreach ($client_changes as $change) {
 }
 
 // ── Step 2: Return server changes since syncedRevision ──
-$changelog_entries = changelog_since($synced_revision);
-$current_revision  = changelog_current_rev();
+//
+// Three branches:
+//   syncedRevision === 0  →  Bootstrap: build response from filesystem.
+//                             Avoids scanning the entire changelog for new clients.
+//   syncedRevision  > 0
+//     && syncedRevision < earliest_rev  →  Stale: client's revision predates the
+//                             surviving changelog (it was truncated).  Return 409
+//                             so the client knows to restart from scratch.
+//   syncedRevision >= earliest_rev  →  Incremental: walk changelog entries since
+//                             the client's last sync and deduplicate by key.
 
-$server_changes = [];
-$seen_keys      = [];   // deduplicate — only send latest state per key
+$current_revision = changelog_current_rev();
+$server_changes   = [];
 
-// Process in reverse so we keep only the most recent state per key
-foreach (array_reverse($changelog_entries) as $entry) {
-    $key = $entry['file'] ?? '';
-    if ($key === '' || isset($seen_keys[$key])) continue;
-    $seen_keys[$key] = true;
+if ($synced_revision === 0) {
+    // ── Bootstrap: build from filesystem ────────
 
-    $dexie_change = changelog_entry_to_dexie_change($entry);
-    if ($dexie_change !== null) {
-        $server_changes[] = $dexie_change;
+    // Live notes → CREATE changes
+    foreach (storage_list_notes() as $meta) {
+        $note = storage_get_note($meta['id']);
+        if (!$note) continue;
+
+        $current = $note['current'] ?? null;
+        $content = ($current && isset($note['versions'][$current]))
+            ? $note['versions'][$current]['content']
+            : '';
+
+        $author = '';
+        if ($current && isset($note['versions'][$current])) {
+            $author = $note['versions'][$current]['author'] ?? '';
+            if ($author === '') {
+                $parts = explode(':', $current, 3);
+                $author = $parts[2] ?? '';
+            }
+        }
+
+        $server_changes[] = [
+            'type' => DEXIE_CREATE,
+            'key'  => $meta['id'],
+            'obj'  => [
+                'id'           => $meta['id'],
+                'content'      => $content,
+                'version'      => $current,
+                'prev_version' => ($current && isset($note['versions'][$current]))
+                    ? ($note['versions'][$current]['prev'] ?? null) : null,
+                'author'       => $author,
+                'created_by'   => $note['created_by'] ?? '',
+                'created_at'   => $note['created_at'] ?? null,
+                'updated_at'   => ($current && isset($note['versions'][$current]))
+                    ? ($note['versions'][$current]['saved_at'] ?? null) : null,
+            ],
+        ];
     }
-}
 
-// Restore chronological order for the client
-$server_changes = array_reverse($server_changes);
+    // Tombstones → DELETE changes
+    foreach (storage_list_deleted_notes() as $tombstone) {
+        $server_changes[] = [
+            'type' => DEXIE_DELETE,
+            'key'  => $tombstone['id'],
+            'obj'  => [
+                'deleted_by' => $tombstone['deleted_by'] ?? '',
+                'deleted_at' => $tombstone['deleted_at'] ?? null,
+            ],
+        ];
+    }
+
+} else {
+    $earliest_rev = changelog_earliest_rev();
+
+    if ($synced_revision < $earliest_rev) {
+        http_response_code(409);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'STALE_REVISION']);
+        exit;
+    }
+
+    // ── Incremental: use changelog ──────────────
+
+    $changelog_entries = changelog_since($synced_revision);
+    $seen_keys = [];
+
+    // Process in reverse so we keep only the most recent state per key
+    foreach (array_reverse($changelog_entries) as $entry) {
+        $key = $entry['file'] ?? '';
+        if ($key === '' || isset($seen_keys[$key])) continue;
+        $seen_keys[$key] = true;
+
+        $dexie_change = changelog_entry_to_dexie_change($entry);
+        if ($dexie_change !== null) {
+            $server_changes[] = $dexie_change;
+        }
+    }
+
+    // Restore chronological order for the client
+    $server_changes = array_reverse($server_changes);
+}
 
 // ── Step 3: Mark returned versions as seen by a different author ──
 // If the current version of any returned note was not authored by the

@@ -6,7 +6,7 @@
  * Bearer token (same as sync.php).
  *
  * Actions:
- *   action=list    → Return [{id, deleted_at}] for all tombstones
+ *   action=list    → Return [{id, deleted_at, deleted_by}] for all tombstones
  *   action=restore → Revive a single note (restores full content + history)
  *   action=preview → Return tombstone content without restoring
  *   action=purge   → Hard-delete a single tombstone immediately
@@ -140,6 +140,8 @@ switch ($action) {
                 'content'    => $content,
                 'created_at' => $data['created_at'] ?? null,
                 'created_by' => $data['created_by'] ?? null,
+                'deleted_at' => $data['deleted_at'] ?? null,
+                'deleted_by' => $data['deleted_by'] ?? '',
             ],
         ], JSON_UNESCAPED_UNICODE);
         exit;

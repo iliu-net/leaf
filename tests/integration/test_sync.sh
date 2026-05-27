@@ -129,24 +129,31 @@ pass
 
 # ── 9. Rename a note via push (type 4) ──────────────────────────────────────
 
+# Bootstrap: get the initial revision so later requests use the incremental path.
+# (syncedRevision=0 now triggers the filesystem bootstrap, which does not
+#  return RENAME entries.  Use a positive syncedRevision to get them.)
+REV_BOOT=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
+    -d '{"baseRevision":0,"syncedRevision":0,"changes":[],"partial":false}' | jq -r '.currentRevision')
+[ "$REV_BOOT" -gt 0 ] || fail "rename setup: expected currentRevision > 0"
+
 # First create a note to rename
 REN_SRC="note-to-rename"
 REN_DST="renamed-note"
 
-curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
-    -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":1,\"key\":\"$REN_SRC\",\"obj\":{\"id\":\"$REN_SRC\",\"content\":\"will be renamed\",\"version\":\"0\"}}],\"partial\":false}" > /dev/null
+REV_AFTER_CREATE=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
+    -d "{\"baseRevision\":$REV_BOOT,\"syncedRevision\":$REV_BOOT,\"changes\":[{\"type\":1,\"key\":\"$REN_SRC\",\"obj\":{\"id\":\"$REN_SRC\",\"content\":\"will be renamed\",\"version\":\"0\"}}],\"partial\":false}" | jq -r '.currentRevision')
+[ "$REV_AFTER_CREATE" -gt "$REV_BOOT" ] || fail "rename: got empty or unchanged currentRevision"
 
 # Now push a RENAME change
-REV_AFTER_CREATE=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
-    -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":4,\"key\":\"$REN_SRC\",\"obj\":{\"renamed_to\":\"$REN_DST\",\"version\":\"0\"}}],\"partial\":false}" | jq -r '.currentRevision')
-
-[ "$REV_AFTER_CREATE" -gt 0 ] || fail "rename: got empty currentRevision"
+REV_AFTER_RENAME=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
+    -d "{\"baseRevision\":$REV_AFTER_CREATE,\"syncedRevision\":$REV_AFTER_CREATE,\"changes\":[{\"type\":4,\"key\":\"$REN_SRC\",\"obj\":{\"renamed_to\":\"$REN_DST\",\"version\":\"0\"}}],\"partial\":false}" | jq -r '.currentRevision')
+[ "$REV_AFTER_RENAME" -gt "$REV_AFTER_CREATE" ] || fail "rename: expected currentRevision to advance"
 pass
 
 # ── 10. Pull after rename shows RENAME change ───────────────────────────────
 
 PULL_RENAME=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
-    -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[],\"partial\":false}")
+    -d "{\"baseRevision\":$REV_AFTER_CREATE,\"syncedRevision\":$REV_AFTER_CREATE,\"changes\":[],\"partial\":false}")
 
 # Find the RENAME entry (type 4)
 REN_TYPE=$(echo "$PULL_RENAME" | jq '[.changes[] | select(.type == 4)] | length')
@@ -164,15 +171,15 @@ pass
 
 # Push an UPDATE under the new name to verify the note exists and content is intact
 UPDATE_RENAMED=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
-    -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":2,\"key\":\"$REN_DST\",\"obj\":{\"id\":\"$REN_DST\",\"content\":\"rename verified\",\"version\":\"0\"}}],\"partial\":false}")
+    -d "{\"baseRevision\":$REV_AFTER_RENAME,\"syncedRevision\":$REV_AFTER_RENAME,\"changes\":[{\"type\":2,\"key\":\"$REN_DST\",\"obj\":{\"id\":\"$REN_DST\",\"content\":\"rename verified\",\"version\":\"0\"}}],\"partial\":false}")
 
 UPDATE_RENAMED_REV=$(echo "$UPDATE_RENAMED" | jq -r '.currentRevision')
-[ "$UPDATE_RENAMED_REV" -gt 0 ] || fail "update renamed: expected currentRevision > 0, got '$UPDATE_RENAMED_REV'"
+[ "$UPDATE_RENAMED_REV" -gt "$REV_AFTER_RENAME" ] || fail "update renamed: expected currentRevision to advance"
 pass
 
 # Pull after syncedRevision to see the update on renamed note
 PULL_RENAMED=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
-    -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[],\"partial\":false}")
+    -d "{\"baseRevision\":$REV_AFTER_RENAME,\"syncedRevision\":$REV_AFTER_RENAME,\"changes\":[],\"partial\":false}")
 
 # The renamed note should appear under the new key with updated content
 RENAMED_CONTENT=$(echo "$PULL_RENAMED" | jq -r '.changes[] | select(.key == "'"$REN_DST"'") | .obj.content // empty')
@@ -181,13 +188,18 @@ pass
 
 # ── 12. Rename to already-existing name should fail ─────────────────────────
 
+# Track the current revision so we can use incremental syncs below.
+REV_BEFORE_RENAME_FAIL=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
+    -d '{"baseRevision":0,"syncedRevision":0,"changes":[],"partial":false}' | jq -r '.currentRevision')
+
 # Create another note
-curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
-    -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":1,\"key\":\"existing-target\",\"obj\":{\"id\":\"existing-target\",\"content\":\"i exist\",\"version\":\"0\"}}],\"partial\":false}" > /dev/null
+REV_AFTER_CREATE2=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
+    -d "{\"baseRevision\":$REV_BEFORE_RENAME_FAIL,\"syncedRevision\":$REV_BEFORE_RENAME_FAIL,\"changes\":[{\"type\":1,\"key\":\"existing-target\",\"obj\":{\"id\":\"existing-target\",\"content\":\"i exist\",\"version\":\"0\"}}],\"partial\":false}" | jq -r '.currentRevision')
+[ "$REV_AFTER_CREATE2" -gt "$REV_BEFORE_RENAME_FAIL" ] || fail "rename fail setup: expected currentRevision to advance"
 
 # Try to rename REN_DST to existing-target — server returns no change entry for it
 RENAME_FAIL=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
-    -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":4,\"key\":\"$REN_DST\",\"obj\":{\"renamed_to\":\"existing-target\",\"version\":\"0\"}}],\"partial\":false}")
+    -d "{\"baseRevision\":$REV_AFTER_CREATE2,\"syncedRevision\":$REV_AFTER_CREATE2,\"changes\":[{\"type\":4,\"key\":\"$REN_DST\",\"obj\":{\"renamed_to\":\"existing-target\",\"version\":\"0\"}}],\"partial\":false}")
 
 # The response should NOT include a RENAME entry for this key
 RENAME_FAIL_ENTRIES=$(echo "$RENAME_FAIL" | jq '[.changes[] | select(.key == "'"$REN_DST"'" and .type == 4)] | length')
@@ -196,13 +208,17 @@ pass
 
 # ── 13. Rename to tombstoned name should succeed ──────────────────────────
 
+# Track revision before the delete so we can use incremental sync path.
+REV_BEFORE_DELETE=$(echo "$RENAME_FAIL" | jq -r '.currentRevision')
+
 # Delete existing-target to create a tombstone
-curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
-    -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":3,\"key\":\"existing-target\",\"obj\":null}],\"partial\":false}" > /dev/null
+REV_AFTER_DELETE=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
+    -d "{\"baseRevision\":$REV_BEFORE_DELETE,\"syncedRevision\":$REV_BEFORE_DELETE,\"changes\":[{\"type\":3,\"key\":\"existing-target\",\"obj\":null}],\"partial\":false}" | jq -r '.currentRevision')
+[ "$REV_AFTER_DELETE" -gt "$REV_BEFORE_DELETE" ] || fail "tomb rename setup: expected currentRevision to advance"
 
 # Now rename something to the tombstoned name — should work
 RENAME_TOMB=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
-    -d "{\"baseRevision\":0,\"syncedRevision\":0,\"changes\":[{\"type\":4,\"key\":\"$REN_DST\",\"obj\":{\"renamed_to\":\"existing-target\",\"version\":\"0\"}}],\"partial\":false}")
+    -d "{\"baseRevision\":$REV_AFTER_DELETE,\"syncedRevision\":$REV_AFTER_DELETE,\"changes\":[{\"type\":4,\"key\":\"$REN_DST\",\"obj\":{\"renamed_to\":\"existing-target\",\"version\":\"0\"}}],\"partial\":false}")
 
 RENAME_TOMB_ENTRIES=$(echo "$RENAME_TOMB" | jq '[.changes[] | select(.key == "'"$REN_DST"'" and .type == 4)] | length')
 [ "$RENAME_TOMB_ENTRIES" = "1" ] || fail "rename to tombstoned: expected 1 RENAME entry, got $RENAME_TOMB_ENTRIES"
