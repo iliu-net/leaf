@@ -1,9 +1,9 @@
 /**
  * app-auth.ts — authentication lifecycle handlers
  *
- * Extracted from app.ts. Handles login, logout, sign-in, and dismiss-login
- * flows. Imports login-screen directly for loading/error UI since it has
- * no dependency on app.ts (no circular dependency risk).
+ * Handles login, logout, sign-in, and dismiss-login flows.
+ * Returns boolean from handleLogin so the caller (app.ts) can decide
+ * what to do on success — no onSuccess callback, no circular dependency.
  */
 
 import { login, logout } from './auth.js';
@@ -11,13 +11,12 @@ import * as loginScreen from './login-screen.js';
 
 /**
  * Handle login form submission.
- * @param onSuccess  Called after successful login (app.ts passes showApp(true))
+ * @returns true if login succeeded, false otherwise.
  */
 export async function handleLogin(
   username: string,
   password: string,
-  onSuccess: () => void,
-): Promise<void> {
+): Promise<boolean> {
   loginScreen.setLoginError('');
   loginScreen.setLoginLoading(true);
 
@@ -27,10 +26,10 @@ export async function handleLogin(
 
   if (!result.ok) {
     loginScreen.setLoginError(result.error ?? '');
-    return;
+    return false;
   }
 
-  onSuccess();
+  return true;
 }
 
 /** Handle logout. auth.ts fires onAuthFailure which app.ts hooks to showLogin(). */
