@@ -1,10 +1,8 @@
 /**
  * sync.ts — lightweight offline sync queue
  *
- * All server requests go through authFetch() from auth.js, which
- * automatically attaches the JWT and retries once on 401.
- * If auth fails completely, syncStart() stops and onAuthFailure()
- * in auth.js fires so app.js can show the login screen.
+ * Server requests are delegated to api.ts (syncRequest).  If auth fails
+ * completely, syncStart() stops and onAuthFailure() in auth.js fires.
  *
  * State machine:
  *   OFFLINE  ←→  IDLE  →  SYNCING  →  IDLE
@@ -23,46 +21,19 @@ import {
 } from './db.js';
 import type { QueueRecord } from './db.js';
 
-import { authFetch } from './auth.js';
 import { publish, subscribe } from './change-bus.js';
-import { apiUrl, getNamespace } from './config.js';
+import { getNamespace } from './config.js';
+import { syncRequest } from './api.js';
+import type { SyncRequestBody, SyncResponseBody } from './api.js';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
 type SyncStatus = 'OFFLINE' | 'IDLE' | 'SYNCING' | 'ERROR';
 type StatusListener = (status: SyncStatus, isOnline: boolean) => void;
-interface SyncRequestBody {
-  baseRevision: number | null;
-  syncedRevision: number | null;
-  changes: {
-    type: number;
-    key: string;
-    obj: Record<string, unknown> | null;
-  }[];
-  partial: boolean;
-}
-
-interface SyncResponseBody {
-  error?: string;
-  changes?: {
-    type: number;
-    key: string;
-    obj?: {
-      content?: string | null;
-      renamed_to?: string;
-      version: string;
-      prev_version?: string | null;
-      author?: string | null;
-      created_by?: string | null;
-    } | null;
-  }[];
-  currentRevision: number;
-}
 
 // ── Config ────────────────────────────────────────────────────────────────
 
 const _NS            = getNamespace();
-const SYNC_URL       = apiUrl('sync');
 const POLL_INTERVAL  = 30_000;   // ms between polls when online
 const RETRY_DELAY    = 10_000;   // ms before retrying after an error
 const REVISION_KEY   = _NS ? `notes_sync_revision:${_NS}` : 'notes_sync_revision';
@@ -145,26 +116,6 @@ function setRevision(rev: number | null | undefined): void {
   if (rev !== null && rev !== undefined) {
     localStorage.setItem(REVISION_KEY, String(rev));
   }
-}
-
-// ── Authenticated sync request ────────────────────────────────────────────
-
-async function syncRequest(body: SyncRequestBody): Promise<SyncResponseBody> {
-  const res = await authFetch(SYNC_URL, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
-  });
-
-  // 401 after retry means auth has failed — authFetch already fired
-  // onAuthFailure(), so we just throw to stop the tick
-  if (res.status === 401) throw new Error('AUTH_FAILURE');
-
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-  const data = await res.json() as SyncResponseBody;
-  if (data.error) throw new Error(data.error);
-  return data;
 }
 
 // ── Push — send local queue to server ────────────────────────────────────

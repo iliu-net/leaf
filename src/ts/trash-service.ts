@@ -15,10 +15,17 @@ import {
   db,
   queueChange,
 } from './db.js';
-import { authFetch, getUsername } from './auth.js';
+import { getUsername } from './auth.js';
 import { publish } from './change-bus.js';
-import { getNamespace, apiUrl } from './config.js';
+import { getNamespace } from './config.js';
 import { syncNow } from './sync.js';
+import {
+  fetchTrashList, fetchTrashRestore, fetchTrashPreview,
+  fetchTrashPurge, fetchTrashEmpty,
+} from './api.js';
+import type {
+  ServerTrashEntry, TrashRestoreResponse, TrashPreviewResponse,
+} from './api.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -26,11 +33,6 @@ export interface LocalTrashEntry {
   id: string;
   deleted_at: number;
   updated_by: string;
-}
-
-export interface ServerTrashEntry {
-  id: string;
-  deleted_at: number | null;
 }
 
 export interface TrashEntry {
@@ -48,81 +50,6 @@ export interface TrashContent {
   created_by?: string;
   updated_by?: string;
   current?: string;
-}
-
-// ── API helpers ─────────────────────────────────────────────────────────────
-
-const TRASH_URL = apiUrl('trash');
-
-async function fetchTrashList(): Promise<ServerTrashEntry[]> {
-  const res = await authFetch(TRASH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'list' }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json() as { ok: boolean; data?: ServerTrashEntry[]; error?: string };
-  if (data.error) throw new Error(data.error);
-  return data.data ?? [];
-}
-
-interface TrashRestoreResponse {
-  ok: boolean;
-  note: {
-    id: string;
-    created_at: number;
-    content: string;
-    current: string;
-    created_by?: string;
-  };
-}
-
-async function fetchTrashRestore(id: string): Promise<TrashRestoreResponse> {
-  const res = await authFetch(TRASH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'restore', id }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json() as TrashRestoreResponse & { error?: string };
-  if (data.error) throw new Error(data.error);
-  return data;
-}
-
-interface TrashPreviewResponse {
-  ok: boolean;
-  note: { id: string; content: string };
-}
-
-async function fetchTrashPreview(id: string): Promise<TrashPreviewResponse> {
-  const res = await authFetch(TRASH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'preview', id }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json() as TrashPreviewResponse & { error?: string };
-  if (data.error) throw new Error(data.error);
-  return data;
-}
-
-async function fetchTrashPurge(id: string): Promise<void> {
-  const res = await authFetch(TRASH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'purge', id }),
-  });
-  if (res.status === 404) return; // already purged
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-}
-
-async function fetchTrashEmpty(): Promise<void> {
-  const res = await authFetch(TRASH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'empty' }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 // ── Merge ───────────────────────────────────────────────────────────────────
@@ -272,8 +199,8 @@ export async function getTrashContent(
     return {
       id: data.note.id,
       content: data.note.content,
-      created_at: (data.note as Record<string, unknown>).created_at as number | undefined,
-      created_by: (data.note as Record<string, unknown>).created_by as string | undefined,
+      created_at: data.note.created_at,
+      created_by: data.note.created_by,
     };
   } catch {
     return null;

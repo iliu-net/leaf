@@ -87,11 +87,17 @@ export interface SpaConfig {
   markdown: {
     html: boolean;
   };
+  /** Days before deleted notes are purged client-side. */
+  deleted_notes_ttl_days: number;
+  /** Timestamp format string (e.g. 'YYYY-MM-DD HH:mm'), or null for client default. */
+  timestamp_format: string | null;
 }
 
 /** Hardcoded safe defaults used when no config has been fetched yet. */
 const DEFAULT_SPA_CONFIG: SpaConfig = {
   markdown: { html: false },
+  deleted_notes_ttl_days: 7,
+  timestamp_format: null,
 };
 
 let _spaConfig: SpaConfig = { ...DEFAULT_SPA_CONFIG };
