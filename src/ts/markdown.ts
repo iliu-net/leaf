@@ -2,10 +2,10 @@
  * markdown.ts — markdown-it wrapper with extension hooks
  *
  * Lazy-initialises the markdown-it instance on first use.  Exposes:
- *   parse()                      — render markdown to HTML
- *   registerInlinePlugin()       — add custom inline rule
- *   registerFenceRenderer()      — override fence (code block) rendering
- *   registerBlockPlugin()        — add custom block rule
+ *   parse()                 — render markdown to HTML
+ *   use()                   — register a markdown-it plugin (mirrors md.use)
+ *   registerFenceRenderer() — override fence (code block) rendering
+ *   loadPlugins()           — activate plugins by name from the built-in registry
  */
 
 import MarkdownIt from 'markdown-it';
@@ -14,6 +14,7 @@ import { getSpaConfig } from './config.js';
 // ── State ───────────────────────────────────────────────────────────────────
 
 let _md: MarkdownIt | null = null;
+const _pending: Array<{ plugin: (md: MarkdownIt, options?: any) => void; options?: any }> = [];
 
 // ── Init ────────────────────────────────────────────────────────────────────
 
@@ -22,15 +23,28 @@ function getMd(): MarkdownIt {
 
   const cfg = getSpaConfig();
 
-  _md = new MarkdownIt({
+  _md = new (MarkdownIt)({
     html: cfg.markdown?.html ?? false,
     linkify: true,
     typographer: true,
     breaks: false,
   });
 
+  // Apply any plugins that were registered before the instance existed
+  for (const p of _pending) {
+    p.plugin(_md, p.options);
+  }
+  _pending.length = 0;
+
   return _md;
 }
+
+// ── Plugin registry ─────────────────────────────────────────────────────────
+
+/** Maps plugin names (from server config) to lazy-loaded plugin functions. */
+const _pluginRegistry: Record<string, () => Promise<(md: MarkdownIt) => void>> = {
+  emoji: () => import('./extensions/emoji.js').then(m => m.default),
+};
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -43,16 +57,21 @@ export function parse(body: string): string {
 }
 
 /**
- * Register a custom inline-rule plugin.
+ * Register a markdown-it plugin.  Mirrors markdown-it's own `md.use()`.
  *
- * Plugins are passed the markdown-it instance and should call
- * `md.inline.ruler.push('name', fn)` or similar.
+ * Can be called before the first `parse()` — plugins are queued and applied
+ * when the instance is created.  Plugins registered later are applied
+ * immediately to the existing instance.
  */
-export function registerInlinePlugin(
-  name: string,
-  plugin: (md: MarkdownIt) => void,
+export function use(
+  plugin: (md: MarkdownIt, options?: any) => void,
+  options?: any,
 ): void {
-  plugin(getMd());
+  if (_md) {
+    plugin(_md, options);
+  } else {
+    _pending.push({ plugin, options });
+  }
 }
 
 /**
@@ -79,14 +98,28 @@ export function registerFenceRenderer(
 }
 
 /**
- * Register a custom block-rule plugin.
+ * Activate plugins by name using the built-in registry.
  *
- * Plugins are passed the markdown-it instance and should call
- * `md.block.ruler.push('name', fn)` or similar.
+ * Each name is resolved through the internal registry, the plugin module is
+ * lazily imported, and then registered via `use()`.  Unknown names are
+ * silently skipped with a console warning so the server config can be
+ * forwards-compatible.
+ *
+ * Typically called after `fetchSpaConfig()` with the server-provided list
+ * in `markdown.plugins`.
  */
-export function registerBlockPlugin(
-  name: string,
-  plugin: (md: MarkdownIt) => void,
-): void {
-  plugin(getMd());
+export async function loadPlugins(names: string[]): Promise<void> {
+  for (const name of names) {
+    const loader = _pluginRegistry[name];
+    if (!loader) {
+      console.warn(`[markdown] unknown plugin: "${name}"`);
+      continue;
+    }
+    try {
+      const plugin = await loader();
+      use(plugin);
+    } catch (err) {
+      console.warn(`[markdown] failed to load plugin "${name}":`, err);
+    }
+  }
 }

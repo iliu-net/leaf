@@ -30,7 +30,8 @@ import { db, dbPurgeDeletedNotes } from './db.js';
 import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
 import { subscribe } from './change-bus.js';
-import { loadConfig, fetchSpaConfig } from './config.js';
+import { loadConfig, fetchSpaConfig, getSpaConfig } from './config.js';
+import { loadPlugins } from './markdown.js';
 import { loadTrashEntries } from './trash-ctrl.js';
 
 import * as loginCtrl  from './login-ctrl.js';
@@ -320,8 +321,14 @@ async function boot(): Promise<void> {
   // Phase 1: show shell immediately
   await showShell();
 
-  // Background: cache server config
-  fetchSpaConfig().catch(err => console.warn('[boot] SPA config fetch failed:', err));
+  // Fetch server config, then activate configured markdown plugins
+  await fetchSpaConfig();
+  const cfg = getSpaConfig();
+  if (cfg.markdown.plugins?.length) {
+    loadPlugins(cfg.markdown.plugins).catch(err =>
+      console.warn('[boot] Plugin loading failed:', err)
+    );
+  }
 
   // Phase 2: try silent session restore
   const result = await tryRestoreSession();

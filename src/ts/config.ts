@@ -86,6 +86,8 @@ export function loadConfig(): void {
 export interface SpaConfig {
   markdown: {
     html: boolean;
+    /** Plugin names to activate, e.g. ["emoji"]. Resolved client-side. */
+    plugins?: string[];
   };
   /** Days before deleted notes are purged client-side. */
   deleted_notes_ttl_days: number;
@@ -95,7 +97,7 @@ export interface SpaConfig {
 
 /** Hardcoded safe defaults used when no config has been fetched yet. */
 const DEFAULT_SPA_CONFIG: SpaConfig = {
-  markdown: { html: false },
+  markdown: { html: false, plugins: [] },
   deleted_notes_ttl_days: 7,
   timestamp_format: null,
 };
