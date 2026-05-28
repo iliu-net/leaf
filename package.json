@@ -1,0 +1,23 @@
+{
+  "name": "leaf",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --project src/tsconfig.json --noEmit",
+    "build": "esbuild src/ts/app.ts --bundle --format=esm --splitting --outdir=spa/",
+    "test": "cd tests/spa && vitest run",
+    "test:watch": "cd tests/spa && vitest"
+  },
+  "dependencies": {
+    "dexie": "^3.2.6",
+    "markdown-it": "^14.2.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0",
+    "jsdom": "^25.0.0",
+    "fake-indexeddb": "^6.0.0",
+    "vitest": "^3.1.0"
+  }
+}
