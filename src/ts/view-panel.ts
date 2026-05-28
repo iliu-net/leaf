@@ -9,8 +9,9 @@
  */
 
 import { parseFrontmatter } from './frontmatter.js';
-import { renderFrontmatter, renderFrontmatterTable, renderStats, renderSystemInfo, esc } from './render-fm.js';
+import { renderFrontmatter, renderFrontmatterTable, renderStats, renderSystemInfo } from './render-fm.js';
 import { parse as parseMarkdown } from './markdown.js';
+import { esc } from './utils.js';
 import type { NoteData } from './notes.js';
 
 // ── DOM refs ────────────────────────────────────────────────────────────────

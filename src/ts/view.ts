@@ -24,7 +24,6 @@ export interface UIEventHandlers {
   onLogout:        () => void;
   onRename:        (id: string) => void;
   onRenameConfirm: (oldId: string) => void;
-  onUpdateSW?:     () => void;  // optional — moved out of menu
   onResetDB:       () => void;
   onSignIn:        () => void;
   onDismissLogin:  () => void;

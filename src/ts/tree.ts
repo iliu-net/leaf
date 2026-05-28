@@ -13,6 +13,7 @@
 import type { SidebarView, UIEventHandlers } from './view.js';
 import type { NoteMeta } from './notes.js';
 import * as contextMenu from './context-menu.js';
+import { naturalCompare } from './utils.js';
 
 // ── Tree data type ──────────────────────────────────────────────────────
 
@@ -40,38 +41,6 @@ function getNoteCount(): HTMLElement {
 
 function getSearchInput(): HTMLInputElement | null {
   return document.getElementById('search') as HTMLInputElement | null;
-}
-
-// ── Natural sort ────────────────────────────────────────────────────────
-
-/**
- * Compare strings with natural (human-friendly) ordering.
- * Splits on digit boundaries and compares numeric segments as numbers,
- * string segments via localeCompare.
- */
-function naturalCompare(a: string, b: string): number {
-  const re = /(\d+)|(\D+)/g;
-  const partsA: (string | number)[] = [];
-  const partsB: (string | number)[] = [];
-
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(a)) !== null) {
-    partsA.push(m[1] !== undefined ? parseInt(m[1], 10) : m[2]);
-  }
-  while ((m = re.exec(b)) !== null) {
-    partsB.push(m[1] !== undefined ? parseInt(m[1], 10) : m[2]);
-  }
-
-  const len = Math.min(partsA.length, partsB.length);
-  for (let i = 0; i < len; i++) {
-    const ca = partsA[i];
-    const cb = partsB[i];
-    if (ca === cb) continue;
-    if (typeof ca === 'number' && typeof cb === 'number') return ca - cb;
-    if (typeof ca === 'string' && typeof cb === 'string') return ca.localeCompare(cb);
-    return typeof ca === 'number' ? -1 : 1;
-  }
-  return partsA.length - partsB.length;
 }
 
 // ── Tree builder ────────────────────────────────────────────────────────

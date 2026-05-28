@@ -6,7 +6,8 @@
  */
 
 import type { NoteData } from './notes.js';
-import type { PendingMeta, ContentStats } from './frontmatter.js';
+import type { PendingMeta } from './frontmatter.js';
+import type { ContentStats } from './utils.js';
 import type { MetaEventHandlers } from './view.js';
 import { formatTimestamp } from './utils.js';
 

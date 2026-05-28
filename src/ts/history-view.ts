@@ -11,23 +11,12 @@ import type { DiffLine } from './diff.js';
 import { computeDiff } from './diff.js';
 import type { VersionMeta, VersionListResponse } from './history-service.js';
 import { fetchVersionList, fetchVersionContent } from './history-service.js';
-import { formatTimestamp } from './utils.js';
+import { formatTimestamp, esc } from './utils.js';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
 export interface HistoryCallbacks {
   onRestore: (content: string) => void;
-}
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-
-function esc(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 // ── DOM builder ─────────────────────────────────────────────────────────────

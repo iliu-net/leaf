@@ -657,7 +657,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin, onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -679,7 +679,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout,
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -696,7 +696,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -716,7 +716,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -741,7 +741,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename, onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -766,7 +766,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -786,7 +786,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -808,7 +808,7 @@ describe('bindEvents()', () => {
       onSave, onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -827,7 +827,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew, onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -844,7 +844,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate,
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -861,7 +861,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal, onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -878,7 +878,7 @@ describe('bindEvents()', () => {
       onSave, onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -895,7 +895,7 @@ describe('bindEvents()', () => {
       onSave, onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -912,7 +912,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal, onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -932,7 +932,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate,
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -950,7 +950,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm,
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -971,7 +971,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -995,7 +995,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -1051,7 +1051,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB,
+      onResetDB,
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -1074,7 +1074,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
@@ -1095,7 +1095,7 @@ describe('bindEvents()', () => {
       onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
       onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
       onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onUpdateSW: vi.fn(), onResetDB: vi.fn(),
+      onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 

@@ -18,12 +18,6 @@ export interface PendingMeta {
   custom: Record<string, string>;   // key → value
 }
 
-export interface ContentStats {
-  chars: number;
-  words: number;
-  lines: number;
-}
-
 // ── Constants ────────────────────────────────────────────────────────────
 
 /** Regex that a valid frontmatter key must match. Keep in sync with parser. */
@@ -172,17 +166,6 @@ export function pendingMetaEqual(a: PendingMeta, b: PendingMeta): boolean {
     if (a.custom[k] !== b.custom[k]) return false;
   }
   return true;
-}
-
-/**
- * Compute content statistics from the body portion (frontmatter stripped).
- */
-export function computeStats(body: string): ContentStats {
-  if (!body) return { chars: 0, words: 0, lines: 0 };
-  const chars = body.length;
-  const words = body.trim() === '' ? 0 : body.trim().split(/\s+/).length;
-  const lines = body === '' ? 0 : body.split('\n').length;
-  return { chars, words, lines };
 }
 
 // ── Sanitization ──────────────────────────────────────────────────────────

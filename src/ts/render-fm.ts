@@ -7,18 +7,9 @@
 
 import type { NoteData } from './notes.js';
 import type { FrontmatterResult } from './frontmatter.js';
-import { formatTimestamp } from './utils.js';
+import { formatTimestamp, esc, computeStats } from './utils.js';
 
 // ── Utilities ──────────────────────────────────────────────────────────────
-
-/** Minimal HTML-escaping for display values. */
-export function esc(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 /** Convert a frontmatter value to a display string. */
 export function fmtVal(v: string | string[] | undefined): string {
@@ -90,11 +81,8 @@ export function renderFrontmatter(
 export function renderStats(body: string): string {
   if (!body) return '';
 
-  const chars = body.length;
-  const words = body.trim() === '' ? 0 : body.trim().split(/\s+/).length;
-  const lines = body === '' ? 0 : body.split('\n').length;
-
-  return `${words.toLocaleString()} words · ${chars.toLocaleString()} chars · ${lines} lines`;
+  const stats = computeStats(body);
+  return `${stats.words.toLocaleString()} words · ${stats.chars.toLocaleString()} chars · ${stats.lines} lines`;
 }
 
 // ── System info ────────────────────────────────────────────────────────────

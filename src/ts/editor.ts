@@ -13,9 +13,9 @@ import {
   updateFrontmatter,
   initPendingMeta,
   pendingMetaToUpdates,
-  computeStats,
 } from './frontmatter.js';
 import type { PendingMeta } from './frontmatter.js';
+import { computeStats } from './utils.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
 

@@ -36,40 +36,6 @@ export async function initPwa(): Promise<void> {
 }
 
 /**
- * Force an update check, skip waiting, and reload.
- * Called from the "Check for updates" menu item.
- * Returns the toast message strings so the caller (app.ts) can display them.
- */
-export async function updateApp(): Promise<{ ok: boolean; message: string }> {
-  if (!swRegistration) {
-    return { ok: false, message: 'No service worker registration found' };
-  }
-
-  try {
-    await swRegistration.update();
-
-    // If a new worker is installing, wait for it to finish
-    if (swRegistration.installing) {
-      await new Promise<void>(resolve => {
-        swRegistration!.installing!.addEventListener('statechange', () => {
-          if (swRegistration?.installing?.state === 'installed') {
-            resolve();
-          }
-        });
-      });
-
-      // Tell the waiting worker to activate immediately
-      swRegistration.active?.postMessage({ action: 'SKIP_WAITING' });
-    }
-
-    location.reload();
-    return { ok: true, message: '' };
-  } catch (err) {
-    return { ok: false, message: `Update failed: ${(err as Error).message}` };
-  }
-}
-
-/**
  * Register a callback for when an update is found.
  * The callback receives a toast-friendly message.
  */

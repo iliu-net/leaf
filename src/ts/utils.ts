@@ -7,6 +7,69 @@
 
 import { getSpaConfig } from './config.js';
 
+// ── Content stats ──────────────────────────────────────────────────────────
+
+/** Statistics computed from a plain-text body (no frontmatter). */
+export interface ContentStats {
+  chars: number;
+  words: number;
+  lines: number;
+}
+
+/**
+ * Compute character, word, and line counts from a plain-text string.
+ */
+export function computeStats(body: string): ContentStats {
+  if (!body) return { chars: 0, words: 0, lines: 0 };
+  const chars = body.length;
+  const words = body.trim() === '' ? 0 : body.trim().split(/\s+/).length;
+  const lines = body === '' ? 0 : body.split('\n').length;
+  return { chars, words, lines };
+}
+
+// ── HTML escaping ──────────────────────────────────────────────────────────
+
+/** Minimal HTML entity escaping for display values. */
+export function esc(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Natural sort ───────────────────────────────────────────────────────────
+
+/**
+ * Compare strings with natural (human-friendly) ordering.
+ * Splits on digit boundaries and compares numeric segments as numbers,
+ * string segments via localeCompare.
+ */
+export function naturalCompare(a: string, b: string): number {
+  const re = /(\d+)|(\D+)/g;
+  const partsA: (string | number)[] = [];
+  const partsB: (string | number)[] = [];
+
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(a)) !== null) {
+    partsA.push(m[1] !== undefined ? parseInt(m[1], 10) : m[2]);
+  }
+  while ((m = re.exec(b)) !== null) {
+    partsB.push(m[1] !== undefined ? parseInt(m[1], 10) : m[2]);
+  }
+
+  const len = Math.min(partsA.length, partsB.length);
+  for (let i = 0; i < len; i++) {
+    const ca = partsA[i];
+    const cb = partsB[i];
+    if (ca === cb) continue;
+    if (typeof ca === 'number' && typeof cb === 'number') return ca - cb;
+    if (typeof ca === 'string' && typeof cb === 'string') return ca.localeCompare(cb);
+    return typeof ca === 'number' ? -1 : 1;
+  }
+  return partsA.length - partsB.length;
+}
+
 // ── Note name sanitization ─────────────────────────────────────────────────
 
 /**

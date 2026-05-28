@@ -3,7 +3,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { safeName, nowSec, formatTimestamp, relativeTime } from '../../src/ts/utils.ts';
+import {
+  safeName, nowSec, formatTimestamp, relativeTime,
+  esc, naturalCompare, computeStats,
+} from '../../src/ts/utils.ts';
 import { updateFrontmatter } from '../../src/ts/frontmatter.ts';
 
 describe('safeName()', () => {
@@ -194,5 +197,99 @@ describe('relativeTime()', () => {
     expect(relativeTime(nowSec() - 30 * 86400)).toBe('1 month ago');
     expect(relativeTime(nowSec() - 60 * 86400)).toBe('2 months ago');
     expect(relativeTime(nowSec() - 365 * 86400)).toBe('12 months ago');
+  });
+});
+
+// ── esc() ─────────────────────────────────────────────────────────────────────
+
+describe('esc()', () => {
+  it('escapes ampersand', () => {
+    expect(esc('a & b')).toBe('a &amp; b');
+  });
+
+  it('escapes less-than and greater-than', () => {
+    expect(esc('<div>')).toBe('&lt;div&gt;');
+  });
+
+  it('escapes double-quotes', () => {
+    expect(esc('say "hello"')).toBe('say &quot;hello&quot;');
+  });
+
+  it('handles all special characters together', () => {
+    expect(esc('<a href="x">&</a>'))
+      .toBe('&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;');
+  });
+
+  it('leaves safe characters unchanged', () => {
+    expect(esc('hello world 123')).toBe('hello world 123');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(esc('')).toBe('');
+  });
+});
+
+// ── naturalCompare() ───────────────────────────────────────────────────────────
+
+describe('naturalCompare()', () => {
+  it('sorts numbers naturally', () => {
+    const arr = ['file10', 'file2', 'file1'];
+    arr.sort(naturalCompare);
+    expect(arr).toEqual(['file1', 'file2', 'file10']);
+  });
+
+  it('returns 0 for identical strings', () => {
+    expect(naturalCompare('hello', 'hello')).toBe(0);
+  });
+
+  it('sorts shorter prefix before longer', () => {
+    expect(naturalCompare('file', 'file1')).toBeLessThan(0);
+  });
+
+  it('handles multi-digit numbers', () => {
+    const arr = ['v100', 'v20', 'v3'];
+    arr.sort(naturalCompare);
+    expect(arr).toEqual(['v3', 'v20', 'v100']);
+  });
+
+  it('handles colon-separated paths', () => {
+    const arr = ['a:b:10', 'a:b:2', 'a:b:1'];
+    arr.sort(naturalCompare);
+    expect(arr).toEqual(['a:b:1', 'a:b:2', 'a:b:10']);
+  });
+});
+
+// ── computeStats() ─────────────────────────────────────────────────────────────
+
+describe('computeStats()', () => {
+  it('returns zeros for empty string', () => {
+    expect(computeStats('')).toEqual({ chars: 0, words: 0, lines: 0 });
+  });
+
+  it('counts characters', () => {
+    expect(computeStats('hello').chars).toBe(5);
+  });
+
+  it('counts words', () => {
+    expect(computeStats('hello world').words).toBe(2);
+  });
+
+  it('counts zero words for whitespace-only', () => {
+    expect(computeStats('   \n  \t  ').words).toBe(0);
+  });
+
+  it('counts lines', () => {
+    expect(computeStats('a\nb\nc').lines).toBe(3);
+  });
+
+  it('single line with no newline counts as 1', () => {
+    expect(computeStats('single line').lines).toBe(1);
+  });
+
+  it('handles multi-paragraph content', () => {
+    const s = computeStats('Line one.\nLine two.\n\nLine four.\n');
+    expect(s.lines).toBe(5);
+    expect(s.words).toBe(6);
+    expect(s.chars).toBe(32);
   });
 });

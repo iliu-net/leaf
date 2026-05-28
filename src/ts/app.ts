@@ -187,11 +187,6 @@ onAuthFailure(() => {
 
 // ── PWA / DB reset ───────────────────────────────────────────────────────
 
-async function handleUpdateApp(): Promise<void> {
-  const result = await pwa.updateApp();
-  if (!result.ok) ui.toast(result.message, true);
-}
-
 async function handleResetDB(): Promise<void> {
   if (!confirm('This will delete all local data and re-download everything from the server. Continue?')) return;
   stopSync();
