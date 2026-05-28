@@ -5,6 +5,10 @@
  * (including tests without a full browser environment).
  */
 
+import { getSpaConfig } from './config.js';
+
+// ── Note name sanitization ─────────────────────────────────────────────────
+
 /**
  * Sanitize a user-supplied note name into a safe filesystem-friendly identifier.
  *
@@ -20,4 +24,81 @@ export function safeName(raw: string): string {
   name = name.replace(/^\.+/, '_');
   name = name.replace(/[^a-zA-Z0-9_\-\.$%'@~!(){}^#&`:]/g, '_');
   return name.slice(0, 80);
+}
+
+// ── Timestamp helpers ─────────────────────────────────────────────────────
+
+/** Current unix timestamp in seconds (matching the server wire format). */
+export function nowSec(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+/**
+ * Format a unix timestamp (seconds) as a human-readable string.
+ *
+ * Uses the server-provided `timestamp_format` config (PHP `date()` tokens)
+ * when set.  Falls back to `Date.toLocaleString()` when the config is null.
+ *
+ * Supported PHP tokens: Y y m n d j H G h g i s A a
+ * Unrecognized characters pass through literally (dashes, colons, spaces).
+ */
+export function formatTimestamp(ts: number): string {
+  if (!ts) return '';
+  const fmt = getSpaConfig().timestamp_format;
+  const d = new Date(ts * 1000);
+  if (!fmt) return d.toLocaleString();
+
+  // PHP date() token → Date getter + pad width
+  const pad = (n: number, w: number) => String(n).padStart(w, '0');
+  const tokens: Record<string, () => string> = {
+    Y: () => pad(d.getFullYear(), 4),
+    y: () => pad(d.getFullYear() % 100, 2),
+    m: () => pad(d.getMonth() + 1, 2),
+    n: () => String(d.getMonth() + 1),
+    d: () => pad(d.getDate(), 2),
+    j: () => String(d.getDate()),
+    H: () => pad(d.getHours(), 2),
+    G: () => String(d.getHours()),
+    h: () => pad((d.getHours() % 12) || 12, 2),
+    g: () => String((d.getHours() % 12) || 12),
+    i: () => pad(d.getMinutes(), 2),
+    s: () => pad(d.getSeconds(), 2),
+    A: () => d.getHours() < 12 ? 'AM' : 'PM',
+    a: () => d.getHours() < 12 ? 'am' : 'pm',
+  };
+
+  let result = '';
+  let i = 0;
+  while (i < fmt.length) {
+    // Try two-char lookahead first (e.g. "Y-m-d" — 'Y' before '-')
+    const one = fmt[i];
+    const fn = tokens[one];
+    if (fn) {
+      result += fn();
+      i++;
+    } else {
+      result += one;
+      i++;
+    }
+  }
+  return result;
+}
+
+/**
+ * Relative time string from a unix timestamp (seconds).
+ *
+ * @param ts  Unix timestamp in seconds
+ * @returns   e.g. "3 hours ago", "just now"
+ */
+export function relativeTime(ts: number): string {
+  const diff = nowSec() - ts;
+  if (diff < 60) return 'just now';
+  const mins = Math.floor(diff / 60);
+  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days !== 1 ? 's' : ''} ago`;
+  const months = Math.floor(days / 30);
+  return `${months} month${months !== 1 ? 's' : ''} ago`;
 }

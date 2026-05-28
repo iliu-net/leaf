@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { safeName } from '../../src/ts/utils.ts';
+import { safeName, nowSec, formatTimestamp, relativeTime } from '../../src/ts/utils.ts';
 import { updateFrontmatter } from '../../src/ts/frontmatter.ts';
 
 describe('safeName()', () => {
@@ -113,5 +113,86 @@ describe('updateFrontmatter()', () => {
     expect(result).toContain('a: 1');
     expect(result).toContain('b: 2');
     expect(result).toContain('Body');
+  });
+});
+
+// ── nowSec() ────────────────────────────────────────────────────────────────
+
+describe('nowSec()', () => {
+  it('returns a number close to current unix timestamp in seconds', () => {
+    const before = Math.floor(Date.now() / 1000);
+    const result = nowSec();
+    const after = Math.floor(Date.now() / 1000);
+    expect(result).toBeGreaterThanOrEqual(before);
+    expect(result).toBeLessThanOrEqual(after);
+  });
+
+  it('returns an integer', () => {
+    expect(Number.isInteger(nowSec())).toBe(true);
+  });
+
+  it('returns a plausible value (> 1.7e9 for 2020s)', () => {
+    expect(nowSec()).toBeGreaterThan(1_700_000_000);
+  });
+});
+
+// ── formatTimestamp() ───────────────────────────────────────────────────────
+
+describe('formatTimestamp()', () => {
+  // Fixed timestamp: 2026-05-28 15:14:27 UTC = 1779990867
+  const FIXED_TS = 1779990867;
+
+  // formatTimestamp uses Date.toLocaleString() when timestamp_format is null,
+  // which is the default.  The locale output varies by environment (UTC in CI,
+  // local in dev).  We only test presence of expected date parts.
+
+  it('includes year, month, day with default (toLocaleString fallback)', () => {
+    const result = formatTimestamp(FIXED_TS);
+    expect(result).toMatch(/2026/);
+  });
+
+  it('returns empty string for 0 timestamp', () => {
+    expect(formatTimestamp(0)).toBe('');
+  });
+
+  it('handles a timestamp near epoch (1970)', () => {
+    const result = formatTimestamp(1); // 1 second after epoch
+    expect(result.length).toBeGreaterThan(0);
+    expect(result).not.toBe('1/1/1970'); // toLocaleString varies by locale
+  });
+});
+
+// ── relativeTime() ──────────────────────────────────────────────────────────
+
+describe('relativeTime()', () => {
+  it('returns "just now" for timestamps within 60 seconds', () => {
+    expect(relativeTime(nowSec() - 30)).toBe('just now');
+    expect(relativeTime(nowSec() - 0)).toBe('just now');
+    expect(relativeTime(nowSec() - 59)).toBe('just now');
+  });
+
+  it('returns "X minute(s) ago" for minutes', () => {
+    expect(relativeTime(nowSec() - 60)).toBe('1 minute ago');
+    expect(relativeTime(nowSec() - 119)).toBe('1 minute ago');
+    expect(relativeTime(nowSec() - 180)).toBe('3 minutes ago');
+    expect(relativeTime(nowSec() - 59 * 60)).toBe('59 minutes ago');
+  });
+
+  it('returns "X hour(s) ago" for hours', () => {
+    expect(relativeTime(nowSec() - 3600)).toBe('1 hour ago');
+    expect(relativeTime(nowSec() - 7200)).toBe('2 hours ago');
+    expect(relativeTime(nowSec() - 23 * 3600)).toBe('23 hours ago');
+  });
+
+  it('returns "X day(s) ago" for days', () => {
+    expect(relativeTime(nowSec() - 86400)).toBe('1 day ago');
+    expect(relativeTime(nowSec() - 2 * 86400)).toBe('2 days ago');
+    expect(relativeTime(nowSec() - 29 * 86400)).toBe('29 days ago');
+  });
+
+  it('returns "X month(s) ago" for 30+ days', () => {
+    expect(relativeTime(nowSec() - 30 * 86400)).toBe('1 month ago');
+    expect(relativeTime(nowSec() - 60 * 86400)).toBe('2 months ago');
+    expect(relativeTime(nowSec() - 365 * 86400)).toBe('12 months ago');
   });
 });

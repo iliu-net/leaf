@@ -8,6 +8,7 @@
 import type { NoteData } from './notes.js';
 import type { PendingMeta, ContentStats } from './frontmatter.js';
 import type { MetaEventHandlers } from './view.js';
+import { formatTimestamp } from './utils.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 
@@ -218,8 +219,3 @@ function readCustomRows(): Record<string, string> {
   return custom;
 }
 
-function formatTimestamp(ts: number | undefined): string {
-  if (!ts) return '';
-  const d = new Date(ts);
-  return d.toLocaleString();
-}

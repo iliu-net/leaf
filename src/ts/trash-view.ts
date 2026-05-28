@@ -10,6 +10,7 @@
 import type { SidebarView, UIEventHandlers } from './view.js';
 import type { TrashEntry } from './trash-service.js';
 import * as contextMenu from './context-menu.js';
+import { relativeTime } from './utils.js';
 
 // ── DOM refs ────────────────────────────────────────────────────────────────
 
@@ -26,22 +27,6 @@ function filteredEntries(): TrashEntry[] {
   if (!_filter) return _entries;
   const q = _filter;
   return _entries.filter(e => e.id.toLowerCase().includes(q));
-}
-
-// ── Relative time helper ────────────────────────────────────────────────────
-
-function relativeTime(ms: number): string {
-  const diff = Date.now() - ms;
-  const secs  = Math.floor(diff / 1000);
-  if (secs < 60) return 'just now';
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days} day${days !== 1 ? 's' : ''} ago`;
-  const months = Math.floor(days / 30);
-  return `${months} month${months !== 1 ? 's' : ''} ago`;
 }
 
 // ── Source normalization ────────────────────────────────────────────────────

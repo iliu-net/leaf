@@ -7,8 +7,8 @@
  *   {
  *     id:         string   — note identifier
  *     content:    string   — full raw text including frontmatter (opaque)
- *     created_at: number   — unix timestamp ms, set once on CREATE
- *     updated_at: number   — unix timestamp ms, updated on every save
+ *     created_at: number   — unix timestamp seconds, set once on CREATE
+ *     updated_at: number   — unix timestamp seconds, updated on every save
  *     deleted:    0 | 1    — soft delete flag
  *   }
  *
@@ -26,6 +26,7 @@
 import Dexie, { type Table } from 'dexie';
 import { getNamespace, getSpaConfig } from './config.js';
 import { getUsername } from './auth.js';
+import { nowSec } from './utils.js';
 
 // ── Constants ───────────────────────────────────────────────────────────
 
@@ -114,7 +115,7 @@ export async function dbGetNote(id: string): Promise<NoteRecord | null> {
  */
 export async function dbSaveNote(id: string, content: string): Promise<void> {
   await ensureDbOpen();
-  const now      = Date.now();
+  const now      = nowSec();
   const existing = await db.notes.get(id);
   await db.notes.put({
     id,
@@ -135,7 +136,7 @@ export async function dbDeleteNote(id: string): Promise<void> {
   await ensureDbOpen();
   const existing = await db.notes.get(id);
   if (!existing) return;
-  await db.notes.put({ ...existing, deleted: 1 as const, updated_at: Date.now() });
+  await db.notes.put({ ...existing, deleted: 1 as const, updated_at: nowSec() });
 }
 
 /**
@@ -145,7 +146,7 @@ export async function dbCreateNote(id: string): Promise<void> {
   await ensureDbOpen();
   const existing = await db.notes.get(id);
   if (existing) return;
-  const now = Date.now();
+  const now = nowSec();
   const uname = getUsername() ?? 'unknown';
   await db.notes.put({
     id, content: '', created_at: now, updated_at: now, deleted: 0 as const,
@@ -163,7 +164,7 @@ export async function dbRenameNote(oldId: string, newId: string): Promise<void> 
   await ensureDbOpen();
   const existing = await db.notes.get(oldId);
   if (!existing) return;
-  await db.notes.put({ ...existing, id: newId, updated_at: Date.now() });
+  await db.notes.put({ ...existing, id: newId, updated_at: nowSec() });
   await db.notes.delete(oldId);
   // Rewrite pending queue entries for old id → new id
   const pending = await db.queue
@@ -187,12 +188,19 @@ export async function dbApplyServerChange(
   _prevVersion?: string | null,  // unused now, needed for future conflict resolution
   author?: string | null,
   created_by?: string | null,
+  serverCreatedAt?: number | null,
+  serverUpdatedAt?: number | null,
 ): Promise<void> {
   await ensureDbOpen();
   if (type === 'DELETE') {
     const existing = await db.notes.get(id);
     if (existing) {
-      await db.notes.put({ ...existing, deleted: 1 as const, updated_at: Date.now() });
+      await db.notes.put({
+        ...existing,
+        deleted: 1 as const,
+        updated_at: serverUpdatedAt ?? nowSec(),
+        updated_by: author ?? existing.updated_by,  // server's deleted_by
+      });
     }
     return;
   }
@@ -201,7 +209,12 @@ export async function dbApplyServerChange(
     if (!newId) return;
     const existing = await db.notes.get(id);
     if (!existing) return;
-    await db.notes.put({ ...existing, id: newId, updated_at: Date.now() });
+    await db.notes.put({
+      ...existing,
+      id: newId,
+      updated_at: serverUpdatedAt ?? nowSec(),
+      updated_by: author ?? existing.updated_by,  // server's renamed_by
+    });
     await db.notes.delete(id);
     // Rewrite pending queue entries for old id → new id
     const pending = await db.queue
@@ -218,8 +231,8 @@ export async function dbApplyServerChange(
   await db.notes.put({
     id,
     content:    content ?? '',
-    created_at: existing?.created_at ?? Date.now(),
-    updated_at: Date.now(),
+    created_at: serverCreatedAt ?? existing?.created_at ?? nowSec(),
+    updated_at: serverUpdatedAt ?? nowSec(),
     deleted:    0 as const,
     current:    version ?? existing?.current ?? 'local',
     updated_by: author ?? existing?.updated_by ?? '',
@@ -315,7 +328,7 @@ export async function dbRestoreNote(id: string): Promise<void> {
   await db.notes.put({
     ...existing,
     deleted: 0 as const,
-    updated_at: Date.now(),
+    updated_at: nowSec(),
     updated_by: getUsername() ?? 'unknown',
   });
 }
@@ -372,7 +385,7 @@ export async function dbGetNoteAny(id: string): Promise<{
 export async function dbPurgeDeletedNotes(): Promise<void> {
   await ensureDbOpen();
   const ttlDays = getSpaConfig().deleted_notes_ttl_days;
-  const cutoff = Date.now() - ttlDays * 86400 * 1000;
+  const cutoff = nowSec() - ttlDays * 86400;
   await db.notes
     .where('deleted').equals(1 as 0 | 1)
     .and(note => note.updated_at < cutoff)

@@ -11,6 +11,7 @@ import type { DiffLine } from './diff.js';
 import { computeDiff } from './diff.js';
 import type { VersionMeta, VersionListResponse } from './history-service.js';
 import { fetchVersionList, fetchVersionContent } from './history-service.js';
+import { formatTimestamp } from './utils.js';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -20,10 +21,6 @@ export interface HistoryCallbacks {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatDate(ts: number): string {
-  if (!ts) return '';
-  return new Date(ts * 1000).toLocaleString();
-}
 
 function esc(s: string): string {
   return s
@@ -90,7 +87,7 @@ function buildModal(
 
     row.innerHTML = [
       `<span class="history-version-marker">○</span>`,
-      `<span class="history-version-date">${formatDate(v.saved_at)}</span>`,
+      `<span class="history-version-date">${formatTimestamp(v.saved_at)}</span>`,
       `<span class="history-version-author">${esc(v.author)}</span>`,
       isCurrent ? '<span class="history-version-current-label">CURRENT</span>' : '',
       '<button class="btn-small history-view-btn" title="View raw content">view</button>',
@@ -207,9 +204,9 @@ function buildModal(
       opt.value = v.key;
       if (v.key === selectedKey) {
         opt.disabled = true;
-        opt.textContent = `${formatDate(v.saved_at)} ${v.author} (selected)`;
+        opt.textContent = `${formatTimestamp(v.saved_at)} ${v.author} (selected)`;
       } else {
-        opt.textContent = `${formatDate(v.saved_at)} ${v.author}`;
+        opt.textContent = `${formatTimestamp(v.saved_at)} ${v.author}`;
       }
       if (v.key === diffTargetKey) opt.selected = true;
       sel.appendChild(opt);
@@ -329,8 +326,8 @@ function buildModal(
   .remove { color:#e07070; }
   .context { color:#7a7269; }
 </style></head><body>
-<div class="header">Diff: <strong>${esc(selectedLabel ? formatDate(selectedLabel.saved_at) + ' ' + selectedLabel.author : selectedKey)}</strong>
- vs <strong>${esc(targetLabel ? formatDate(targetLabel.saved_at) + ' ' + targetLabel.author : diffTargetKey)}</strong>
+<div class="header">Diff: <strong>${esc(selectedLabel ? formatTimestamp(selectedLabel.saved_at) + ' ' + selectedLabel.author : selectedKey)}</strong>
+ vs <strong>${esc(targetLabel ? formatTimestamp(targetLabel.saved_at) + ' ' + targetLabel.author : diffTargetKey)}</strong>
  — ${esc(noteId)}</div>
 ${htmlLines}
 </body></html>`;

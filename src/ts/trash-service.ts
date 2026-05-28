@@ -19,6 +19,7 @@ import { getUsername } from './auth.js';
 import { publish } from './change-bus.js';
 import { getNamespace } from './config.js';
 import { syncNow } from './sync.js';
+import { nowSec } from './utils.js';
 import {
   fetchTrashList, fetchTrashRestore, fetchTrashPreview,
   fetchTrashPurge, fetchTrashEmpty,
@@ -235,7 +236,7 @@ export async function restoreTrashItem(
       id,
       content: note.content,
       created_at: note.created_at,
-      updated_at: Date.now(),
+      updated_at: nowSec(),
       deleted: 0 as const,
       current: note.current,
       updated_by: getUsername() ?? 'unknown',

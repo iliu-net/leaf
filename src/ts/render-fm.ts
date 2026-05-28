@@ -7,6 +7,7 @@
 
 import type { NoteData } from './notes.js';
 import type { FrontmatterResult } from './frontmatter.js';
+import { formatTimestamp } from './utils.js';
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -104,21 +105,16 @@ export function renderStats(body: string): string {
  * @param noteData  Note record from IndexedDB.
  */
 export function renderSystemInfo(noteData: NoteData): string {
-  const fmt = (ts: number | undefined): string => {
-    if (!ts) return '—';
-    return new Date(ts).toLocaleString();
-  };
-
   const rows: string[] = [];
 
   if (noteData.current) {
     rows.push(`<tr><td>Version</td><td>${esc(noteData.current)}</td></tr>`);
   }
   if (noteData.created_at) {
-    rows.push(`<tr><td>Created</td><td>${fmt(noteData.created_at)}</td></tr>`);
+    rows.push(`<tr><td>Created</td><td>${formatTimestamp(noteData.created_at)}</td></tr>`);
   }
   if (noteData.updated_at) {
-    rows.push(`<tr><td>Updated</td><td>${fmt(noteData.updated_at)}</td></tr>`);
+    rows.push(`<tr><td>Updated</td><td>${formatTimestamp(noteData.updated_at)}</td></tr>`);
   }
   if (noteData.created_by) {
     rows.push(`<tr><td>Created by</td><td>${esc(noteData.created_by)}</td></tr>`);

@@ -12,6 +12,7 @@ import {
   queueChange, queueGetPending, queueMarkSent, queuePruneSent,
   dbPurgeDeletedNotes,
 } from '../../src/ts/db.ts';
+import { nowSec } from '../../src/ts/utils.ts';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -333,10 +334,10 @@ describe('queue operations', () => {
 // ── Purge ───────────────────────────────────────────────────────────────────
 
 describe('dbPurgeDeletedNotes()', () => {
-  const DAY_MS = 86400 * 1000;
+  const DAY_SEC = 86400;
 
   it('removes deleted notes older than 7 days', async () => {
-    const old = Date.now() - 10 * DAY_MS;
+    const old = nowSec() - 10 * DAY_SEC;
     await db.notes.put({ id: 'stale', content: '', created_at: old, updated_at: old, deleted: 1 });
     await dbPurgeDeletedNotes();
     const note = await db.notes.get('stale');
@@ -344,7 +345,7 @@ describe('dbPurgeDeletedNotes()', () => {
   });
 
   it('keeps deleted notes newer than 7 days', async () => {
-    const recent = Date.now() - 3 * DAY_MS;
+    const recent = nowSec() - 3 * DAY_SEC;
     await db.notes.put({ id: 'fresh', content: '', created_at: recent, updated_at: recent, deleted: 1 });
     await dbPurgeDeletedNotes();
     const note = await db.notes.get('fresh');
@@ -352,7 +353,7 @@ describe('dbPurgeDeletedNotes()', () => {
   });
 
   it('does not touch live (non-deleted) notes', async () => {
-    await db.notes.put({ id: 'alive', content: 'hey', created_at: Date.now(), updated_at: Date.now(), deleted: 0 });
+    await db.notes.put({ id: 'alive', content: 'hey', created_at: nowSec(), updated_at: nowSec(), deleted: 0 });
     await dbPurgeDeletedNotes();
     const note = await db.notes.get('alive');
     expect(note).not.toBeUndefined();

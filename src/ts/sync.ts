@@ -175,17 +175,40 @@ async function applyServerChanges(
     if (type === 'RENAME') {
       const newId = change.obj?.renamed_to;
       console.log('[sync] recv  ← RENAME  %s → %s  (v%s)', change.key, newId, ver);
-      if (newId) await dbApplyServerChange('RENAME', change.key, newId);
+      if (newId) await dbApplyServerChange(
+        'RENAME', change.key, newId,
+        undefined,                        // version
+        undefined,                        // prevVersion
+        change.obj?.renamed_by,           // author → updated_by
+        undefined,                        // created_by
+        undefined,                        // serverCreatedAt
+        change.obj?.updated_at,           // serverUpdatedAt
+      );
+    } else if (type === 'DELETE') {
+      console.log('[sync] recv  ← %s  %s  (v%s)', type, change.key, ver);
+      await dbApplyServerChange(
+        'DELETE',
+        change.key,
+        change.obj?.content ?? null,
+        change.obj?.version,
+        change.obj?.prev_version,
+        change.obj?.deleted_by,           // author → updated_by
+        undefined,                        // created_by
+        undefined,                        // serverCreatedAt
+        change.obj?.deleted_at,           // serverUpdatedAt
+      );
     } else {
       console.log('[sync] recv  ← %s  %s  (v%s)', type, change.key, ver);
       await dbApplyServerChange(
-        type as 'CREATE' | 'UPDATE' | 'DELETE',
+        type as 'CREATE' | 'UPDATE',
         change.key,
         change.obj?.content ?? null,
         change.obj?.version,
         change.obj?.prev_version,
         change.obj?.author,
         change.obj?.created_by,
+        change.obj?.created_at,
+        change.obj?.updated_at,
       );
     }
     count++;
