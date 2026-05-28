@@ -4,7 +4,10 @@
  * Owns all textarea DOM and dispatches `note-changed` on programmatic writes.
  */
 
-import type { RawEventHandlers } from './view.js';
+/** Handlers for raw-panel events. */
+export interface RawEventHandlers {
+  onInput: () => void;  // textarea input → dispatch note-changed
+}
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 

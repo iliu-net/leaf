@@ -21,7 +21,7 @@
 
 import * as ui       from './ui.js';
 import * as pwa      from './pwa.js';
-import * as sidebar  from './sidebar-chrome.js';
+import * as sidebar  from './sidebar.js';
 import * as notes    from './notes.js';
 import type { NoteData } from './notes.js';
 import { db, dbPurgeDeletedNotes } from './db.js';
@@ -89,7 +89,7 @@ async function reloadOpenNoteAs(newId: string): Promise<void> {
 
 async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise<void> {
   const currentId = _current;
-  const inTrashMode = ui.getSidebarMode() === 'trash';
+  const inTrashMode = sidebar.getMode() === 'trash';
 
   switch (msg.type) {
     case 'saved':

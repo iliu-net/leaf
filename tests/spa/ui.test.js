@@ -1016,7 +1016,7 @@ describe('bindEvents()', () => {
     const onToggleTrash = vi.fn();
 
     // Put sidebar in trash mode first so the switch fires
-    ui.setSidebarMode('trash');
+    ui.setMode('trash');
 
     ui.bindEvents({
       onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),

@@ -8,10 +8,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   db, dbListNotes, dbGetNote, dbSaveNote, dbDeleteNote,
-  dbCreateNote, dbRenameNote, dbApplyServerChange,
+  dbCreateNote, dbRenameNote,
   queueChange, queueGetPending, queueMarkSent, queuePruneSent,
   dbPurgeDeletedNotes,
 } from '../../src/ts/db.ts';
+import { applyServerNoteChange } from '../../src/ts/sync.ts';
 import { nowSec } from '../../src/ts/utils.ts';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -169,9 +170,9 @@ describe('dbRenameNote()', () => {
 
 // ── Apply server changes ────────────────────────────────────────────────────
 
-describe('dbApplyServerChange()', () => {
+describe('applyServerNoteChange()', () => {
   it('applies CREATE for a new note', async () => {
-    await dbApplyServerChange('CREATE', 'remote-note', 'remote content', 'server:v1');
+    await applyServerNoteChange('CREATE', 'remote-note', 'remote content', 'server:v1');
     const note = await dbGetNote('remote-note');
     expect(note.content).toBe('remote content');
     expect(note.current).toBe('server:v1');
@@ -179,7 +180,7 @@ describe('dbApplyServerChange()', () => {
 
   it('applies UPDATE for an existing note', async () => {
     await seedNote('my-note', 'old', { current: 'v1' });
-    await dbApplyServerChange('UPDATE', 'my-note', 'new content', 'v2');
+    await applyServerNoteChange('UPDATE', 'my-note', 'new content', 'v2');
     const note = await dbGetNote('my-note');
     expect(note.content).toBe('new content');
     expect(note.current).toBe('v2');
@@ -187,19 +188,19 @@ describe('dbApplyServerChange()', () => {
 
   it('applies DELETE for an existing note', async () => {
     await seedNote('delete-me', 'bye');
-    await dbApplyServerChange('DELETE', 'delete-me', null);
+    await applyServerNoteChange('DELETE', 'delete-me', null);
     const note = await dbGetNote('delete-me');
     expect(note).toBeNull();
   });
 
   it('DELETE is a no-op for non-existent note', async () => {
-    await dbApplyServerChange('DELETE', 'ghost', null);
+    await applyServerNoteChange('DELETE', 'ghost', null);
     // Should not throw
   });
 
   it('applies RENAME', async () => {
     await seedNote('old-name', 'content', { current: 'v1' });
-    await dbApplyServerChange('RENAME', 'old-name', 'new-name');
+    await applyServerNoteChange('RENAME', 'old-name', 'new-name');
     expect(await dbGetNote('old-name')).toBeNull();
     const note = await dbGetNote('new-name');
     expect(note).not.toBeNull();
@@ -207,14 +208,14 @@ describe('dbApplyServerChange()', () => {
   });
 
   it('RENAME is a no-op if old id does not exist', async () => {
-    await dbApplyServerChange('RENAME', 'ghost', 'new-name');
+    await applyServerNoteChange('RENAME', 'ghost', 'new-name');
     expect(await dbGetNote('new-name')).toBeNull();
   });
 
   it('RENAME rewrites pending queue entries', async () => {
     await seedNote('old', 'data', { current: 'local' });
     await queueChange('UPDATE', 'old', 'data', 'local');
-    await dbApplyServerChange('RENAME', 'old', 'new');
+    await applyServerNoteChange('RENAME', 'old', 'new');
     const pending = await queueGetPending();
     expect(pending.find(e => e.id === 'new')).toBeTruthy();
     expect(pending.find(e => e.id === 'old')).toBeUndefined();
@@ -222,7 +223,7 @@ describe('dbApplyServerChange()', () => {
 
   it('CREATE preserves existing note current if no version sent', async () => {
     await seedNote('existing', 'original', { created_at: 100, current: 'v1' });
-    await dbApplyServerChange('CREATE', 'existing', 'overwrite');
+    await applyServerNoteChange('CREATE', 'existing', 'overwrite');
     const note = await dbGetNote('existing');
     expect(note.content).toBe('overwrite');
     expect(note.created_at).toBe(100);
@@ -231,7 +232,7 @@ describe('dbApplyServerChange()', () => {
 
   it('CREATE overwrites current when version is sent', async () => {
     await seedNote('existing', 'original', { created_at: 100, current: 'v1' });
-    await dbApplyServerChange('CREATE', 'existing', 'overwrite', 'v2');
+    await applyServerNoteChange('CREATE', 'existing', 'overwrite', 'v2');
     const note = await dbGetNote('existing');
     expect(note.content).toBe('overwrite');
     expect(note.current).toBe('v2');

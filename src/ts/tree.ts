@@ -10,7 +10,7 @@
  *   savedExpanded   — snapshot taken while a search is active
  */
 
-import type { SidebarView, UIEventHandlers } from './view.js';
+import type { SidebarView, UIEventHandlers } from './sidebar.js';
 import type { NoteMeta } from './notes.js';
 import * as contextMenu from './context-menu.js';
 import { naturalCompare } from './utils.js';

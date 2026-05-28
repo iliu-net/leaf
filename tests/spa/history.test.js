@@ -102,9 +102,10 @@ describe('computeDiff', () => {
   });
 });
 
-// ── created_by in dbApplyServerChange ──────────────────────────────────────
+// ── created_by in applyServerNoteChange ──────────────────────────────────────
 
-import { db, dbApplyServerChange, dbGetNote } from '../../src/ts/db.ts';
+import { db, dbGetNote } from '../../src/ts/db.ts';
+import { applyServerNoteChange } from '../../src/ts/sync.ts';
 import { getUsername } from '../../src/ts/auth.ts';
 
 async function seedNote(id, extra = {}) {
@@ -115,9 +116,9 @@ async function seedNote(id, extra = {}) {
   });
 }
 
-describe('dbApplyServerChange created_by handling', () => {
+describe('applyServerNoteChange created_by handling', () => {
   it('uses server-provided created_by on CREATE when note does not exist', async () => {
-    await dbApplyServerChange('CREATE', 'new-note', 'hello', 'v1', null, 'alice', 'alice');
+    await applyServerNoteChange('CREATE', 'new-note', 'hello', 'v1', null, 'alice', 'alice');
 
     const note = await dbGetNote('new-note');
     expect(note.created_by).toBe('alice');
@@ -128,7 +129,7 @@ describe('dbApplyServerChange created_by handling', () => {
   it('uses server-provided created_by on UPDATE when note does not exist (dedup scenario)', async () => {
     // Simulates the deduplication bug: Alice created, Bob updated,
     // Charlie syncs and only gets the UPDATE.
-    await dbApplyServerChange('UPDATE', 'remote-note', 'bob edit', 'v2', 'v1', 'bob', 'alice');
+    await applyServerNoteChange('UPDATE', 'remote-note', 'bob edit', 'v2', 'v1', 'bob', 'alice');
 
     const note = await dbGetNote('remote-note');
     expect(note.created_by).toBe('alice');  // server's created_by, not bob
@@ -138,7 +139,7 @@ describe('dbApplyServerChange created_by handling', () => {
   it('preserves existing created_by on UPDATE when note already exists', async () => {
     await seedNote('existing', { created_by: 'carol', updated_by: 'carol' });
 
-    await dbApplyServerChange('UPDATE', 'existing', 'dave edit', 'v2', 'v1', 'dave', undefined);
+    await applyServerNoteChange('UPDATE', 'existing', 'dave edit', 'v2', 'v1', 'dave', undefined);
 
     const note = await dbGetNote('existing');
     // created_by preserved from existing record
@@ -148,14 +149,14 @@ describe('dbApplyServerChange created_by handling', () => {
   });
 
   it('falls back to author on CREATE when created_by is not provided (old server)', async () => {
-    await dbApplyServerChange('CREATE', 'old-server-note', 'content', 'v1', null, 'eve', undefined);
+    await applyServerNoteChange('CREATE', 'old-server-note', 'content', 'v1', null, 'eve', undefined);
 
     const note = await dbGetNote('old-server-note');
     expect(note.created_by).toBe('eve');
   });
 
   it('leaves created_by empty on UPDATE without server created_by and no existing record', async () => {
-    await dbApplyServerChange('UPDATE', 'orphan-update', 'content', 'v2', 'v1', 'frank', undefined);
+    await applyServerNoteChange('UPDATE', 'orphan-update', 'content', 'v2', 'v1', 'frank', undefined);
 
     const note = await dbGetNote('orphan-update');
     expect(note.created_by).toBe('');

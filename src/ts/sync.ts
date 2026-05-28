@@ -15,14 +15,16 @@ import {
   queueMarkSent,
   queuePruneSent,
   queueChange,
-  dbApplyServerChange,
   dbGetNote,
   dbGetNoteAny,
+  db,
+  ensureDbOpen,
 } from './db.js';
 import type { QueueRecord } from './db.js';
 
 import { publish, subscribe } from './change-bus.js';
 import { getNamespace } from './config.js';
+import { nowSec } from './utils.js';
 import { syncRequest } from './api.js';
 import type { SyncRequestBody, SyncResponseBody } from './api.js';
 
@@ -162,6 +164,71 @@ async function pull(): Promise<number> {
 
 // ── Apply server changes to local IndexedDB ───────────────────────────────
 
+/**
+ * Apply a single server-side change to the local notes table.
+ * Does not touch the outbound queue — server changes are not re-queued.
+ * Exported so tests can exercise the field-merging logic directly.
+ */
+export async function applyServerNoteChange(
+  type: 'CREATE' | 'UPDATE' | 'DELETE' | 'RENAME',
+  id: string,
+  content: string | null,  // note content, or new id for RENAME
+  version?: string | null,
+  _prevVersion?: string | null,  // reserved for future conflict resolution
+  author?: string | null,
+  created_by?: string | null,
+  serverCreatedAt?: number | null,
+  serverUpdatedAt?: number | null,
+): Promise<void> {
+  await ensureDbOpen();
+  if (type === 'DELETE') {
+    const existing = await db.notes.get(id);
+    if (existing) {
+      await db.notes.put({
+        ...existing,
+        deleted: 1 as const,
+        updated_at: serverUpdatedAt ?? nowSec(),
+        updated_by: author ?? existing.updated_by,
+      });
+    }
+    return;
+  }
+  if (type === 'RENAME') {
+    const newId = content;
+    if (!newId) return;
+    const existing = await db.notes.get(id);
+    if (!existing) return;
+    await db.notes.put({
+      ...existing,
+      id: newId,
+      updated_at: serverUpdatedAt ?? nowSec(),
+      updated_by: author ?? existing.updated_by,
+    });
+    await db.notes.delete(id);
+    // Rewrite pending queue entries for old id → new id
+    const pending = await db.queue
+      .where('status').equals('pending')
+      .filter(e => e.id === id)
+      .toArray();
+    for (const entry of pending) {
+      await db.queue.update(entry.seq!, { id: newId });
+    }
+    return;
+  }
+  // CREATE or UPDATE
+  const existing = await db.notes.get(id);
+  await db.notes.put({
+    id,
+    content:    content ?? '',
+    created_at: serverCreatedAt ?? existing?.created_at ?? nowSec(),
+    updated_at: serverUpdatedAt ?? nowSec(),
+    deleted:    0 as const,
+    current:    version ?? existing?.current ?? 'local',
+    updated_by: author ?? existing?.updated_by ?? '',
+    created_by: created_by ?? (type === 'CREATE' ? (author ?? undefined) : undefined) ?? existing?.created_by ?? '',
+  });
+}
+
 async function applyServerChanges(
   changes: SyncResponseBody['changes'],
   currentRevision: number,
@@ -175,7 +242,7 @@ async function applyServerChanges(
     if (type === 'RENAME') {
       const newId = change.obj?.renamed_to;
       console.log('[sync] recv  ← RENAME  %s → %s  (v%s)', change.key, newId, ver);
-      if (newId) await dbApplyServerChange(
+      if (newId) await applyServerNoteChange(
         'RENAME', change.key, newId,
         undefined,                        // version
         undefined,                        // prevVersion
@@ -186,7 +253,7 @@ async function applyServerChanges(
       );
     } else if (type === 'DELETE') {
       console.log('[sync] recv  ← %s  %s  (v%s)', type, change.key, ver);
-      await dbApplyServerChange(
+      await applyServerNoteChange(
         'DELETE',
         change.key,
         change.obj?.content ?? null,
@@ -199,7 +266,7 @@ async function applyServerChanges(
       );
     } else {
       console.log('[sync] recv  ← %s  %s  (v%s)', type, change.key, ver);
-      await dbApplyServerChange(
+      await applyServerNoteChange(
         type as 'CREATE' | 'UPDATE',
         change.key,
         change.obj?.content ?? null,

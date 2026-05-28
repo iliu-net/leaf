@@ -8,7 +8,12 @@
 import type { NoteData } from './notes.js';
 import type { PendingMeta } from './frontmatter.js';
 import type { ContentStats } from './utils.js';
-import type { MetaEventHandlers } from './view.js';
+/** Handlers for meta-panel events. */
+export interface MetaEventHandlers {
+  onFieldChange: () => void;           // any meta field edited
+  onAddCustomField: () => void;
+  onRemoveCustomField: (key: string) => void;
+}
 import { formatTimestamp } from './utils.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────

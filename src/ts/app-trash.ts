@@ -6,8 +6,7 @@
  */
 
 import * as ui      from './ui.js';
-import * as sidebar from './sidebar-chrome.js';
-import { TrashView } from './trash-view.js';
+import * as sidebar from './sidebar.js';
 import {
   loadTrashEntries, getTrashContent,
   restoreTrashItem, purgeTrashItem, emptyTrash,
@@ -18,18 +17,18 @@ import { refreshList } from './app-files.js';
 
 export async function refreshTrashList(): Promise<void> {
   const entries = await loadTrashEntries();
-  TrashView.render(entries, null);
-  sidebar.setCurrentView(TrashView);
-  ui.setTrashCount(entries.length);
+  // Render via the SidebarView interface — the active view was set by setMode()
+  sidebar.getView()!.render(entries, null);
+  sidebar.setTrashCount(entries.length);
 }
 
 export async function handleToggleTrash(): Promise<void> {
-  if (ui.getSidebarMode() === 'trash') {
-    ui.setSidebarMode('notes');
+  if (sidebar.getMode() === 'trash') {
+    sidebar.setMode('notes');
     ui.hideTrashBanner();
     await refreshList();
   } else {
-    ui.setSidebarMode('trash');
+    sidebar.setMode('trash');
     await refreshTrashList();
   }
 }
@@ -56,7 +55,7 @@ export async function handleTrashRestore(id: string, source: 'local' | 'server')
   try {
     await restoreTrashItem(id, source);
     ui.hideTrashBanner();
-    ui.setSidebarMode('notes');
+    sidebar.setMode('notes');
     await refreshList(id);
     ui.toast(`Restored "${id}"`);
   } catch (err) {

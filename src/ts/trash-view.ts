@@ -7,7 +7,7 @@
  * Supports client-side filter/search on tombstone IDs.
  */
 
-import type { SidebarView, UIEventHandlers } from './view.js';
+import type { SidebarView, UIEventHandlers } from './sidebar.js';
 import type { TrashEntry } from './trash-service.js';
 import * as contextMenu from './context-menu.js';
 import { relativeTime } from './utils.js';

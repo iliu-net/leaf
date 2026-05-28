@@ -6,19 +6,18 @@
  * the callbacks passed in from app.js (no imports of api/store).
  *
  * Sub-modules:
- *   editor.ts         — textarea / meta-panel lifecycle
- *   sidebar-chrome.ts — file-list rendering & sidebar chrome
- *   login-screen.ts   — login overlay
- *   modal.ts          — create / rename dialogs
+ *   editor.ts       — textarea / meta-panel lifecycle
+ *   sidebar.ts      — sidebar chrome, mode switching, view delegation
+ *   login-screen.ts — login overlay
+ *   modal.ts        — create / rename dialogs
  */
 
-import type { UIEventHandlers } from './view.js';
+import type { UIEventHandlers } from './sidebar.js';
 
 import * as editor        from './editor.js';
-import * as sidebar       from './sidebar-chrome.js';
+import * as sidebar       from './sidebar.js';
 import * as modal         from './modal.js';
 import * as loginScreen   from './login-screen.js';
-import { TrashView }      from './trash-view.js';
 import { parseFrontmatter } from './frontmatter.js';
 
 // Re-exports so consumers of ui.* don't break
@@ -30,42 +29,30 @@ export {
 export {
   renderFileList, setActiveFile, updateNoteCount,
   setSidebarLoading, toggleSidebar, clearSearch,
-  setCurrentView,
-} from './sidebar-chrome.js';
+  setMode, getMode, setTrashCount,
+} from './sidebar.js';
 
 // ── DOM refs (for bindEvents & status bar) ─────────────────────────────────
 
 const $ = (id: string): HTMLElement => document.getElementById(id)!;
+// _q is for elements that may not exist in test fixtures
+const _q = (id: string): HTMLElement | null => document.getElementById(id);
 
-const fileList       = $('file-list');
 const dirtyDot       = $('dirty-dot');
 const btnSave        = $('btn-save') as HTMLButtonElement;
-const searchInput    = $('search') as HTMLInputElement;
 const statusMsg      = $('status-msg');
 const offlineBadge   = $('offline-badge');
 const toastCont      = $('toast-container');
 const syncStatus     = $('sync-status');
 const editorTabs     = $('editor-tabs');
 
-// Menu / dropdown refs
+// Menu refs ($ — must exist; _q — may be absent in test fixtures)
 const btnMenu     = $('btn-menu')     as HTMLButtonElement;
 const menuResetDb = $('menu-reset-db') as HTMLButtonElement;
-const appMenu     = $('app-menu');
 
-// Sidebar toggle
-const btnToggleSidebar = $('btn-toggle-sidebar') as HTMLButtonElement;
-
-// Trash (guarded — test fixtures may omit these elements)
-const _q = (id: string): HTMLElement | null => document.getElementById(id);
-const sidebarToolbar = $('sidebar-toolbar');
-const trashToolbar   = _q('trash-toolbar');
-const trashFooter    = _q('trash-footer');
-const noteFooter     = $('sidebar-footer');
-const menuTrash      = _q('menu-trash') as HTMLButtonElement | null;
-const menuFolder     = _q('menu-folder') as HTMLButtonElement | null;
-const trashSearchInput = _q('trash-search') as HTMLInputElement | null;
-const trashBanner    = _q('trash-banner');
-const trashBannerBody = _q('trash-banner-body');
+// Trash banner (editor area — stays in ui.ts)
+const trashBanner      = _q('trash-banner');
+const trashBannerBody   = _q('trash-banner-body');
 const trashBannerTitle   = _q('trash-banner-title');
 const trashBannerRestore = _q('trash-banner-restore') as HTMLButtonElement | null;
 const trashBannerPurge   = _q('trash-banner-purge') as HTMLButtonElement | null;
@@ -110,7 +97,8 @@ export function toast(msg: string, isErr: boolean = false): void {
 // ── Modal (delegated to modal.ts) ───────────────────────────────────────────
 
 export function openModal(currentNoteId?: string | null, searchValue?: string): void {
-  modal.openModal(currentNoteId ?? editor.getCurrentNoteId(), searchValue ?? searchInput.value);
+  const si = (document.getElementById('search') as HTMLInputElement);
+  modal.openModal(currentNoteId ?? editor.getCurrentNoteId(), searchValue ?? si?.value ?? '');
 }
 
 export function openRenameModal(id: string): void {
@@ -157,55 +145,6 @@ export function hideLoginScreen(): void {
 
 export function showOfflineFirstVisit(): void {
   loginScreen.showOfflineFirstVisit();
-}
-
-// ── Trash mode ──────────────────────────────────────────────────────────────
-
-type SidebarMode = 'notes' | 'trash';
-let _sidebarMode: SidebarMode = 'notes';
-
-function _updateMenuChecks(): void {
-  const mode = _sidebarMode;
-  if (menuFolder) {
-    const chk = menuFolder.querySelector('.dropdown-check') as HTMLElement | null;
-    if (chk) chk.style.visibility = mode === 'notes' ? 'visible' : 'hidden';
-  }
-  if (menuTrash) {
-    const chk = menuTrash.querySelector('.dropdown-check') as HTMLElement | null;
-    if (chk) chk.style.visibility = mode === 'trash' ? 'visible' : 'hidden';
-  }
-}
-
-let _trashCount = 0;
-
-export function setSidebarMode(mode: SidebarMode): void {
-  _sidebarMode = mode;
-  _updateMenuChecks();
-  if (mode === 'trash') {
-    sidebarToolbar.style.display   = 'none';
-    noteFooter.style.display       = 'none';
-    if (trashToolbar) trashToolbar.style.display     = 'flex';
-    if (trashFooter) trashFooter.style.display      = 'flex';
-    hideTrashBanner();
-  } else {
-    sidebarToolbar.style.display   = 'flex';
-    noteFooter.style.display       = '';
-    if (trashToolbar) trashToolbar.style.display     = 'none';
-    if (trashFooter) trashFooter.style.display      = 'none';
-  }
-}
-
-export function getSidebarMode(): SidebarMode { return _sidebarMode; }
-
-export function setTrashCount(n: number): void {
-  _trashCount = n;
-  if (menuTrash) {
-    const label = n > 0 ? `Trash (${n})` : 'Trash';
-    // Preserve the checkmark span
-    const chk = menuTrash.querySelector('.dropdown-check');
-    menuTrash.childNodes.forEach(c => { if (c !== chk) c.remove(); });
-    menuTrash.appendChild(document.createTextNode(' ' + label));
-  }
 }
 
 // ── Trash preview banner ────────────────────────────────────────────────────
@@ -266,10 +205,7 @@ export function hideTrashBanner(): void {
 // ── Event wiring ────────────────────────────────────────────────────────────
 
 export function bindEvents(handlers: UIEventHandlers): void {
-  const {
-    onOpen, onDelete, onSearch, onSave, onNew, onRename,
-    onResetDB,
-  } = handlers;
+  const { onSave, onNew, onResetDB } = handlers;
 
   // Login form events → login-screen.ts
   loginScreen.bindLoginEvents({
@@ -286,43 +222,13 @@ export function bindEvents(handlers: UIEventHandlers): void {
     onRenameConfirm: (oldId: string) => handlers.onRenameConfirm?.(oldId),
   });
 
-  // File list — event delegation (delegated to current sidebar view)
-  fileList.addEventListener('click', e => {
-    const cv = sidebar.getCurrentView();
-    if (cv) cv.handleClick(e, handlers);
-  });
-
-  // Search
-  searchInput.addEventListener('input', () => onSearch(searchInput.value));
-  searchInput.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && searchInput.value) {
-      e.preventDefault();
-      searchInput.value = '';
-      onSearch('');
-    }
-  });
-
-  // Trash search
-  if (trashSearchInput) {
-    trashSearchInput.addEventListener('input', () => {
-      TrashView.setFilter?.(trashSearchInput.value);
-    });
-    trashSearchInput.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && trashSearchInput.value) {
-        e.preventDefault();
-        trashSearchInput.value = '';
-        TrashView.setFilter?.('');
-      }
-    });
-  }
+  // ── Sidebar — all sidebar DOM wiring (file-list, search, chrome, menu)
+  sidebar.init(handlers);
 
   // Buttons
   btnSave.addEventListener('click', onSave);
   $('btn-new').addEventListener('click', onNew);
-  btnToggleSidebar.addEventListener('click', sidebar.toggleSidebar);
-
-  // Trash buttons (guard against missing elements in test fixtures)
-  document.getElementById('btn-empty-trash')?.addEventListener('click', () => handlers.onTrashEmpty?.());
+  $('btn-toggle-sidebar').addEventListener('click', sidebar.toggleSidebar);
 
   // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
@@ -347,34 +253,18 @@ export function bindEvents(handlers: UIEventHandlers): void {
     headerBrand.classList.remove('open');
   }
 
-  function toggleMenu(): void {
-    headerBrand.classList.toggle('open');
-  }
-
-  // View-switching menu items
-  menuFolder?.addEventListener('click', () => {
-    if (getSidebarMode() !== 'notes') handlers.onToggleTrash?.();
-    closeMenu();
-  });
-
-  menuTrash?.addEventListener('click', () => {
-    if (getSidebarMode() !== 'trash') handlers.onToggleTrash?.();
-    closeMenu();
-  });
-
   menuResetDb.addEventListener('click', () => {
     closeMenu();
     onResetDB();
   });
 
-  // Toggle button — stopPropagation prevents the document listener
-  // from immediately re-closing the dropdown
+  // Toggle button
   btnMenu.addEventListener('click', e => {
     e.stopPropagation();
-    toggleMenu();
+    headerBrand.classList.toggle('open');
   });
 
-  // Click outside the header-brand area closes the dropdown
+  // Click outside closes the dropdown
   document.addEventListener('click', (e: MouseEvent) => {
     if (
       headerBrand.classList.contains('open') &&
@@ -383,7 +273,4 @@ export function bindEvents(handlers: UIEventHandlers): void {
       closeMenu();
     }
   });
-
-  // Initialize menu checks on first bind
-  _updateMenuChecks();
 }
