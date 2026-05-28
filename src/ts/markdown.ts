@@ -36,6 +36,29 @@ function getMd(): MarkdownIt {
   }
   _pending.length = 0;
 
+  // Force external links (http://, https://) to open in a new tab so they
+  // don't destroy the running SPA.  markdown-it v14 has no default
+  // link_open rule — the generic renderToken() handles it.  We wrap
+  // whatever is there (or renderToken itself if absent).
+  const existingLinkOpen = _md.renderer.rules.link_open;
+  _md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+    const href = tokens[idx].attrGet('href');
+    if (href && /^https?:\/\//.test(href)) {
+      tokens[idx].attrSet('target', '_blank');
+      tokens[idx].attrSet('rel', 'noopener noreferrer');
+      // Merge class attribute — preserve any existing classes from the token
+      const existingClass = tokens[idx].attrGet('class');
+      tokens[idx].attrSet('class', existingClass
+        ? `${existingClass} external-link`
+        : 'external-link');
+    }
+    if (existingLinkOpen) {
+      return existingLinkOpen(tokens, idx, options, env, self);
+    }
+    // Default behaviour — render the tag from token.tag + token.attrs
+    return self.renderToken(tokens, idx, options);
+  };
+
   return _md;
 }
 
@@ -45,6 +68,7 @@ function getMd(): MarkdownIt {
 const _pluginRegistry: Record<string, () => Promise<(md: MarkdownIt, ...args: any[]) => void>> = {
   emoji:     () => import('./extensions/emoji.js').then(m => m.default),
   highlight: () => import('./extensions/highlight.js').then(m => m.default),
+  wikilinks: () => import('./extensions/wikilinks.js').then(m => m.default),
 };
 
 // ── Public API ──────────────────────────────────────────────────────────────

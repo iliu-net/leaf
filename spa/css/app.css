@@ -1050,6 +1050,34 @@ kbd {
   text-decoration: underline;
 }
 
+/* ── Wikilinks ── */
+.markdown-body a.wikilink {
+  color: var(--accent);
+}
+
+.markdown-body a.wikilink:hover {
+  text-decoration: underline;
+}
+
+/* Missing wikilink (no note exists for this [[id]]) */
+.markdown-body a.wikilink-missing {
+  color: var(--danger);
+  border-bottom: 1px dashed rgba(224,80,80,.4);
+}
+
+.markdown-body a.wikilink-missing:hover {
+  color: #f08070;
+  border-bottom-color: rgba(224,80,80,.7);
+}
+
+/* ── External links ── */
+.markdown-body a.external-link::after {
+  content: ' ↗';
+  font-size: .75em;
+  opacity: .5;
+  white-space: nowrap;
+}
+
 .markdown-body img {
   max-width: 100%;
   border-radius: var(--radius);

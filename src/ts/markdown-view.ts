@@ -19,6 +19,7 @@ import {
 } from './render-fm.js';
 import { esc } from './utils.js';
 import { hydrate } from './fence-hydrate.js';
+import { dbGetNote } from './db.js';
 
 // ── Lazy markdown-it ────────────────────────────────────────────────────────
 
@@ -43,6 +44,22 @@ let _viewContent: HTMLElement | null = null;
 export function init(): void {
   _viewHeader  = document.querySelector('#tab-view .view-header');
   _viewContent = document.querySelector('#tab-view .view-content');
+
+  // Wikilink navigation — intercept clicks on [[page]] links and dispatch
+  // a custom event so app.ts can open the note without a page reload.
+  _viewContent?.addEventListener('click', (e) => {
+    const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-note]');
+    if (!link) return;
+
+    e.preventDefault();
+    const id = link.dataset.note;
+    if (!id) return;
+
+    _viewContent!.dispatchEvent(new CustomEvent('navigate-note', {
+      bubbles: true,
+      detail: { id },
+    }));
+  });
 }
 
 // ── Shared rendering ────────────────────────────────────────────────────────
@@ -83,6 +100,70 @@ export async function renderView(content: string, noteData: NoteData): Promise<s
   return parts.join('');
 }
 
+// ── Post-render wikilink processing ──────────────────────────────────────────
+
+/**
+ * Batch-process all wikilinks after markdown rendering:
+ *
+ *   1. [[page|]] → replace link text with the target note's frontmatter title
+ *   2. Add "wikilink-missing" class to links whose target note doesn't exist
+ *
+ * Both operations share a single batch IndexedDB lookup over all wikilinks
+ * in the rendered content.
+ */
+async function _postProcessWikilinks(root: Element): Promise<void> {
+  const allLinks = root.querySelectorAll<HTMLAnchorElement>('a[data-note]');
+  if (allLinks.length === 0) return;
+
+  // Gather unique note IDs from ALL wikilinks (both title-resolution and
+  // existence-check need the same data).
+  const ids = new Set<string>();
+  for (const link of allLinks) {
+    const id = link.dataset.note;
+    if (id) ids.add(id);
+  }
+
+  // Load all referenced notes in parallel.  null = note doesn't exist.
+  const noteMap = new Map<string, string | null>();
+  await Promise.all(
+    Array.from(ids).map(async (id) => {
+      try {
+        const note = await dbGetNote(id);
+        noteMap.set(id, note?.content ?? null);
+      } catch {
+        noteMap.set(id, null);
+      }
+    }),
+  );
+
+  // Parse titles — only for notes that exist and have frontmatter
+  const titleMap = new Map<string, string>();
+  for (const [id, content] of noteMap) {
+    if (content) {
+      const fm = parseFrontmatter(content);
+      const title = typeof fm.meta['title'] === 'string' ? fm.meta['title'].trim() : '';
+      if (title) titleMap.set(id, title);
+    }
+  }
+
+  // Walk links and apply both transforms
+  for (const link of allLinks) {
+    const id = link.dataset.note!;
+
+    // 1. Missing link styling
+    if (!noteMap.get(id)) {
+      link.classList.add('wikilink-missing');
+    }
+
+    // 2. Title resolution ([[page|]])
+    if (link.hasAttribute('data-resolve-title')) {
+      const title = titleMap.get(id);
+      if (title) link.textContent = title;
+      link.removeAttribute('data-resolve-title');
+    }
+  }
+}
+
 // ── TabPanel lifecycle ──────────────────────────────────────────────────────
 
 /**
@@ -99,6 +180,11 @@ export async function show(ctx: TabPanelContext): Promise<void> {
   const m = html.match(/^(<h1[^>]*>.*?<\/h1>)/);
   _viewHeader.innerHTML = m ? m[1] : '';
   _viewContent.innerHTML = m ? html.slice(m[1].length) : html;
+
+  // Post-process wikilinks: resolve [[page|]] titles, mark missing links
+  _postProcessWikilinks(_viewContent).catch(err =>
+    console.warn('[markdown-view] wikilink post-process failed:', err)
+  );
 
   // Hydrate fenced code blocks (syntax highlighting, diagrams)
   hydrate(_viewContent).catch(err =>

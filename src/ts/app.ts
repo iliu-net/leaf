@@ -26,7 +26,7 @@ import * as modal    from './modal.js';
 import * as loginView from './login-view.js';
 import * as notes    from './notes.js';
 import type { NoteData } from './notes.js';
-import { db, dbPurgeDeletedNotes } from './db.js';
+import { db, dbPurgeDeletedNotes, dbGetNote } from './db.js';
 import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
 import { subscribe } from './change-bus.js';
@@ -280,6 +280,32 @@ async function showShell(): Promise<void> {
   document.addEventListener('note-changed', () =>
     updateContent(ui.getRawContent())
   );
+
+  document.addEventListener('navigate-note', async (e) => {
+    const id = (e as CustomEvent).detail?.id as string | undefined;
+    if (!id) return;
+
+    // Same dirty-check flow as the sidebar onOpen handler
+    if (_dirty && !confirm('You have unsaved changes. Discard?')) return;
+
+    const existing = await dbGetNote(id);
+    if (!existing) {
+      // Note doesn't exist yet — open create modal with name pre-filled.
+      modal.openModal(null, id);
+      return;
+    }
+
+    // Note exists — open it normally
+    try {
+      const data = await notesCtrl.openNote(id);
+      _current = id;
+      _content = data.content;
+      _dirty   = false;
+      ui.setDirty(false);
+    } catch (err) {
+      console.warn('[app] navigate-note failed:', err);
+    }
+  });
 
   document.getElementById('btn-view-history')?.addEventListener('click', async () => {
     const id = _current;
