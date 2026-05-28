@@ -84,59 +84,6 @@ export function toast(msg: string, isErr: boolean = false): void {
   setTimeout(() => el.remove(), 3500);
 }
 
-// ── Modal (delegated to modal.ts) ───────────────────────────────────────────
-
-export function openModal(currentNoteId?: string | null, searchValue?: string): void {
-  const si = (document.getElementById('search') as HTMLInputElement);
-  modal.openModal(currentNoteId ?? editor.getCurrentNoteId(), searchValue ?? si?.value ?? '');
-}
-
-export function openRenameModal(id: string): void {
-  modal.openRenameModal(id);
-}
-
-export function closeModal(): void {
-  modal.closeModal();
-}
-
-export function setModalError(msg: string): void {
-  modal.setModalError(msg);
-}
-
-export function setModalHint(msg: string): void {
-  modal.setModalHint(msg);
-}
-
-export function getModalValue(): string {
-  return modal.getModalValue();
-}
-
-// ── Login screen (delegated to login-view.ts) ─────────────────────────────
-
-export function showLoginScreen(): void {
-  loginView.showLoginScreen();
-}
-
-export function showAppShell(username: string | null): void {
-  loginView.showAppShell(username);
-}
-
-export function setLoginError(msg: string): void {
-  loginView.setLoginError(msg);
-}
-
-export function setLoginLoading(loading: boolean): void {
-  loginView.setLoginLoading(loading);
-}
-
-export function hideLoginScreen(): void {
-  loginView.hideLoginScreen();
-}
-
-export function showOfflineFirstVisit(): void {
-  loginView.showOfflineFirstVisit();
-}
-
 // ── Event wiring ────────────────────────────────────────────────────────────
 
 export function bindEvents(handlers: UIEventHandlers): void {

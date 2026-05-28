@@ -7,7 +7,7 @@
 
 import type { NoteData } from './notes.js';
 import type { PendingMeta } from './frontmatter.js';
-import type { TabPanelContext } from './tab-panel.js';
+import type { TabPanel, TabPanelContext } from './tab-panel.js';
 import {
   parseFrontmatter,
   initPendingMeta,
@@ -251,4 +251,7 @@ function _readCustomRows(): Record<string, string> {
 
   return custom;
 }
+
+/** TabPanel contract — typed lens for editor-ctrl.ts registration. */
+export const tabPanel: TabPanel = { init, show, hide };
 

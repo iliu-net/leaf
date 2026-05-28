@@ -9,7 +9,7 @@
  */
 
 import type { NoteData } from './notes.js';
-import type { TabPanelContext } from './tab-panel.js';
+import type { TabPanel, TabPanelContext } from './tab-panel.js';
 import { parseFrontmatter } from './frontmatter.js';
 import {
   renderFrontmatter,
@@ -105,3 +105,6 @@ export function hide(): void {
   if (_viewHeader)  _viewHeader.innerHTML = '';
   if (_viewContent) _viewContent.innerHTML = '';
 }
+
+/** TabPanel contract — typed lens for editor-ctrl.ts registration. */
+export const tabPanel: TabPanel = { init, show, hide };

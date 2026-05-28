@@ -8,6 +8,7 @@
  */
 
 import * as ui    from './ui.js';
+import * as modal from './modal.js';
 import * as notes from './notes.js';
 import type { NoteData, NoteMeta } from './notes.js';
 import { safeName } from './utils.js';
@@ -77,39 +78,39 @@ export async function deleteNote(id: string): Promise<{ wasCurrent: boolean }> {
 }
 
 export async function handleRename(id: string): Promise<void> {
-  ui.openRenameModal(id);
+  modal.openRenameModal(id);
 }
 
 export async function handleRenameConfirm(oldId: string): Promise<void> {
-  const raw = ui.getModalValue();
-  if (!raw) { ui.setModalError('Please enter a name.'); return; }
+  const raw = modal.getModalValue();
+  if (!raw) { modal.setModalError('Please enter a name.'); return; }
   const newId = safeName(raw);
-  if (!newId) { ui.setModalError('Name contains no valid characters.'); return; }
-  if (newId === oldId) { ui.closeModal(); return; }
+  if (!newId) { modal.setModalError('Name contains no valid characters.'); return; }
+  if (newId === oldId) { modal.closeModal(); return; }
   try {
     await notes.renameNote(oldId, newId);
-    ui.closeModal();
+    modal.closeModal();
     await refreshList(newId);
     ui.toast(`Renamed to "${newId}"`);
   } catch (err) {
-    ui.setModalError((err as Error).message || 'Could not rename note.');
+    modal.setModalError((err as Error).message || 'Could not rename note.');
   }
 }
 
 export async function createNote(): Promise<void> {
-  const raw = ui.getModalValue();
-  if (!raw) { ui.setModalError('Please enter a name.'); return; }
+  const raw = modal.getModalValue();
+  if (!raw) { modal.setModalError('Please enter a name.'); return; }
   const name = safeName(raw);
-  if (!name) { ui.setModalError('Name contains no valid characters.'); return; }
-  ui.setModalHint(`Will be saved as: ${name}`);
+  if (!name) { modal.setModalError('Name contains no valid characters.'); return; }
+  modal.setModalHint(`Will be saved as: ${name}`);
   try {
     const data = await notes.createNote(name);
-    ui.closeModal();
+    modal.closeModal();
     ui.clearSearch();
     await refreshList(data.file);
     ui.toast(`Created "${data.file}"`);
   } catch (err) {
-    ui.setModalError((err as Error).message || 'Could not create note.');
+    modal.setModalError((err as Error).message || 'Could not create note.');
   }
 }
 

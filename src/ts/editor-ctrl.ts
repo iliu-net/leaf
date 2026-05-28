@@ -52,18 +52,18 @@ export function initPanels(onDirty: () => void): void {
       // textarea input — handled by note-changed listener in app.ts
     },
   });
-  panels.set('raw', editView as unknown as TabPanel);
+  panels.set('raw', editView.tabPanel);
 
   // ── Meta tab ────────────────────────────────────────────────────────
   metaView.init();
   metaView.bindEvents({
     onDirty: () => { if (_onDirty) _onDirty(); },
   });
-  panels.set('meta', metaView as unknown as TabPanel);
+  panels.set('meta', metaView.tabPanel);
 
   // ── View tab — eager setup, lazy parser (markdown-it loaded on first show) ──
   markdownView.init();
-  panels.set('view', markdownView as unknown as TabPanel);
+  panels.set('view', markdownView.tabPanel);
 
   // ── Tab button clicks ───────────────────────────────────────────────
   document.getElementById('tab-btn-view')?.addEventListener('click', () => switchTab('view'));

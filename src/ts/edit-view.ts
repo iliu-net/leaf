@@ -5,7 +5,7 @@
  * Implements TabPanel so editor-ctrl.ts treats it uniformly.
  */
 
-import type { TabPanelContext } from './tab-panel.js';
+import type { TabPanel, TabPanelContext } from './tab-panel.js';
 
 /** Handlers for edit-view events. */
 export interface EditEventHandlers {
@@ -75,3 +75,6 @@ export function bindEvents(handlers: EditEventHandlers): void {
 function getTextArea(): HTMLTextAreaElement | null {
   return _noteArea ?? document.getElementById('note-area') as HTMLTextAreaElement | null;
 }
+
+/** TabPanel contract — typed lens for editor-ctrl.ts registration. */
+export const tabPanel: TabPanel = { init, show, hide };

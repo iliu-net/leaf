@@ -22,6 +22,8 @@
 import * as ui       from './ui.js';
 import * as pwa      from './pwa.js';
 import * as sidebar  from './sidebar.js';
+import * as modal    from './modal.js';
+import * as loginView from './login-view.js';
 import * as notes    from './notes.js';
 import type { NoteData } from './notes.js';
 import { db, dbPurgeDeletedNotes } from './db.js';
@@ -182,7 +184,7 @@ onSyncStatus((statusText, isOnline) => {
 
 onAuthFailure(() => {
   stopSync();
-  if (navigator.onLine) ui.showLoginScreen();
+  if (navigator.onLine) loginView.showLoginScreen();
 });
 
 // ── PWA / DB reset ───────────────────────────────────────────────────────
@@ -225,9 +227,9 @@ function wireUiEvents(): void {
       _dirty = false;
       ui.setDirty(false);
     },
-    onNew:           ()       => ui.openModal(),
+    onNew:           ()       => modal.openModal(ui.getCurrentNoteId(), ''),
     onCreate:        ()       => notesCtrl.createNote(),
-    onCancelModal:   ()       => ui.closeModal(),
+    onCancelModal:   ()       => modal.closeModal(),
     onLogin:         async (u, p) => { if (await loginCtrl.handleLogin(u, p)) showAppFull(); },
     onLogout:        ()       => loginCtrl.handleLogout(),
     onRename:        id       => notesCtrl.handleRename(id),
@@ -250,7 +252,7 @@ function wireUiEvents(): void {
  * cross-tab listeners, registers PWA. No session required.
  */
 async function showShell(): Promise<void> {
-  ui.showAppShell(null);
+  loginView.showAppShell(null);
 
   notesCtrl.init(() => _current);
 
@@ -293,7 +295,7 @@ async function showShell(): Promise<void> {
 
 /** Phase 2: Upgrade shell to full-app mode (authenticated user). */
 function showAppFull(): void {
-  ui.showAppShell(getUsername()!);
+  loginView.showAppShell(getUsername()!);
   syncStart();
 }
 
@@ -321,7 +323,7 @@ async function boot(): Promise<void> {
   if (result === 'ok') {
     showAppFull();
   } else if (result === 'auth-failed') {
-    ui.showLoginScreen();
+    loginView.showLoginScreen();
   }
   // network-error → stay offline, shell is already visible
 
@@ -330,7 +332,7 @@ async function boot(): Promise<void> {
 
   // ?action=new query param
   if (new URLSearchParams(location.search).get('action') === 'new') {
-    window.addEventListener('load', () => ui.openModal(), { once: true });
+    window.addEventListener('load', () => modal.openModal(ui.getCurrentNoteId(), ''), { once: true });
   }
 }
 
@@ -338,5 +340,5 @@ boot().catch(err => {
   console.error('[app] Boot failed:', err);
   ui.toast('Failed to start — try refreshing', true);
   stopSync();
-  ui.showLoginScreen();
+  loginView.showLoginScreen();
 });
