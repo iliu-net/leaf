@@ -2,7 +2,7 @@
  * sidebar.ts — Sidebar shell, mode switching, and view delegation
  *
  * Owns all sidebar DOM chrome (#file-list, toolbars, footers, search inputs,
- * menu dropdowns, loading indicator).  View modules (tree.ts, trash-view.ts,
+ * menu dropdowns, loading indicator).  View modules (tree-view.ts, trash-view.ts,
  * future tag-view.ts) implement SidebarView<T> and are imported directly.
  *
  * Previously this logic was split across sidebar-chrome.ts, ui.ts (mode
@@ -11,7 +11,7 @@
  */
 
 import type { NoteMeta } from './notes.js';
-import { TreeView } from './tree.js';
+import { TreeView } from './tree-view.js';
 import { TrashView } from './trash-view.js';
 
 // ── Interfaces ─────────────────────────────────────────────────────────────────

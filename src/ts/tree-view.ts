@@ -1,5 +1,5 @@
 /**
- * tree.ts — Collapsible tree view sidebar
+ * tree-view.ts — Collapsible tree view sidebar
  *
  * Builds a tree from flat NoteMeta[] using colon (:) as the path separator.
  * Implements the SidebarView interface so it can be swapped out for

@@ -29,7 +29,7 @@ import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
 import { subscribe } from './change-bus.js';
 import { loadConfig, fetchSpaConfig } from './config.js';
-import { loadTrashEntries } from './trash.js';
+import { loadTrashEntries } from './trash-ctrl.js';
 
 import * as loginCtrl  from './login-ctrl.js';
 import * as notesCtrl  from './notes-ctrl.js';

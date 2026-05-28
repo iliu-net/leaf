@@ -1,9 +1,9 @@
 /**
- * trash.ts — Trash business logic & server API
+ * trash.ts — Trash data access layer
  *
- * Owns all trash logic — merge, restore, purge, empty, and server
- * communication.  The UI layer (trash-view.ts, app.ts) calls these
- * functions directly.
+ * All reads/writes go to IndexedDB.  The server is never called directly
+ * from here.  Cross-cutting orchestration (server API, sync, auth) lives
+ * in trash-ctrl.ts — same pattern as notes.ts.
  */
 
 import {
@@ -15,17 +15,7 @@ import {
   db,
   queueChange,
 } from './db.js';
-import { getUsername } from './auth.js';
 import { publish } from './change-bus.js';
-import { syncNow } from './sync.js';
-import { nowSec } from './utils.js';
-import {
-  fetchTrashList, fetchTrashRestore, fetchTrashPreview,
-  fetchTrashPurge, fetchTrashEmpty,
-} from './api.js';
-import type {
-  ServerTrashEntry, TrashRestoreResponse, TrashPreviewResponse,
-} from './api.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -33,6 +23,12 @@ export interface LocalTrashEntry {
   id: string;
   deleted_at: number;
   updated_by: string;
+}
+
+/** Slim server tombstone shape — only the fields mergeTrashEntries needs. */
+export interface ServerTrashEntry {
+  id: string;
+  deleted_at: number | null;
 }
 
 export interface TrashEntry {
@@ -52,7 +48,7 @@ export interface TrashContent {
   current?: string;
 }
 
-// ── Merge ───────────────────────────────────────────────────────────────────
+// ── Merge (pure function) ───────────────────────────────────────────────────
 
 export function mergeTrashEntries(
   local: LocalTrashEntry[],
@@ -90,149 +86,66 @@ export function mergeTrashEntries(
   return [...map.values()].sort((a, b) => b.deleted_at - a.deleted_at);
 }
 
+// ── Local-only data access ──────────────────────────────────────────────────
 
-// ── Load ────────────────────────────────────────────────────────────────────
-
-/**
- * Load and merge trash entries from both local IndexedDB and the server.
- * Returns newest-first sorted list.
- */
-export async function loadTrashEntries(): Promise<TrashEntry[]> {
-  const local = await dbListDeletedNotes();
-
-  if (!navigator.onLine) {
-    return local.map(l => ({
-      id: l.id,
-      deleted_at: l.deleted_at,
-      source: 'local' as const,
-      updated_by: l.updated_by,
-    })).sort((a, b) => b.deleted_at - a.deleted_at);
-  }
-
-  try {
-    const server = await fetchTrashList();
-    return mergeTrashEntries(local, server);
-  } catch {
-    console.warn('[trash] Server fetch failed, using local tombstones only');
-    return local.map(l => ({
-      id: l.id,
-      deleted_at: l.deleted_at,
-      source: 'local' as const,
-      updated_by: l.updated_by,
-    })).sort((a, b) => b.deleted_at - a.deleted_at);
-  }
+/** Raw tombstones from IndexedDB — for merging with server data. */
+export async function loadLocalTrashEntries(): Promise<LocalTrashEntry[]> {
+  return await dbListDeletedNotes();
 }
 
-// ── Preview ─────────────────────────────────────────────────────────────────
-
 /**
- * Get the content of a deleted note for read-only preview.
- * Local / both: reads from IndexedDB via dbGetNoteAny.
- * Server-only: fetches from the trash preview endpoint.
+ * Load locally-deleted notes as a formatted TrashEntry list.
+ * No network — usable offline.
  */
-export async function getTrashContent(
-  id: string,
-  source: 'local' | 'server',
-): Promise<TrashContent | null> {
-  if (source === 'local') {
-    const note = await dbGetNoteAny(id);
-    if (!note || !note.deleted) return null;
-    return {
-      id: note.id,
-      content: note.content,
-      created_at: note.created_at,
-      updated_at: note.updated_at,
-      created_by: note.created_by,
-      updated_by: note.updated_by,
-      current: note.current,
-    };
-  }
-
-  // server-only
-  try {
-    const data = await fetchTrashPreview(id);
-    return {
-      id: data.note.id,
-      content: data.note.content,
-      created_at: data.note.created_at,
-      created_by: data.note.created_by,
-    };
-  } catch {
-    return null;
-  }
+export async function loadLocalTrash(): Promise<TrashEntry[]> {
+  const local = await loadLocalTrashEntries();
+  return local.map(l => ({
+    id: l.id,
+    deleted_at: l.deleted_at,
+    source: 'local' as const,
+    updated_by: l.updated_by,
+  })).sort((a, b) => b.deleted_at - a.deleted_at);
 }
 
-// ── Restore ─────────────────────────────────────────────────────────────────
-
 /**
- * Restore a note from the trash.
- * Source 'both' should be normalized to 'server' by the caller.
+ * Get content of a locally-deleted note for read-only preview.
+ * Returns null if the note doesn't exist or isn't deleted.
  */
-export async function restoreTrashItem(
-  id: string,
-  source: 'local' | 'server',
-): Promise<void> {
-  if (source === 'local') {
-    // Local-only tombstone: flip deleted flag and queue a CREATE
-    await dbRestoreNote(id);
-    const note = await dbGetNoteAny(id);
-    await queueChange('CREATE', id, note?.content ?? '', note?.current ?? 'local');
-    publish({ type: 'restored', id });
-    await syncNow();
-  } else {
-    // Server path: the server revives the note + appends a changelog entry.
-    // Other clients pick up the restore on their next sync.
-    const data = await fetchTrashRestore(id);
-    const { note } = data;
-
-    await ensureDbOpen();
-    await db.notes.put({
-      id,
-      content: note.content,
-      created_at: note.created_at,
-      updated_at: nowSec(),
-      deleted: 0 as const,
-      current: note.current,
-      updated_by: getUsername() ?? 'unknown',
-      created_by: note.created_by ?? getUsername() ?? 'unknown',
-    });
-
-    publish({ type: 'restored', id });
-    // No queueChange — server already has the note.
-    // No syncNow — we just talked to the server.
-  }
+export async function getLocalTrashContent(id: string): Promise<TrashContent | null> {
+  const note = await dbGetNoteAny(id);
+  if (!note || !note.deleted) return null;
+  return {
+    id: note.id,
+    content: note.content,
+    created_at: note.created_at,
+    updated_at: note.updated_at,
+    created_by: note.created_by,
+    updated_by: note.updated_by,
+    current: note.current,
+  };
 }
 
-// ── Purge ───────────────────────────────────────────────────────────────────
-
 /**
- * Permanently delete a single trash item.
+ * Restore a locally-deleted note (flip tombstone flag + queue CREATE).
+ * Caller (trash-ctrl.ts) should trigger syncNow afterwards.
  */
-export async function purgeTrashItem(
-  id: string,
-  source: 'local' | 'server' | 'both',
-): Promise<void> {
-  if (source !== 'local' && navigator.onLine) {
-    try { await fetchTrashPurge(id); } catch { /* ignore */ }
-  }
+export async function restoreLocalTrash(id: string): Promise<void> {
+  await dbRestoreNote(id);
+  const note = await dbGetNoteAny(id);
+  await queueChange('CREATE', id, note?.content ?? '', note?.current ?? 'local');
+  publish({ type: 'restored', id });
+}
 
+/** Permanently delete a single item from the local trash. */
+export async function purgeLocalTrash(id: string): Promise<void> {
   await dbPermanentDelete(id);
   publish({ type: 'deleted', id });
 }
 
-// ── Empty ───────────────────────────────────────────────────────────────────
-
-/**
- * Permanently delete ALL items in the trash.
- */
-export async function emptyTrash(): Promise<void> {
+/** Permanently delete ALL items from the local trash. */
+export async function emptyLocalTrash(): Promise<void> {
   const tombstones = await dbListDeletedNotes();
   const ids = tombstones.map(n => n.id);
-
-  if (navigator.onLine) {
-    try { await fetchTrashEmpty(); } catch { /* ignore */ }
-  }
-
   await ensureDbOpen();
   await db.notes.bulkDelete(ids);
   publish({ type: 'trash-emptied', id: '' });

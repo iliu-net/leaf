@@ -6,26 +6,25 @@
  * the callbacks passed in from app.js (no imports of api/store).
  *
  * Sub-modules:
- *   editor.ts       — textarea / meta-panel lifecycle
+ *   editor-ctrl.ts  — tab coordinator
  *   sidebar.ts      — sidebar chrome, mode switching, view delegation
- *   login-view.ts — login overlay
+ *   login-view.ts   — login overlay
  *   modal.ts        — create / rename dialogs
  */
 
 import type { UIEventHandlers } from './sidebar.js';
 
-import * as editor        from './editor.js';
+import * as editor        from './editor-ctrl.js';
 import * as sidebar       from './sidebar.js';
 import * as modal         from './modal.js';
 import * as loginView     from './login-view.js';
-import { parseFrontmatter } from './frontmatter.js';
 
 // Re-exports so consumers of ui.* don't break
 export {
   initPanels, showEditor, hideEditor,
   flushAndGetContent, getRawContent, setRawContent,
   setDirty, getCurrentNoteId,
-} from './editor.js';
+} from './editor-ctrl.js';
 export {
   renderNoteList, setActiveNote, updateNoteCount,
   setSidebarLoading, toggleSidebar, clearSearch,
@@ -35,8 +34,6 @@ export {
 // ── DOM refs (for bindEvents & status bar) ─────────────────────────────────
 
 const $ = (id: string): HTMLElement => document.getElementById(id)!;
-// _q is for elements that may not exist in test fixtures
-const _q = (id: string): HTMLElement | null => document.getElementById(id);
 
 const dirtyDot       = $('dirty-dot');
 const btnSave        = $('btn-save') as HTMLButtonElement;
@@ -46,16 +43,9 @@ const toastCont      = $('toast-container');
 const syncStatus     = $('sync-status');
 const editorTabs     = $('editor-tabs');
 
-// Menu refs ($ — must exist; _q — may be absent in test fixtures)
+// Menu refs
 const btnMenu     = $('btn-menu')     as HTMLButtonElement;
 const menuResetDb = $('menu-reset-db') as HTMLButtonElement;
-
-// Trash banner (editor area — stays in ui.ts)
-const trashBanner      = _q('trash-banner');
-const trashBannerBody   = _q('trash-banner-body');
-const trashBannerTitle   = _q('trash-banner-title');
-const trashBannerRestore = _q('trash-banner-restore') as HTMLButtonElement | null;
-const trashBannerPurge   = _q('trash-banner-purge') as HTMLButtonElement | null;
 
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -145,61 +135,6 @@ export function hideLoginScreen(): void {
 
 export function showOfflineFirstVisit(): void {
   loginView.showOfflineFirstVisit();
-}
-
-// ── Trash preview banner ────────────────────────────────────────────────────
-
-/**
- * Show a read-only preview of a deleted note, styled like the Meta tab.
- * Shows frontmatter fields (title, summary, tags, custom fields),
- * system metadata (version, timestamps, authors), content stats,
- * and the note body.
- */
-export function showTrashBanner(
-  id: string,
-  content: string,
-  meta: { created_at?: number; updated_at?: number; created_by?: string; updated_by?: string; current?: string },
-  onRestore: () => void,
-  onPurge: () => void,
-): void {
-  if (!trashBanner || !trashBannerBody) return;
-
-  // Hide all editor panels
-  const editorTabs = document.getElementById('editor-tabs');
-  for (const panelId of ['tab-view', 'tab-raw', 'tab-meta']) {
-    const panel = document.getElementById(panelId);
-    if (panel) panel.classList.remove('active');
-  }
-  const emptyState = document.getElementById('empty-state');
-  if (editorTabs) editorTabs.style.display = 'none';
-  if (emptyState) emptyState.style.display = 'none';
-
-  trashBanner.style.display = 'block';
-  if (trashBannerTitle) trashBannerTitle.textContent = `"${id}" is in the trash`;
-  if (trashBannerRestore) trashBannerRestore.onclick = onRestore;
-  if (trashBannerPurge) trashBannerPurge.onclick = onPurge;
-
-  // ── Build synthetic NoteData ───────────────────────────────────────
-  const fm = parseFrontmatter(content);
-  const noteData = {
-    id,
-    content,
-    created_at: meta.created_at ?? 0,
-    updated_at: meta.updated_at ?? 0,
-    current: meta.current ?? '',
-    created_by: meta.created_by ?? '',
-    updated_by: meta.updated_by ?? '',
-    meta: fm.meta,
-  };
-
-  // ── Delegate to view panel (single read-only render path) ──────────
-  import('./view-panel.js').then(mod => {
-    trashBannerBody.innerHTML = `<div class="trash-fm-wrap">${mod.renderView(content, noteData)}</div>`;
-  });
-}
-
-export function hideTrashBanner(): void {
-  if (trashBanner) trashBanner.style.display = 'none';
 }
 
 // ── Event wiring ────────────────────────────────────────────────────────────

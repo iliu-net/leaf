@@ -2,10 +2,8 @@ data
 api/config.php
 vendor
 node_modules
-spa/app.js
-spa/history-*.js
-spa/chunk-*.js
-spa/view-panel-*.js
+spa/*.js
+!spa/sw.js
 *.bak
 
 # Some test directories...

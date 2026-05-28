@@ -11,6 +11,7 @@ import type { SidebarView, UIEventHandlers } from './sidebar.js';
 import type { TrashEntry } from './trash.js';
 import * as contextMenu from './context-menu.js';
 import { relativeTime } from './utils.js';
+import { parseFrontmatter } from './frontmatter.js';
 
 // ── DOM refs ────────────────────────────────────────────────────────────────
 
@@ -182,3 +183,67 @@ export const TrashView: SidebarView<TrashEntry> = {
     _filter = '';
   },
 };
+
+// ── Trash preview (main editor area) ────────────────────────────────────────
+
+/**
+ * Show a read-only preview of a deleted note in the editor area.
+ * Hides all editor tab panels and delegates content rendering to
+ * markdown-view.renderView() — the single shared read-only render path.
+ */
+export function showTrashPreview(
+  id: string,
+  content: string,
+  meta: { created_at?: number; updated_at?: number; created_by?: string; updated_by?: string; current?: string },
+  onRestore: () => void,
+  onPurge: () => void,
+): void {
+  // DOM refs queried on each call (not cached — only shown transiently)
+  const trashBanner   = document.getElementById('trash-banner');
+  const trashBody     = document.getElementById('trash-banner-body');
+  const trashTitle    = document.getElementById('trash-banner-title');
+  const btnRestore    = document.getElementById('trash-banner-restore') as HTMLButtonElement | null;
+  const btnPurge      = document.getElementById('trash-banner-purge')   as HTMLButtonElement | null;
+
+  if (!trashBanner || !trashBody) return;
+
+  // Hide all editor panels + empty state
+  const editorTabs = document.getElementById('editor-tabs');
+  for (const panelId of ['tab-view', 'tab-raw', 'tab-meta']) {
+    const panel = document.getElementById(panelId);
+    if (panel) panel.classList.remove('active');
+  }
+  const emptyState = document.getElementById('empty-state');
+  if (editorTabs) editorTabs.style.display = 'none';
+  if (emptyState) emptyState.style.display = 'none';
+
+  // Show banner chrome
+  trashBanner.style.display = 'block';
+  if (trashTitle) trashTitle.textContent = `"${id}" is in the trash`;
+  if (btnRestore) btnRestore.onclick = onRestore;
+  if (btnPurge)   btnPurge.onclick   = onPurge;
+
+  // Build synthetic NoteData for the shared renderView
+  const fm = parseFrontmatter(content);
+  const noteData = {
+    id,
+    content,
+    created_at: meta.created_at ?? 0,
+    updated_at: meta.updated_at ?? 0,
+    current: meta.current ?? '',
+    created_by: meta.created_by ?? '',
+    updated_by: meta.updated_by ?? '',
+    meta: fm.meta,
+  };
+
+  // Delegate to markdown view (single read-only render path)
+  import('./markdown-view.js').then(async mod => {
+    trashBody.innerHTML = `<div class="trash-fm-wrap">${await mod.renderView(content, noteData)}</div>`;
+  });
+}
+
+/** Hide the trash preview banner. */
+export function hideTrashPreview(): void {
+  const trashBanner = document.getElementById('trash-banner');
+  if (trashBanner) trashBanner.style.display = 'none';
+}
