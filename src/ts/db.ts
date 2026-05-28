@@ -24,15 +24,11 @@
  */
 
 import Dexie, { type Table } from 'dexie';
-import { getNamespace } from './config.js';
+import { getNamespace, getSpaConfig } from './config.js';
 import { getUsername } from './auth.js';
 
 // ── Constants ───────────────────────────────────────────────────────────
 
-/** Permanently remove IndexedDB records that have been soft-deleted
- *  for longer than this many days.  Keeps the client cache lean without
- *  losing the offline restore window. */
-const PURGE_DELETED_DAYS = 7;
 
 // ── Table row types ──────────────────────────────────────────────────────
 
@@ -369,13 +365,14 @@ export async function dbGetNoteAny(id: string): Promise<{
 
 /**
  * Permanently remove IndexedDB records that have been soft-deleted
- * (deleted: 1) and whose updated_at is older than PURGE_DELETED_DAYS.
+ * (deleted: 1) and whose updated_at is older than deleted_notes_ttl_days.
  *
  * Called during app boot (showApp) so stale tombstones don't accumulate.
  */
 export async function dbPurgeDeletedNotes(): Promise<void> {
   await ensureDbOpen();
-  const cutoff = Date.now() - PURGE_DELETED_DAYS * 86400 * 1000;
+  const ttlDays = getSpaConfig().deleted_notes_ttl_days;
+  const cutoff = Date.now() - ttlDays * 86400 * 1000;
   await db.notes
     .where('deleted').equals(1 as 0 | 1)
     .and(note => note.updated_at < cutoff)

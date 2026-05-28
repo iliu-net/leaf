@@ -73,7 +73,7 @@ subscribe(async (event) => {
   }
 
   if (event.type !== 'restored' && event.type !== 'server-sync') {
-    syncNow();  // fire-and-forget; tick() guards concurrent calls
+    if (_started) syncNow();  // fire-and-forget; tick() guards concurrent calls
   }
 });
 
@@ -199,8 +199,17 @@ async function applyServerChanges(
 
 // ── Tick — one full push + pull cycle ────────────────────────────────────
 
-let running = false;
-let stopped = false;
+let running  = false;
+let stopped  = false;
+
+/**
+ * Guard against the import-time subscribe() callback triggering syncNow()
+ * before syncStart() has been called.  Set to true by syncStart(), reset
+ * by stopSync().  Without this, a premature publish() during the boot
+ * window (after module load, before auth) would attempt an unauthenticated
+ * sync and fire onAuthFailure().
+ */
+let _started = false;
 
 async function tick(): Promise<void> {
   if (running || stopped) return;
@@ -252,7 +261,8 @@ function schedulePoll(): void {
 export function stopSync(): void {
   if (pollTimer !== null) clearTimeout(pollTimer);
   pollTimer = null;
-  stopped = true;
+  stopped  = true;
+  _started = false;
 }
 
 /** Clear the stored revision — used before resetting the database. */
@@ -266,7 +276,8 @@ export function clearRevision(): void {
  * Start the sync loop. Call once after successful login/session restore.
  */
 export async function syncStart(): Promise<void> {
-  stopped = false;
+  _started = true;
+  stopped  = false;
   window.addEventListener('online', async () => {
     setStatus('IDLE');
     await tick();
