@@ -460,12 +460,17 @@ describe('toast()', () => {
 // ── Modal ───────────────────────────────────────────────────────────────────
 
 describe('modal operations', () => {
+  async function getModal() {
+    vi.resetModules();
+    return await import('../../src/ts/modal.ts');
+  }
+
   it('openModal shows the modal in create mode', async () => {
-    const ui = await getUI();
+    const modal = await getModal();
     const overlay = document.getElementById('modal-overlay');
     const input = document.getElementById('modal-input');
 
-    ui.openModal();
+    modal.openModal(null, '');
 
     expect(overlay.classList.contains('open')).toBe(true);
     expect(document.getElementById('modal-title').textContent).toBe('New note');
@@ -474,46 +479,48 @@ describe('modal operations', () => {
   });
 
   it('openModal pre-fills from search text when present', async () => {
-    const ui = await getUI();
+    const modal = await getModal();
     const searchInput = document.getElementById('search');
     searchInput.value = 'search-me';
 
-    ui.openModal();
+    modal.openModal(null, searchInput.value);
 
     const input = document.getElementById('modal-input');
     expect(input.value).toBe('search-me');
   });
 
   it('openModal uses active note parent path as prefix', async () => {
-    const ui = await getUI();
+    const modal = await getModal();
     // Simulate having a nested note open in the editor
+    const ui = await getUI();
     ui.showEditor({ id: 'one:two:three', content: 'some content', created_at: 0, updated_at: 0, current: '', meta: {} });
 
-    ui.openModal();
+    modal.openModal('one:two:three', '');
 
     const input = document.getElementById('modal-input');
     expect(input.value).toBe('one:two:');
   });
 
   it('openModal combines search text with active note prefix', async () => {
-    const ui = await getUI();
+    const modal = await getModal();
     // Simulate having a nested note open in the editor
+    const ui = await getUI();
     ui.showEditor({ id: 'one:two:three', content: 'some content', created_at: 0, updated_at: 0, current: '', meta: {} });
 
     const searchInput = document.getElementById('search');
     searchInput.value = 'search-me';
 
-    ui.openModal();
+    modal.openModal('one:two:three', searchInput.value);
 
     const input = document.getElementById('modal-input');
     expect(input.value).toBe('one:two:search-me');
   });
 
   it('openRenameModal shows the modal in rename mode', async () => {
-    const ui = await getUI();
+    const modal = await getModal();
     const input = document.getElementById('modal-input');
 
-    ui.openRenameModal('old-note-name');
+    modal.openRenameModal('old-note-name');
 
     expect(document.getElementById('modal-title').textContent).toBe('Rename note');
     expect(document.getElementById('modal-create').textContent).toBe('Rename');
@@ -521,34 +528,34 @@ describe('modal operations', () => {
   });
 
   it('closeModal hides the modal', async () => {
-    const ui = await getUI();
-    ui.openModal();
-    ui.closeModal();
+    const modal = await getModal();
+    modal.openModal(null, '');
+    modal.closeModal();
 
     const overlay = document.getElementById('modal-overlay');
     expect(overlay.classList.contains('open')).toBe(false);
   });
 
   it('getModalValue returns trimmed input', async () => {
-    const ui = await getUI();
+    const modal = await getModal();
     document.getElementById('modal-input').value = '  my value  ';
-    expect(ui.getModalValue()).toBe('my value');
+    expect(modal.getModalValue()).toBe('my value');
   });
 
   it('setModalError shows error message', async () => {
-    const ui = await getUI();
+    const modal = await getModal();
     const hint = document.getElementById('modal-hint');
 
-    ui.setModalError('Something went wrong');
+    modal.setModalError('Something went wrong');
     expect(hint.textContent).toBe('Something went wrong');
     expect(hint.className).toContain('err');
   });
 
   it('setModalHint shows hint message', async () => {
-    const ui = await getUI();
+    const modal = await getModal();
     const hint = document.getElementById('modal-hint');
 
-    ui.setModalHint('Will be saved as: my-note');
+    modal.setModalHint('Will be saved as: my-note');
     expect(hint.textContent).toBe('Will be saved as: my-note');
     expect(hint.className).not.toContain('err');
   });
@@ -557,29 +564,34 @@ describe('modal operations', () => {
 // ── Login screen ────────────────────────────────────────────────────────────
 
 describe('login screen', () => {
+  async function getLoginView() {
+    vi.resetModules();
+    return await import('../../src/ts/login-view.ts');
+  }
+
   it('showLoginScreen shows login and hides app', async () => {
-    const ui = await getUI();
+    const loginView = await getLoginView();
     const loginScreen = document.getElementById('login-screen');
     const appShell = document.getElementById('app');
 
     appShell.style.display = 'flex';
     loginScreen.style.display = 'none';
 
-    ui.showLoginScreen();
+    loginView.showLoginScreen();
     expect(loginScreen.classList.contains('visible')).toBe(true);
     expect(loginScreen.style.display).toBe('flex');
     expect(appShell.style.display).toBe('none');
   });
 
   it('showAppShell shows app and hides login (authed)', async () => {
-    const ui = await getUI();
+    const loginView = await getLoginView();
     const loginScreen = document.getElementById('login-screen');
     const appShell = document.getElementById('app');
     const usernameDisp = document.getElementById('username-display');
     const btnSignin = document.getElementById('btn-signin');
     const btnLogout = document.getElementById('btn-logout');
 
-    ui.showAppShell('alice');
+    loginView.showAppShell('alice');
     expect(loginScreen.classList.contains('visible')).toBe(false);
     expect(loginScreen.style.display).toBe('none');
     expect(appShell.style.display).toBe('flex');
@@ -590,14 +602,14 @@ describe('login screen', () => {
   });
 
   it('showAppShell shows app with sign-in button (unauthed)', async () => {
-    const ui = await getUI();
+    const loginView = await getLoginView();
     const loginScreen = document.getElementById('login-screen');
     const appShell = document.getElementById('app');
     const usernameDisp = document.getElementById('username-display');
     const btnSignin = document.getElementById('btn-signin');
     const btnLogout = document.getElementById('btn-logout');
 
-    ui.showAppShell(null);
+    loginView.showAppShell(null);
     expect(loginScreen.style.display).toBe('none');
     expect(appShell.style.display).toBe('flex');
     expect(usernameDisp.style.display).toBe('none');
@@ -606,40 +618,40 @@ describe('login screen', () => {
   });
 
   it('hideLoginScreen hides login and shows app', async () => {
-    const ui = await getUI();
+    const loginView = await getLoginView();
     const loginScreen = document.getElementById('login-screen');
     const appShell = document.getElementById('app');
 
-    ui.hideLoginScreen();
+    loginView.hideLoginScreen();
     expect(loginScreen.classList.contains('visible')).toBe(false);
     expect(loginScreen.style.display).toBe('none');
     expect(appShell.style.display).toBe('flex');
   });
 
   it('showOfflineFirstVisit renders inline message in file list', async () => {
-    const ui = await getUI();
+    const loginView = await getLoginView();
     const fileList = document.getElementById('file-list');
 
-    ui.showOfflineFirstVisit();
+    loginView.showOfflineFirstVisit();
     expect(fileList.innerHTML).toContain('No notes yet');
     expect(fileList.innerHTML).toContain('Sign in to sync');
   });
 
   it('setLoginError sets error text', async () => {
-    const ui = await getUI();
-    ui.setLoginError('Invalid password');
+    const loginView = await getLoginView();
+    loginView.setLoginError('Invalid password');
     expect(document.getElementById('login-error').textContent).toBe('Invalid password');
   });
 
   it('setLoginLoading toggles button state', async () => {
-    const ui = await getUI();
+    const loginView = await getLoginView();
     const btn = document.getElementById('login-btn');
 
-    ui.setLoginLoading(true);
+    loginView.setLoginLoading(true);
     expect(btn.disabled).toBe(true);
     expect(btn.textContent).toBe('Signing in…');
 
-    ui.setLoginLoading(false);
+    loginView.setLoginLoading(false);
     expect(btn.disabled).toBe(false);
     expect(btn.textContent).toBe('Sign in');
   });
@@ -905,6 +917,7 @@ describe('bindEvents()', () => {
 
   it('wires Escape to close modal', async () => {
     const ui = await getUI();
+    const modal = await import('../../src/ts/modal.ts');
     const onCancelModal = vi.fn();
 
     ui.bindEvents({
@@ -917,7 +930,7 @@ describe('bindEvents()', () => {
     });
 
     // Open the modal first
-    ui.openModal();
+    modal.openModal(null, '');
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onCancelModal).toHaveBeenCalledOnce();
@@ -943,6 +956,7 @@ describe('bindEvents()', () => {
 
   it('wires modal Enter key for rename', async () => {
     const ui = await getUI();
+    const modal = await import('../../src/ts/modal.ts');
     const onRenameConfirm = vi.fn();
 
     ui.bindEvents({
@@ -955,7 +969,7 @@ describe('bindEvents()', () => {
     });
 
     // Open in rename mode first
-    ui.openRenameModal('old-name');
+    modal.openRenameModal('old-name');
 
     const input = document.getElementById('modal-input');
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));

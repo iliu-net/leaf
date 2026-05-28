@@ -53,6 +53,18 @@ function updateContent(newContent: string): void {
   }
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function clearEditorState(): void {
+  _current = null;
+  _content = '';
+  _dirty   = false;
+}
+
+function updateTrashCount(): void {
+  loadTrashEntries().then(e => ui.setTrashCount(e.length));
+}
+
 // ── Cross-tab helpers ─────────────────────────────────────────────────────
 
 async function reloadOpenNote(id: string): Promise<void> {
@@ -64,9 +76,7 @@ async function reloadOpenNote(id: string): Promise<void> {
     _dirty   = false;
     ui.showEditor(data);
   } catch {
-    _current = null;
-    _content = '';
-    _dirty   = false;
+    clearEditorState();
     ui.hideEditor();
   }
 }
@@ -80,9 +90,7 @@ async function reloadOpenNoteAs(newId: string): Promise<void> {
     ui.showEditor(data);
     ui.setActiveNote(newId);
   } catch {
-    _current = null;
-    _content = '';
-    _dirty   = false;
+    clearEditorState();
     ui.hideEditor();
   }
 }
@@ -108,11 +116,9 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
         await trashCtrl.refreshTrashList();
       } else {
         await notesCtrl.refreshList();
-        loadTrashEntries().then(e => ui.setTrashCount(e.length));
+        updateTrashCount();
         if (currentId && currentId === msg.id) {
-          _current = null;
-          _content = '';
-          _dirty   = false;
+          clearEditorState();
           ui.hideEditor();
           ui.toast(`"${msg.id}" was deleted in another tab`);
         }
@@ -135,7 +141,7 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
         await trashCtrl.refreshTrashList();
       } else {
         await notesCtrl.refreshList(currentId);
-        loadTrashEntries().then(e => ui.setTrashCount(e.length));
+        updateTrashCount();
         if (currentId && currentId === msg.id && !_dirty) {
           await reloadOpenNote(currentId);
         }
@@ -158,7 +164,7 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
         await trashCtrl.refreshTrashList();
       } else {
         await notesCtrl.refreshList(currentId);
-        loadTrashEntries().then(e => ui.setTrashCount(e.length));
+        updateTrashCount();
         if (currentId && !_dirty) {
           await reloadOpenNote(currentId);
         }
@@ -261,7 +267,7 @@ async function showShell(): Promise<void> {
   );
 
   await notesCtrl.refreshList();
-  loadTrashEntries().then(e => ui.setTrashCount(e.length));
+  updateTrashCount();
 
   subscribe(event => {
     ui.setSidebarLoading(false);

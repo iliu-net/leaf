@@ -57,6 +57,34 @@ Operations that span local DB + server API SHALL live in controllers:
 Controllers MAY import `api.ts`, `auth.ts`, `sync.ts`, `db.ts`, `utils.ts`, and
 the pure models.
 
+### R5 — Module-level listener registration is intentional
+
+`app.ts` registers `onSyncStatus()` and `onAuthFailure()` listeners at module
+scope (lines 173, 185), and `sync.ts` subscribes to `change-bus` at module scope
+(line 51).  These execute at import time, before `boot()` or `syncStart()` run.
+
+This is intentional and SHALL NOT be moved into boot functions:
+
+- **Registration ≠ activation.**  The callbacks are inert until the
+  corresponding events fire.  `syncStart()` (Phase 2) gates actual sync
+  activity; `_started` guards premature `syncNow()` calls.  No listener
+  triggers side effects before the system is ready.
+
+- **Replay for initial state.**  `onSyncStatus()` immediately invokes the
+  handler with the current status (`'IDLE'` or `'OFFLINE'`), setting the UI
+  indicator at the earliest possible moment.  Deferring registration would
+  leave the indicator blank until boot reaches those lines.
+
+- **Idiomatic for an entry point.**  `app.ts` is the single entry point
+  loaded once at startup.  Module-level registration is the standard pattern
+  for wiring long-lived listeners that span the entire application lifetime.
+
+- **`sync.ts` queue writes are correct even pre-start.**  The change-bus
+  subscription in `sync.ts` enqueues outbound changes before `syncStart()`
+  is called.  This is by design — changes made while offline must be queued
+  so they push when connectivity resumes.  The `_started` guard only
+  suppresses `syncNow()`, not `queueChange()`.
+
 ## Dependency graph
 
 ```
