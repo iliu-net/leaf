@@ -83,11 +83,15 @@ export function loadConfig(): void {
 
 // ── SPA config (server-provided) ────────────────────────────────────────────
 
+/** A plugin entry: either a plain name or a tuple of [name, ...options]. */
+export type PluginEntry = string | [string, ...any[]];
+
 export interface SpaConfig {
   markdown: {
     html: boolean;
-    /** Plugin names to activate, e.g. ["emoji"]. Resolved client-side. */
-    plugins?: string[];
+    /** Plugin entries to activate.  Plain string for no options, tuple
+     *  [name, ...options] for plugins that need per-instance config. */
+    plugins?: PluginEntry[];
   };
   /** Days before deleted notes are purged client-side. */
   deleted_notes_ttl_days: number;

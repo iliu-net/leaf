@@ -14,6 +14,7 @@ const SHELL = [
   `${BASE}/`,
   `${BASE}/index.html`,
   `${BASE}/css/app.css`,
+  `${BASE}/css/hljs.css`,
   `${BASE}/app.js`,
   `${BASE}/manifest.json`,
   `${BASE}/icons/icon-192.svg`,

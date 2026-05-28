@@ -18,6 +18,7 @@ import {
   renderSystemInfo,
 } from './render-fm.js';
 import { esc } from './utils.js';
+import { hydrate } from './fence-hydrate.js';
 
 // ── Lazy markdown-it ────────────────────────────────────────────────────────
 
@@ -98,6 +99,11 @@ export async function show(ctx: TabPanelContext): Promise<void> {
   const m = html.match(/^(<h1[^>]*>.*?<\/h1>)/);
   _viewHeader.innerHTML = m ? m[1] : '';
   _viewContent.innerHTML = m ? html.slice(m[1].length) : html;
+
+  // Hydrate fenced code blocks (syntax highlighting, diagrams)
+  hydrate(_viewContent).catch(err =>
+    console.warn('[markdown-view] hydrate failed:', err)
+  );
 }
 
 /** Clear the View tab panel. */

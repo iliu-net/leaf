@@ -8,6 +8,7 @@
  */
 
 import type { SidebarView, UIEventHandlers } from './sidebar.js';
+import { hydrate } from './fence-hydrate.js';
 import type { TrashEntry } from './trash.js';
 import * as contextMenu from './context-menu.js';
 import { relativeTime } from './utils.js';
@@ -239,6 +240,9 @@ export function showTrashPreview(
   // Delegate to markdown view (single read-only render path)
   import('./markdown-view.js').then(async mod => {
     trashBody.innerHTML = `<div class="trash-fm-wrap">${await mod.renderView(content, noteData)}</div>`;
+    hydrate(trashBody).catch(err =>
+      console.warn('[trash-view] hydrate failed:', err)
+    );
   });
 }
 

@@ -42,8 +42,9 @@ function getMd(): MarkdownIt {
 // ── Plugin registry ─────────────────────────────────────────────────────────
 
 /** Maps plugin names (from server config) to lazy-loaded plugin functions. */
-const _pluginRegistry: Record<string, () => Promise<(md: MarkdownIt) => void>> = {
-  emoji: () => import('./extensions/emoji.js').then(m => m.default),
+const _pluginRegistry: Record<string, () => Promise<(md: MarkdownIt, ...args: any[]) => void>> = {
+  emoji:     () => import('./extensions/emoji.js').then(m => m.default),
+  highlight: () => import('./extensions/highlight.js').then(m => m.default),
 };
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -77,20 +78,25 @@ export function use(
 /**
  * Register a renderer for fenced code blocks matching a set of languages.
  *
+ * If `languages` is non-empty, the renderer is called only for blocks whose
+ * info string matches one of the listed languages.  If `languages` is empty,
+ * the renderer acts as a catch-all fallback — it is called for every fenced
+ * code block that no other renderer has handled.
+ *
  * The callback receives (tokens, idx, options, env, self) and must return
- * an HTML string.  Languages not matched fall through to default rendering.
+ * an HTML string.
  */
 export function registerFenceRenderer(
   languages: string[],
   fn: (tokens: any[], idx: number, options: any, env: any, self: any) => string,
 ): void {
   const md = getMd();
-  const langSet = new Set(languages);
+  const langSet = languages.length ? new Set(languages) : null;
 
   const defaultFence = md.renderer.rules.fence!.bind(md.renderer.rules);
   md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     const info = tokens[idx].info.trim().split(/\s+/)[0];
-    if (langSet.has(info)) {
+    if (langSet === null || langSet.has(info)) {
       return fn(tokens, idx, options, env, self);
     }
     return defaultFence(tokens, idx, options, env, self);
@@ -100,16 +106,23 @@ export function registerFenceRenderer(
 /**
  * Activate plugins by name using the built-in registry.
  *
- * Each name is resolved through the internal registry, the plugin module is
- * lazily imported, and then registered via `use()`.  Unknown names are
- * silently skipped with a console warning so the server config can be
- * forwards-compatible.
+ * Each entry in `entries` is either a plain string (plugin loaded with no
+ * options) or a tuple of `[name, ...options]` for plugins that need
+ * per-instance configuration (e.g. highlight languages).
+ *
+ * Unknown names produce a console warning and are skipped so the server
+ * config can be forwards-compatible.
  *
  * Typically called after `fetchSpaConfig()` with the server-provided list
  * in `markdown.plugins`.
  */
-export async function loadPlugins(names: string[]): Promise<void> {
-  for (const name of names) {
+export async function loadPlugins(
+  entries: (string | [string, ...any[]])[],
+): Promise<void> {
+  for (const entry of entries) {
+    const [name, ...rest] = Array.isArray(entry) ? entry : [entry];
+    const options = rest.length ? rest : undefined;
+
     const loader = _pluginRegistry[name];
     if (!loader) {
       console.warn(`[markdown] unknown plugin: "${name}"`);
@@ -117,7 +130,11 @@ export async function loadPlugins(names: string[]): Promise<void> {
     }
     try {
       const plugin = await loader();
-      use(plugin);
+      if (options) {
+        use((md) => plugin(md, ...options));
+      } else {
+        use((md) => plugin(md));
+      }
     } catch (err) {
       console.warn(`[markdown] failed to load plugin "${name}":`, err);
     }
