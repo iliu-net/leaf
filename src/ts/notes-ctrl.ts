@@ -1,5 +1,5 @@
 /**
- * app-files.ts — note CRUD and file-list operations
+ * notes-ctrl.ts — notes controller
  *
  * Handles creating, opening, saving, deleting, renaming, and listing notes.
  * Owns note-list state (all notes, search query, filtering).
@@ -33,31 +33,31 @@ function applyFilter(): NoteMeta[] {
     : [..._allNotes];
 }
 
-// ── File list ────────────────────────────────────────────────────────────────
+// ── Note list ────────────────────────────────────────────────────────────────
 
 export async function refreshList(selectId: string | null = null): Promise<void> {
   try {
     _allNotes = await notes.listNotes();
     const filtered = applyFilter();
-    ui.renderFileList(filtered, _getCurrentId());
+    ui.renderNoteList(filtered, _getCurrentId());
     ui.updateNoteCount(_allNotes.length, filtered.length);
-    if (selectId) await openFile(selectId);
+    if (selectId) await openNote(selectId);
   } catch (err) {
     ui.toast(`Failed to load notes: ${(err as Error).message}`, true);
   }
 }
 
-export async function openFile(id: string): Promise<NoteData> {
+export async function openNote(id: string): Promise<NoteData> {
   // Dirty check is handled by app.ts before calling this.
   const data: NoteData = await notes.loadNote(id);
   ui.showEditor(data);
-  ui.setActiveFile(id);
+  ui.setActiveNote(id);
   ui.setDirty(false);
   ui.setStatus(`Opened "${id}"`);
   return data;
 }
 
-export async function saveFile(id: string): Promise<void> {
+export async function saveNote(id: string): Promise<void> {
   const content = ui.flushAndGetContent();
   await notes.saveNote(id, content);
   ui.setDirty(false);
@@ -65,7 +65,7 @@ export async function saveFile(id: string): Promise<void> {
   ui.toast(`Saved "${id}"`);
 }
 
-export async function deleteFile(id: string): Promise<{ wasCurrent: boolean }> {
+export async function deleteNote(id: string): Promise<{ wasCurrent: boolean }> {
   if (!confirm(`Move "${id}" to trash?`)) return { wasCurrent: false };
   await notes.deleteNote(id);
   const wasCurrent = _getCurrentId() === id;
@@ -76,7 +76,7 @@ export async function deleteFile(id: string): Promise<{ wasCurrent: boolean }> {
   return { wasCurrent };
 }
 
-export async function handleRenameClick(id: string): Promise<void> {
+export async function handleRename(id: string): Promise<void> {
   ui.openRenameModal(id);
 }
 
@@ -96,7 +96,7 @@ export async function handleRenameConfirm(oldId: string): Promise<void> {
   }
 }
 
-export async function createFile(): Promise<void> {
+export async function createNote(): Promise<void> {
   const raw = ui.getModalValue();
   if (!raw) { ui.setModalError('Please enter a name.'); return; }
   const name = safeName(raw);
@@ -116,6 +116,6 @@ export async function createFile(): Promise<void> {
 export function handleSearch(query: string): void {
   _query = query.toLowerCase().trim();
   const filtered = applyFilter();
-  ui.renderFileList(filtered, _getCurrentId());
+  ui.renderNoteList(filtered, _getCurrentId());
   ui.updateNoteCount(_allNotes.length, filtered.length);
 }

@@ -29,11 +29,11 @@ import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
 import { subscribe } from './change-bus.js';
 import { loadConfig, fetchSpaConfig } from './config.js';
-import { loadTrashEntries, flushPendingPurges } from './trash-service.js';
+import { loadTrashEntries } from './trash.js';
 
-import * as appAuth    from './app-auth.js';
-import * as appFiles   from './app-files.js';
-import * as appTrash   from './app-trash.js';
+import * as loginCtrl  from './login-ctrl.js';
+import * as notesCtrl  from './notes-ctrl.js';
+import * as trashCtrl  from './trash-ctrl.js';
 
 // ── Editor state (current note, content, dirty flag) ─────────────────────
 
@@ -76,7 +76,7 @@ async function reloadOpenNoteAs(newId: string): Promise<void> {
     _content = data.content;
     _dirty   = false;
     ui.showEditor(data);
-    ui.setActiveFile(newId);
+    ui.setActiveNote(newId);
   } catch {
     _current = null;
     _content = '';
@@ -94,7 +94,7 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
   switch (msg.type) {
     case 'saved':
     case 'created': {
-      await appFiles.refreshList(currentId);
+      await notesCtrl.refreshList(currentId);
       if (currentId && currentId === msg.id && !_dirty) {
         await reloadOpenNote(currentId);
       }
@@ -103,9 +103,9 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
 
     case 'deleted': {
       if (inTrashMode) {
-        await appTrash.refreshTrashList();
+        await trashCtrl.refreshTrashList();
       } else {
-        await appFiles.refreshList();
+        await notesCtrl.refreshList();
         loadTrashEntries().then(e => ui.setTrashCount(e.length));
         if (currentId && currentId === msg.id) {
           _current = null;
@@ -120,7 +120,7 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
 
     case 'renamed': {
       const newId = msg.newId;
-      await appFiles.refreshList(newId);
+      await notesCtrl.refreshList(newId);
       if (currentId && currentId === msg.id && newId && !_dirty) {
         await reloadOpenNoteAs(newId);
         ui.toast(`Renamed to "${newId}" in another tab`);
@@ -130,9 +130,9 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
 
     case 'restored': {
       if (inTrashMode) {
-        await appTrash.refreshTrashList();
+        await trashCtrl.refreshTrashList();
       } else {
-        await appFiles.refreshList(currentId);
+        await notesCtrl.refreshList(currentId);
         loadTrashEntries().then(e => ui.setTrashCount(e.length));
         if (currentId && currentId === msg.id && !_dirty) {
           await reloadOpenNote(currentId);
@@ -143,7 +143,7 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
 
     case 'trash-emptied': {
       if (inTrashMode) {
-        await appTrash.refreshTrashList();
+        await trashCtrl.refreshTrashList();
         ui.toast('Trash was emptied in another tab');
       } else {
         ui.setTrashCount(0);
@@ -153,9 +153,9 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
 
     case 'server-sync': {
       if (inTrashMode) {
-        await appTrash.refreshTrashList();
+        await trashCtrl.refreshTrashList();
       } else {
-        await appFiles.refreshList(currentId);
+        await notesCtrl.refreshList(currentId);
         loadTrashEntries().then(e => ui.setTrashCount(e.length));
         if (currentId && !_dirty) {
           await reloadOpenNote(currentId);
@@ -202,15 +202,15 @@ function wireUiEvents(): void {
     onOpen:          async id => {
       if (_dirty && !confirm('You have unsaved changes. Discard?')) return;
       try {
-        const data = await appFiles.openFile(id);
+        const data = await notesCtrl.openNote(id);
         _current = id;
         _content = data.content;
         _dirty   = false;
         ui.setDirty(false);
-      } catch { /* error toast handled in openFile */ }
+      } catch { /* error toast handled in openNote */ }
     },
     onDelete:        async id => {
-      const { wasCurrent } = await appFiles.deleteFile(id);
+      const { wasCurrent } = await notesCtrl.deleteNote(id);
       if (wasCurrent) {
         _current = null;
         _content = '';
@@ -218,28 +218,28 @@ function wireUiEvents(): void {
         ui.setDirty(false);
       }
     },
-    onSearch:        q        => appFiles.handleSearch(q),
+    onSearch:        q        => notesCtrl.handleSearch(q),
     onSave:          async () => {
       if (!_current) return;
-      await appFiles.saveFile(_current);
+      await notesCtrl.saveNote(_current);
       _dirty = false;
       ui.setDirty(false);
     },
     onNew:           ()       => ui.openModal(),
-    onCreate:        ()       => appFiles.createFile(),
+    onCreate:        ()       => notesCtrl.createNote(),
     onCancelModal:   ()       => ui.closeModal(),
-    onLogin:         async (u, p) => { if (await appAuth.handleLogin(u, p)) showAppFull(); },
-    onLogout:        ()       => appAuth.handleLogout(),
-    onRename:        id       => appFiles.handleRenameClick(id),
-    onRenameConfirm: oldId    => appFiles.handleRenameConfirm(oldId),
+    onLogin:         async (u, p) => { if (await loginCtrl.handleLogin(u, p)) showAppFull(); },
+    onLogout:        ()       => loginCtrl.handleLogout(),
+    onRename:        id       => notesCtrl.handleRename(id),
+    onRenameConfirm: oldId    => notesCtrl.handleRenameConfirm(oldId),
     onResetDB:       ()       => handleResetDB(),
-    onSignIn:        ()       => appAuth.handleSignIn(),
-    onDismissLogin:  ()       => appAuth.handleDismissLogin(),
-    onToggleTrash:   ()       => appTrash.handleToggleTrash(),
-    onTrashPreview:  (id, src) => appTrash.handleTrashPreview(id, src),
-    onTrashRestore:  (id, src) => appTrash.handleTrashRestore(id, src),
-    onTrashPurge:    (id, src) => appTrash.handleTrashPurge(id, src),
-    onTrashEmpty:    ()       => appTrash.handleTrashEmpty(),
+    onSignIn:        ()       => loginCtrl.handleSignIn(),
+    onDismissLogin:  ()       => loginCtrl.handleDismissLogin(),
+    onToggleTrash:   ()       => trashCtrl.handleToggleTrash(),
+    onTrashPreview:  (id, src) => trashCtrl.handleTrashPreview(id, src),
+    onTrashRestore:  (id, src) => trashCtrl.handleTrashRestore(id, src),
+    onTrashPurge:    (id, src) => trashCtrl.handleTrashPurge(id, src),
+    onTrashEmpty:    ()       => trashCtrl.handleTrashEmpty(),
   });
 }
 
@@ -252,20 +252,14 @@ function wireUiEvents(): void {
 async function showShell(): Promise<void> {
   ui.showAppShell(null);
 
-  appFiles.init(() => _current);
+  notesCtrl.init(() => _current);
 
   dbPurgeDeletedNotes().catch(err =>
     console.warn('[purge] Failed to purge deleted notes:', err)
   );
 
-  await appFiles.refreshList();
+  await notesCtrl.refreshList();
   loadTrashEntries().then(e => ui.setTrashCount(e.length));
-
-  window.addEventListener('online', () => {
-    flushPendingPurges().catch(err =>
-      console.warn('[trash] flushPendingPurges failed:', err)
-    );
-  });
 
   subscribe(event => {
     ui.setSidebarLoading(false);
@@ -282,7 +276,7 @@ async function showShell(): Promise<void> {
     const id = _current;
     if (!id) return;
     try {
-      const { open } = await import('./history-view.js');
+      const { open } = await import('./history.js');
       open(id, {
         onRestore: (content: string) => {
           ui.setRawContent(content);

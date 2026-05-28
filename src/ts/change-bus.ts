@@ -8,8 +8,8 @@
  * Server sync triggering is handled by sync.ts, which subscribes to
  * change-bus events (one-way dependency, no circular import).
  *
- * Replaces the scatter-shot pattern where notes.ts, trash-service.ts,
- * sync.ts, and app-files.ts each independently imported cross-tab.ts
+ * Replaces the scatter-shot pattern where notes.ts, trash.ts,
+ * sync.ts, and notes-ctrl.ts each independently imported cross-tab.ts
  * to broadcast changes.
  */
 

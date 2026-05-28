@@ -1,5 +1,5 @@
 /**
- * login-screen.ts — login screen logic
+ * login-view.ts — login view
  *
  * Owns all login-screen DOM, extracted from ui.ts.
  */

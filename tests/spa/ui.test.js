@@ -176,7 +176,7 @@ async function getUI() {
 
 // ── File list ───────────────────────────────────────────────────────────────
 
-describe('renderFileList()', () => {
+describe('renderNoteList()', () => {
   it('renders notes in the file list', async () => {
     const ui = await getUI();
     const notes = [
@@ -184,7 +184,7 @@ describe('renderFileList()', () => {
       { id: 'beta',  created_at: 3, updated_at: 4, current: 'local' },
     ];
 
-    ui.renderFileList(notes, null);
+    ui.renderNoteList(notes, null);
 
     const items = document.querySelectorAll('.file-item');
     expect(items).toHaveLength(2);
@@ -199,7 +199,7 @@ describe('renderFileList()', () => {
       { id: 'b', created_at: 3, updated_at: 4, current: 'local' },
     ];
 
-    ui.renderFileList(notes, 'b');
+    ui.renderNoteList(notes, 'b');
 
     const items = document.querySelectorAll('.file-item');
     expect(items[0].classList.contains('active')).toBe(false);
@@ -208,7 +208,7 @@ describe('renderFileList()', () => {
 
   it('shows empty state when no notes', async () => {
     const ui = await getUI();
-    ui.renderFileList([], null);
+    ui.renderNoteList([], null);
 
     const item = document.querySelector('#file-list > div');
     expect(item.textContent).toBe('No notes found');
@@ -216,22 +216,22 @@ describe('renderFileList()', () => {
 
   it('renders the more-actions button on each note', async () => {
     const ui = await getUI();
-    ui.renderFileList([{ id: 'test', created_at: 1, updated_at: 2, current: 'local' }], null);
+    ui.renderNoteList([{ id: 'test', created_at: 1, updated_at: 2, current: 'local' }], null);
 
     const moreBtn = document.querySelector('.file-item-more');
     expect(moreBtn).not.toBeNull();
   });
 });
 
-describe('setActiveFile()', () => {
+describe('setActiveNote()', () => {
   it('toggles the active class', async () => {
     const ui = await getUI();
-    ui.renderFileList([
+    ui.renderNoteList([
       { id: 'a', created_at: 1, updated_at: 2, current: 'local' },
       { id: 'b', created_at: 3, updated_at: 4, current: 'local' },
     ], 'a');
 
-    ui.setActiveFile('b');
+    ui.setActiveNote('b');
     const items = document.querySelectorAll('.file-item');
     expect(items[0].classList.contains('active')).toBe(false);
     expect(items[1].classList.contains('active')).toBe(true);
@@ -700,7 +700,7 @@ describe('bindEvents()', () => {
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
-    ui.renderFileList([{ id: 'my-note', created_at: 1, updated_at: 2 }], null);
+    ui.renderNoteList([{ id: 'my-note', created_at: 1, updated_at: 2 }], null);
 
     const item = document.querySelector('.file-item');
     item.click();
@@ -720,7 +720,7 @@ describe('bindEvents()', () => {
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
-    ui.renderFileList([{ id: 'doomed', created_at: 1, updated_at: 2 }], null);
+    ui.renderNoteList([{ id: 'doomed', created_at: 1, updated_at: 2 }], null);
 
     // Click the ⋮ button to open the context menu
     const moreBtn = document.querySelector('.file-item-more');
@@ -745,7 +745,7 @@ describe('bindEvents()', () => {
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
-    ui.renderFileList([{ id: 'rename-me', created_at: 1, updated_at: 2 }], null);
+    ui.renderNoteList([{ id: 'rename-me', created_at: 1, updated_at: 2 }], null);
 
     // Click the ⋮ button to open the context menu
     const moreBtn = document.querySelector('.file-item-more');

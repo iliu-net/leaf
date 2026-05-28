@@ -1,5 +1,5 @@
 /**
- * trash-service.ts — Trash business logic & server API
+ * trash.ts — Trash business logic & server API
  *
  * Owns all trash logic — merge, restore, purge, empty, and server
  * communication.  The UI layer (trash-view.ts, app.ts) calls these
@@ -17,7 +17,6 @@ import {
 } from './db.js';
 import { getUsername } from './auth.js';
 import { publish } from './change-bus.js';
-import { getNamespace } from './config.js';
 import { syncNow } from './sync.js';
 import { nowSec } from './utils.js';
 import {
@@ -91,49 +90,6 @@ export function mergeTrashEntries(
   return [...map.values()].sort((a, b) => b.deleted_at - a.deleted_at);
 }
 
-// ── Pending purge tracking ──────────────────────────────────────────────────
-
-const _NS = getNamespace();
-const PENDING_PURGE_KEY = _NS
-  ? `leaf-trash-pending-purge:${_NS}`
-  : 'leaf-trash-pending-purge';
-
-function getPendingPurges(): Set<string> {
-  try {
-    const raw = localStorage.getItem(PENDING_PURGE_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return new Set();
-    return new Set(arr as string[]);
-  } catch {
-    return new Set();
-  }
-}
-
-function trackPendingPurge(id: string): void {
-  const set = getPendingPurges();
-  set.add(id);
-  localStorage.setItem(PENDING_PURGE_KEY, JSON.stringify([...set]));
-}
-
-function dropPendingPurge(id: string): void {
-  const set = getPendingPurges();
-  set.delete(id);
-  localStorage.setItem(PENDING_PURGE_KEY, JSON.stringify([...set]));
-}
-
-/**
- * Flush pending server-side purges that were deferred while offline.
- * Each call is fire-and-forget — individual failures are benign.
- */
-export async function flushPendingPurges(): Promise<void> {
-  const ids = [...getPendingPurges()];
-  for (const id of ids) {
-    fetchTrashPurge(id).then(() => dropPendingPurge(id)).catch(() => {
-      // benign — retried on next online event
-    });
-  }
-}
 
 // ── Load ────────────────────────────────────────────────────────────────────
 
@@ -154,12 +110,10 @@ export async function loadTrashEntries(): Promise<TrashEntry[]> {
   }
 
   try {
-    const pendingPurges = getPendingPurges();
     const server = await fetchTrashList();
-    const filtered = server.filter(s => !pendingPurges.has(s.id));
-    return mergeTrashEntries(local, filtered);
+    return mergeTrashEntries(local, server);
   } catch {
-    console.warn('[trash-service] Server fetch failed, using local tombstones only');
+    console.warn('[trash] Server fetch failed, using local tombstones only');
     return local.map(l => ({
       id: l.id,
       deleted_at: l.deleted_at,
@@ -258,12 +212,8 @@ export async function purgeTrashItem(
   id: string,
   source: 'local' | 'server' | 'both',
 ): Promise<void> {
-  if (source !== 'local') {
-    if (navigator.onLine) {
-      try { await fetchTrashPurge(id); } catch { /* ignore */ }
-    } else {
-      trackPendingPurge(id);
-    }
+  if (source !== 'local' && navigator.onLine) {
+    try { await fetchTrashPurge(id); } catch { /* ignore */ }
   }
 
   await dbPermanentDelete(id);
@@ -280,11 +230,7 @@ export async function emptyTrash(): Promise<void> {
   const ids = tombstones.map(n => n.id);
 
   if (navigator.onLine) {
-    try { await fetchTrashEmpty(); } catch {
-      for (const id of ids) trackPendingPurge(id);
-    }
-  } else {
-    for (const id of ids) trackPendingPurge(id);
+    try { await fetchTrashEmpty(); } catch { /* ignore */ }
   }
 
   await ensureDbOpen();

@@ -1,5 +1,5 @@
 /**
- * app-auth.ts — authentication lifecycle handlers
+ * login-ctrl.ts — login controller
  *
  * Handles login, logout, sign-in, and dismiss-login flows.
  * Returns boolean from handleLogin so the caller (app.ts) can decide
@@ -7,7 +7,7 @@
  */
 
 import { login, logout } from './auth.js';
-import * as loginScreen from './login-screen.js';
+import * as loginView from './login-view.js';
 
 /**
  * Handle login form submission.
@@ -17,15 +17,15 @@ export async function handleLogin(
   username: string,
   password: string,
 ): Promise<boolean> {
-  loginScreen.setLoginError('');
-  loginScreen.setLoginLoading(true);
+  loginView.setLoginError('');
+  loginView.setLoginLoading(true);
 
   const result = await login(username, password);
 
-  loginScreen.setLoginLoading(false);
+  loginView.setLoginLoading(false);
 
   if (!result.ok) {
-    loginScreen.setLoginError(result.error ?? '');
+    loginView.setLoginError(result.error ?? '');
     return false;
   }
 
@@ -40,11 +40,11 @@ export async function handleLogout(): Promise<void> {
 
 /** Show the login screen (manual sign-in trigger). */
 export function handleSignIn(): void {
-  loginScreen.showLoginScreen();
+  loginView.showLoginScreen();
 }
 
 /** Dismiss the login overlay, stay in offline mode. */
 export function handleDismissLogin(): void {
-  loginScreen.hideLoginScreen();
+  loginView.hideLoginScreen();
   // Stay in offline mode — user chose not to authenticate
 }

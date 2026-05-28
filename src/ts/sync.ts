@@ -46,7 +46,7 @@ const REVISION_KEY   = _NS ? `notes_sync_revision:${_NS}` : 'notes_sync_revision
 //   2. Trigger immediate sync (syncNow)
 //
 // 'server-sync' comes *from* us (infinite loop).
-// 'restored' is excluded — trash-service handles queue + sync explicitly.
+// 'restored' is excluded — trash.ts handles queue + sync explicitly.
 
 subscribe(async (event) => {
   switch (event.type) {

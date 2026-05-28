@@ -116,14 +116,14 @@ export function setTrashCount(n: number): void {
   }
 }
 
-// ── File list ──────────────────────────────────────────────────────────────────
+// ── Note list ──────────────────────────────────────────────────────────────────
 
-export function renderFileList(notes: NoteMeta[], currentId: string | null): void {
+export function renderNoteList(notes: NoteMeta[], currentId: string | null): void {
   _currentView = TreeView;
   TreeView.render(notes, currentId);
 }
 
-export function setActiveFile(id: string): void {
+export function setActiveNote(id: string): void {
   fileList().querySelectorAll('.file-item').forEach(el => {
     el.classList.toggle('active', (el as HTMLElement).dataset.id === id);
   });

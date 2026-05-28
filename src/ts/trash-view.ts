@@ -8,7 +8,7 @@
  */
 
 import type { SidebarView, UIEventHandlers } from './sidebar.js';
-import type { TrashEntry } from './trash-service.js';
+import type { TrashEntry } from './trash.js';
 import * as contextMenu from './context-menu.js';
 import { relativeTime } from './utils.js';
 

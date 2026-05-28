@@ -8,7 +8,7 @@
  * Sub-modules:
  *   editor.ts       — textarea / meta-panel lifecycle
  *   sidebar.ts      — sidebar chrome, mode switching, view delegation
- *   login-screen.ts — login overlay
+ *   login-view.ts — login overlay
  *   modal.ts        — create / rename dialogs
  */
 
@@ -17,7 +17,7 @@ import type { UIEventHandlers } from './sidebar.js';
 import * as editor        from './editor.js';
 import * as sidebar       from './sidebar.js';
 import * as modal         from './modal.js';
-import * as loginScreen   from './login-screen.js';
+import * as loginView     from './login-view.js';
 import { parseFrontmatter } from './frontmatter.js';
 
 // Re-exports so consumers of ui.* don't break
@@ -27,7 +27,7 @@ export {
   setDirty, getCurrentNoteId,
 } from './editor.js';
 export {
-  renderFileList, setActiveFile, updateNoteCount,
+  renderNoteList, setActiveNote, updateNoteCount,
   setSidebarLoading, toggleSidebar, clearSearch,
   setMode, getMode, setTrashCount,
 } from './sidebar.js';
@@ -121,30 +121,30 @@ export function getModalValue(): string {
   return modal.getModalValue();
 }
 
-// ── Login screen (delegated to login-screen.ts) ─────────────────────────────
+// ── Login screen (delegated to login-view.ts) ─────────────────────────────
 
 export function showLoginScreen(): void {
-  loginScreen.showLoginScreen();
+  loginView.showLoginScreen();
 }
 
 export function showAppShell(username: string | null): void {
-  loginScreen.showAppShell(username);
+  loginView.showAppShell(username);
 }
 
 export function setLoginError(msg: string): void {
-  loginScreen.setLoginError(msg);
+  loginView.setLoginError(msg);
 }
 
 export function setLoginLoading(loading: boolean): void {
-  loginScreen.setLoginLoading(loading);
+  loginView.setLoginLoading(loading);
 }
 
 export function hideLoginScreen(): void {
-  loginScreen.hideLoginScreen();
+  loginView.hideLoginScreen();
 }
 
 export function showOfflineFirstVisit(): void {
-  loginScreen.showOfflineFirstVisit();
+  loginView.showOfflineFirstVisit();
 }
 
 // ── Trash preview banner ────────────────────────────────────────────────────
@@ -207,8 +207,8 @@ export function hideTrashBanner(): void {
 export function bindEvents(handlers: UIEventHandlers): void {
   const { onSave, onNew, onResetDB } = handlers;
 
-  // Login form events → login-screen.ts
-  loginScreen.bindLoginEvents({
+  // Login form events → login-view.ts
+  loginView.bindLoginEvents({
     onLogin:        (u, p) => handlers.onLogin?.(u, p),
     onSignIn:       () => handlers.onSignIn?.(),
     onLogout:       () => handlers.onLogout?.(),

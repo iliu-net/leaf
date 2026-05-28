@@ -1,8 +1,8 @@
 /**
- * app-trash.ts — trash list and item operations
+ * trash-ctrl.ts — trash list and item operations
  *
  * Handles toggling trash mode, previewing, restoring, purging, and emptying
- * trash items. Imports refreshList from app-files.ts directly — no callbacks.
+ * trash items. Imports refreshList from notes-ctrl.ts directly — no callbacks.
  */
 
 import * as ui      from './ui.js';
@@ -10,8 +10,8 @@ import * as sidebar from './sidebar.js';
 import {
   loadTrashEntries, getTrashContent,
   restoreTrashItem, purgeTrashItem, emptyTrash,
-} from './trash-service.js';
-import { refreshList } from './app-files.js';
+} from './trash.js';
+import { refreshList } from './notes-ctrl.js';
 
 // ── Trash list ────────────────────────────────────────────────────────────
 

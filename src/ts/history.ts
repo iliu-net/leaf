@@ -1,16 +1,16 @@
 /**
- * history-view.ts — version history modal UI
+ * history.ts — version history modal UI
  *
- * Extracted from history.ts. Fetches version data and renders the DOM
- * modal with diff preview between selected versions.
+ * Fetches version data and renders the DOM modal with diff preview
+ * between selected versions.
  *
  * Lazy-loaded via dynamic import() when the user clicks "View History".
  */
 
 import type { DiffLine } from './diff.js';
 import { computeDiff } from './diff.js';
-import type { VersionMeta, VersionListResponse } from './history-service.js';
-import { fetchVersionList, fetchVersionContent } from './history-service.js';
+import type { VersionMeta, VersionListResponse } from './api.js';
+import { fetchVersionList, fetchVersionContent } from './api.js';
 import { formatTimestamp, esc } from './utils.js';
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -392,7 +392,7 @@ ${htmlLines}
 
 /**
  * Open the version history modal for a note.
- * Called via dynamic import(): `const { open } = await import('./history-view.js');`
+ * Called via dynamic import(): `const { open } = await import('./history.js');`
  *
  * @param noteId    The note identifier
  * @param callbacks Callbacks for restore action
