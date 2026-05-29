@@ -7,6 +7,7 @@
 
 import type { NoteData } from './notes.js';
 import type { FrontmatterResult } from './frontmatter.js';
+import { RESERVED_KEYS } from './frontmatter.js';
 import { formatTimestamp, relativeTime, esc, computeStats, html } from './utils.js';
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -43,10 +44,9 @@ export function renderFrontmatterTable(fm: FrontmatterResult): string {
     tableParts.push(html`<tr><td class="fm-key">Summary</td><td class="fm-val">${esc(summary)}</td></tr>`);
   }
 
-  // Custom fields
-  const reservedKeys = new Set(['title', 'summary', 'user-tags', 'auto-tags']);
+  // Custom fields — exclude anything in the shared reserved-keys set
   for (const [key, val] of Object.entries(meta)) {
-    if (reservedKeys.has(key)) continue;
+    if (RESERVED_KEYS.has(key)) continue;
     tableParts.push(
       html`<tr><td class="fm-key">${esc(key)}</td><td class="fm-val">${esc(fmtVal(val))}</td></tr>`,
     );
@@ -74,6 +74,22 @@ export function renderFrontmatter(
 // ── Content stats ──────────────────────────────────────────────────────────
 
 /**
+ * Format a number of seconds into a human-readable duration string.
+ * @param sec  Total seconds
+ * @returns    e.g. "42 sec", "3 min", "1 hr 23 min"
+ */
+export function formatDuration(sec: number): string {
+  if (sec < 60) return `${sec} sec`;
+  const mins = Math.floor(sec / 60);
+  const hours = Math.floor(mins / 60);
+  if (hours > 0) {
+    const rem = mins % 60;
+    return rem > 0 ? `${hours} hr ${rem} min` : `${hours} hr`;
+  }
+  return `${mins} min`;
+}
+
+/**
  * Render content statistics (word / char / line counts) as HTML.
  *
  * @param body  Body text (frontmatter already stripped).
@@ -94,6 +110,13 @@ export function renderStats(body: string): string {
  */
 export function renderSystemInfo(noteData: NoteData): string {
   const rows: string[] = [];
+
+  // Edit time (from frontmatter)
+  const editTimeRaw = noteData.meta['edit-time'];
+  const editTimeSec = typeof editTimeRaw === 'string' ? parseInt(editTimeRaw, 10) : 0;
+  if (editTimeSec > 0) {
+    rows.push(html`<tr><td>Edit time</td><td>${formatDuration(editTimeSec)}</td></tr>`);
+  }
 
   if (noteData.current) {
     rows.push(html`<tr><td>Version</td><td>${esc(noteData.current)}</td></tr>`);

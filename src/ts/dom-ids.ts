@@ -111,6 +111,7 @@ export const DOM = {
   META_SYS_CURRENT:    'meta-sys-current',
   META_SYS_CREATED:    'meta-sys-created',
   META_SYS_UPDATED:    'meta-sys-updated',
+  META_SYS_EDIT_TIME:  'meta-sys-edit-time',
   BTN_ADD_CUSTOM:      'btn-add-custom',
   BTN_ADD_LANG:        'btn-add-lang',
 

@@ -16,6 +16,7 @@ import {
   updateFrontmatter,
 } from './frontmatter.js';
 import { computeStats, formatTimestamp, html, esc } from './utils.js';
+import { formatDuration } from './render-fm.js';
 import { getSpellcheckConfig } from './config.js';
 
 // ── Known custom-field keys with value placeholder hints ─────────────────────
@@ -55,6 +56,7 @@ let _langListData: HTMLDataListElement | null = null;
 let _sysCurrent:  HTMLElement | null = null;
 let _sysCreated:  HTMLElement | null = null;
 let _sysUpdated:  HTMLElement | null = null;
+let _sysEditTime: HTMLElement | null = null;
 
 // ── Init (TabPanel) ────────────────────────────────────────────────────
 
@@ -76,6 +78,7 @@ export function init(): void {
   _sysCurrent   = $maybe(DOM.META_SYS_CURRENT);
   _sysCreated   = $maybe(DOM.META_SYS_CREATED);
   _sysUpdated   = $maybe(DOM.META_SYS_UPDATED);
+  _sysEditTime  = $maybe(DOM.META_SYS_EDIT_TIME);
 }
 
 // ── TabPanel lifecycle ─────────────────────────────────────────────────
@@ -115,6 +118,7 @@ export function hide(): void {
   if (_sysCurrent) _sysCurrent.textContent = '';
   if (_sysCreated) _sysCreated.textContent = '';
   if (_sysUpdated) _sysUpdated.textContent = '';
+  if (_sysEditTime) _sysEditTime.textContent = '';
 }
 
 // ── Pending meta ────────────────────────────────────────────────────────
@@ -293,6 +297,13 @@ function _populateSystemFields(noteData: NoteData): void {
     _sysUpdated.textContent = parts.join(' ');
   } else if (_sysUpdated) {
     _sysUpdated.textContent = '';
+  }
+
+  // Edit time (from frontmatter)
+  if (_sysEditTime) {
+    const editTimeRaw = noteData.meta['edit-time'];
+    const editTimeSec = typeof editTimeRaw === 'string' ? parseInt(editTimeRaw, 10) : 0;
+    _sysEditTime.textContent = editTimeSec > 0 ? formatDuration(editTimeSec) : '—';
   }
 }
 

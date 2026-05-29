@@ -25,13 +25,14 @@ export interface PendingMeta {
 const VALID_KEY_RE = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
 
 /** Keys that are handled by dedicated fields (not custom). */
-const RESERVED_KEYS = new Set([
+export const RESERVED_KEYS = new Set([
   'title',
   'summary',
   'user-tags',
   'auto-tags',
   'tags',
   'lang',
+  'edit-time',
 ]);
 
 // ── Parser ───────────────────────────────────────────────────────────────
@@ -212,6 +213,17 @@ export function sanitizeCustom(custom: Record<string, string>): Record<string, s
     }
   }
   return out;
+}
+
+/**
+ * Strip a single key from frontmatter, returning the content without it.
+ * Used for equality comparisons where a reserved key's drift (e.g. edit-time)
+ * should not look like a real content change.
+ *
+ * Returns the same string if the key isn't present.
+ */
+export function stripFrontmatterKey(content: string, key: string): string {
+  return updateFrontmatter(content, { [key]: undefined });
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────

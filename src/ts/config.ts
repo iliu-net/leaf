@@ -111,6 +111,11 @@ export interface SpaConfig {
     /** Set to false to disable auto-save entirely. Default true. */
     enabled?: boolean;
   };
+  /** Edit-time tracking configuration. */
+  edit_time?: {
+    /** Seconds of inactivity before the edit timer pauses. Default 300 (5 min). */
+    inactivity_sec?: number;
+  };
 }
 
 /** Hardcoded safe defaults used when no config has been fetched yet. */
@@ -125,6 +130,9 @@ const DEFAULT_SPA_CONFIG: SpaConfig = {
   autosave: {
     delay_ms: 2000,
     enabled: true,
+  },
+  edit_time: {
+    inactivity_sec: 300,
   },
 };
 
@@ -189,5 +197,16 @@ export function getAutosaveConfig(): Required<NonNullable<SpaConfig['autosave']>
   return {
     delay_ms: ac.delay_ms ?? DEFAULT_SPA_CONFIG.autosave!.delay_ms!,
     enabled: ac.enabled ?? DEFAULT_SPA_CONFIG.autosave!.enabled!,
+  };
+}
+
+/**
+ * Edit-time config with defaults filled in.
+ * Safe to call before fetchSpaConfig() completes.
+ */
+export function getEditTimeConfig(): Required<NonNullable<SpaConfig['edit_time']>> {
+  const et = _spaConfig.edit_time ?? DEFAULT_SPA_CONFIG.edit_time!;
+  return {
+    inactivity_sec: et.inactivity_sec ?? DEFAULT_SPA_CONFIG.edit_time!.inactivity_sec!,
   };
 }
