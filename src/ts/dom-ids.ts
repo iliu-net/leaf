@@ -73,6 +73,7 @@ export const DOM = {
   OFFLINE_BADGE:   'offline-badge',
   TOAST_CONTAINER: 'toast-container',
   SYNC_STATUS:     'sync-status',
+  BTN_COOKMODE:    'btn-cookmode',
 
   // ── Sidebar ─────────────────────────────────────────────────────────────
   SIDEBAR:          'sidebar',

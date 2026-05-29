@@ -13,12 +13,13 @@
  */
 
 import type { UIEventHandlers } from './sidebar.js';
-import { DOM, $ } from './dom-ids.js';
+import { DOM, $, $maybe } from './dom-ids.js';
 
 import * as editor        from './editor-ctrl.js';
 import * as sidebar       from './sidebar.js';
 import * as modal         from './modal.js';
 import * as loginView     from './login-view.js';
+import * as cookmode      from './cookmode.js';
 
 // Re-exports so consumers of ui.* don't break
 export {
@@ -109,6 +110,19 @@ export function bindEvents(handlers: UIEventHandlers): void {
   btnSave.addEventListener('click', onSave);
   $(DOM.BTN_NEW).addEventListener('click', onNew);
   $(DOM.BTN_TOGGLE_SIDEBAR).addEventListener('click', sidebar.toggleSidebar);
+
+  // ── Cookmode ────────────────────────────────────────────────────────────
+  const btnCookmode = $maybe(DOM.BTN_COOKMODE) as HTMLButtonElement | null;
+  btnCookmode?.addEventListener('click', async () => {
+    const active = await cookmode.toggle();
+    console.log('[cookmode] User toggled, active =', active);
+    btnCookmode.classList.toggle('active', active);
+    btnCookmode.setAttribute('aria-pressed', String(active));
+    btnCookmode.title = active
+      ? 'Cookmode: ON — screen will stay awake'
+      : 'Cookmode: OFF — click to keep screen awake';
+    setStatus(active ? 'Cookmode: screen will stay awake' : 'Cookmode off');
+  });
 
   // ── Global keyboard shortcuts ──────────────────────────────────────────
   document.addEventListener('keydown', e => {
