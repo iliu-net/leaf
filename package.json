@@ -23,11 +23,14 @@
     "dexie": "^3.2.6",
     "highlight.js": "^11.11.1",
     "markdown-it": "^14.2.0",
-    "markdown-it-emoji": "^3.0.0"
+    "markdown-it-emoji": "^3.0.0",
+    "turndown": "^7.2.4",
+    "upng-js": "^2.1.0"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
     "@types/markdown-it-emoji": "^3.0.1",
+    "@types/turndown": "^5.0.6",
     "esbuild": "^0.25.0",
     "fake-indexeddb": "^6.0.0",
     "jsdom": "^25.0.0",

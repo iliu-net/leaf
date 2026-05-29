@@ -757,3 +757,73 @@
 
 [data-theme="paired-12"] .btn-small.danger { color: var(--danger); border-color: rgba(227,26,28,.3); }
 [data-theme="paired-12"] .btn-small.danger:hover { background: var(--danger-bg); }
+
+/* ── Image editor modal ── */
+[data-theme="paired-12"] .img-editor-overlay { background: rgba(0,0,0,.65); }
+[data-theme="paired-12"] .img-editor-card {
+  background: var(--bg-2);
+  border-color: var(--border-hi);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0,0,0,.6);
+}
+[data-theme="paired-12"] .img-editor-title {
+  font-size: 17px; font-weight: 500; color: var(--text-1);
+}
+[data-theme="paired-12"] .img-editor-preview {
+  border-color: var(--border-mid);
+  border-radius: var(--radius);
+}
+[data-theme="paired-12"] .img-editor-size-row {
+  font-family: var(--font-ui);
+}
+[data-theme="paired-12"] .img-editor-size-row label {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  letter-spacing: .06em;
+}
+[data-theme="paired-12"] .img-editor-size-row input[type="range"] {
+  accent-color: var(--accent);
+}
+[data-theme="paired-12"] #img-editor-slider-val {
+  font-size: var(--fs-ui);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  min-width: 3ch; text-align: right;
+}
+[data-theme="paired-12"] .img-editor-unit {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+}
+[data-theme="paired-12"] .img-editor-dims {
+  font-size: var(--fs-tiny);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+}
+[data-theme="paired-12"] .img-editor-dims-orig { color: var(--text-3); }
+[data-theme="paired-12"] .img-editor-field label {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  letter-spacing: .06em;
+}
+[data-theme="paired-12"] .img-editor-field select {
+  background: var(--bg-3);
+  border-color: var(--border-hi);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--text-1);
+  transition: border-color var(--transition);
+}
+[data-theme="paired-12"] .img-editor-field select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="paired-12"] .img-editor-est {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+[data-theme="paired-12"] .img-editor-est span { color: var(--accent); }

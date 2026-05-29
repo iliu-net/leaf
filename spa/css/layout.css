@@ -581,6 +581,55 @@ kbd { border-width: 1px; border-style: solid; padding: 1px 5px; }
   white-space: pre-wrap; word-break: break-word; user-select: text;
 }
 
+/* ── Map view ── */
+/* (reserved for future map/geospatial view) */
+
+/* ── Image editor modal ── */
+.img-editor-overlay {
+  display: none; position: fixed; inset: 0;
+  backdrop-filter: blur(4px);
+  align-items: center; justify-content: center; z-index: 260;
+}
+.img-editor-overlay.open { display: flex; }
+.img-editor-card {
+  border-width: 1px; border-style: solid;
+  padding: 24px; width: 380px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.img-editor-preview {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 120px;
+  border-width: 1px; border-style: dashed;
+  padding: 8px;
+}
+.img-editor-preview canvas { max-width: 100%; max-height: 260px; display: block; }
+
+/* Size slider */
+.img-editor-size-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.img-editor-size-row label { text-transform: uppercase; }
+.img-editor-size-row input[type="range"] { flex: 1; }
+.img-editor-unit { flex-shrink: 0; }
+
+/* Output / original dims */
+.img-editor-dims {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.img-editor-dims-line { display: flex; gap: 8px; }
+.img-editor-dims-orig { opacity: 0.6; }
+
+.img-editor-field { display: flex; flex-direction: column; gap: 4px; }
+.img-editor-field label { text-transform: uppercase; }
+.img-editor-field select {
+  border-width: 1px; border-style: solid;
+  padding: 6px 10px; outline: none;
+}
+.img-editor-est { min-height: 16px; }
+.img-editor-actions {
+  display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px;
+}
+
 /* ── Animations ── */
 @keyframes dirty-pulse {
   0%, 100% { opacity: 1; }

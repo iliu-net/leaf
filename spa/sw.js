@@ -8,7 +8,7 @@ const BASE = self.location.pathname.replace(/\/sw\.js$/, '');
 // Namespace the cache so multiple instances on the same origin don't
 // race on the same cache bucket.
 const _slug = BASE.replace(/^\/|\/$/g, '').replace(/\//g, '-');
-const CACHE = _slug ? `leaf-v5:${_slug}` : 'leaf-v5';
+const CACHE = _slug ? `leaf-v6:${_slug}` : 'leaf-v6';
 
 const SHELL = [
   `${BASE}/`,
@@ -19,6 +19,7 @@ const SHELL = [
   `${BASE}/css/theme-magenta.css`,
   `${BASE}/css/theme-paired-12.css`,
   `${BASE}/css/hljs.css`,
+  `${BASE}/css/cm.css`,
   `${BASE}/app.js`,
   `${BASE}/manifest.json`,
   `${BASE}/icons/icon-192.svg`,

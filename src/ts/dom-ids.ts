@@ -137,6 +137,18 @@ export const DOM = {
 
   // ── Empty trash button ──────────────────────────────────────────────────
   BTN_EMPTY_TRASH: 'btn-empty-trash',
+
+  // ── Image editor modal ──────────────────────────────────────────────────
+  IMG_EDITOR_OVERLAY:    'img-editor-overlay',
+  IMG_EDITOR_CANVAS:     'img-editor-canvas',
+  IMG_EDITOR_SLIDER:     'img-editor-slider',
+  IMG_EDITOR_SLIDER_VAL: 'img-editor-slider-val',
+  IMG_EDITOR_OUTPUT_DIMS:'img-editor-output-dims',
+  IMG_EDITOR_ORIG_DIMS:  'img-editor-orig-dims',
+  IMG_EDITOR_ENCODE:     'img-editor-encode',
+  IMG_EDITOR_EST_SIZE:   'img-editor-est-size',
+  IMG_EDITOR_INSERT_BTN: 'img-editor-insert',
+  IMG_EDITOR_CANCEL_BTN: 'img-editor-cancel',
 } as const;
 
 export type DomId = (typeof DOM)[keyof typeof DOM];

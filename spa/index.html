@@ -358,6 +358,52 @@
 <!-- ── Toast container ── -->
 <div id="toast-container" aria-live="assertive" aria-atomic="true"></div>
 
+<!-- ── Image editor modal ── -->
+<div id="img-editor-overlay" class="img-editor-overlay" role="dialog" aria-modal="true" aria-label="Edit image">
+  <div class="img-editor-card">
+    <h2 class="img-editor-title">Paste Image</h2>
+
+    <div class="img-editor-preview">
+      <canvas id="img-editor-canvas"></canvas>
+    </div>
+
+    <div class="img-editor-size-row">
+      <label for="img-editor-slider">Size</label>
+      <input id="img-editor-slider" type="range" min="16" max="640" value="320">
+      <span id="img-editor-slider-val">320</span><span class="img-editor-unit"> px</span>
+    </div>
+
+    <div class="img-editor-dims">
+      <div class="img-editor-dims-line">
+        Output <span id="img-editor-output-dims">—</span>
+      </div>
+      <div class="img-editor-dims-line img-editor-dims-orig">
+        Original <span id="img-editor-orig-dims">—</span>
+      </div>
+    </div>
+
+    <div class="img-editor-field">
+      <label for="img-editor-encode">Encode</label>
+      <select id="img-editor-encode">
+        <option value="auto" selected>Auto</option>
+        <option value="png16">PNG 16</option>
+        <option value="png256">PNG 256</option>
+        <option value="lossless">Lossless</option>
+        <option value="webp">WebP</option>
+      </select>
+    </div>
+
+    <div class="img-editor-est">
+      Estimated <span id="img-editor-est-size">—</span>
+    </div>
+
+    <div class="img-editor-actions">
+      <button id="img-editor-cancel" class="btn">Cancel</button>
+      <button id="img-editor-insert" class="btn btn-primary">Insert</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Context menu (shared, positioned by JS) ── -->
 <div id="context-menu" class="item-context-menu" role="menu"></div>
 

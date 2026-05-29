@@ -755,3 +755,73 @@
 
 [data-theme="magenta"] .btn-small.danger { color: var(--danger); border-color: rgba(213,0,0,.3); }
 [data-theme="magenta"] .btn-small.danger:hover { background: var(--danger-bg); }
+
+/* ── Image editor modal ── */
+[data-theme="magenta"] .img-editor-overlay { background: rgba(0,0,0,.35); }
+[data-theme="magenta"] .img-editor-card {
+  background: var(--bg);
+  border-color: var(--border-hi);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 40px rgba(0,0,0,.15);
+}
+[data-theme="magenta"] .img-editor-title {
+  font-size: 17px; font-weight: 500; color: var(--text-1);
+}
+[data-theme="magenta"] .img-editor-preview {
+  border-color: var(--border-mid);
+  border-radius: var(--radius);
+}
+[data-theme="magenta"] .img-editor-size-row {
+  font-family: var(--font-ui);
+}
+[data-theme="magenta"] .img-editor-size-row label {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  letter-spacing: .06em;
+}
+[data-theme="magenta"] .img-editor-size-row input[type="range"] {
+  accent-color: var(--accent);
+}
+[data-theme="magenta"] #img-editor-slider-val {
+  font-size: var(--fs-ui);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  min-width: 3ch; text-align: right;
+}
+[data-theme="magenta"] .img-editor-unit {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+}
+[data-theme="magenta"] .img-editor-dims {
+  font-size: var(--fs-tiny);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+}
+[data-theme="magenta"] .img-editor-dims-orig { color: var(--text-3); }
+[data-theme="magenta"] .img-editor-field label {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  letter-spacing: .06em;
+}
+[data-theme="magenta"] .img-editor-field select {
+  background: var(--bg-3);
+  border-color: var(--border-hi);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--text-1);
+  transition: border-color var(--transition);
+}
+[data-theme="magenta"] .img-editor-field select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="magenta"] .img-editor-est {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+[data-theme="magenta"] .img-editor-est span { color: var(--accent); }

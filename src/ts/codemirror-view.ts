@@ -79,7 +79,7 @@ export function init(factory: CMFactory): void {
  * Replace the body portion of raw content (after frontmatter) with new body.
  * Preserves any frontmatter block intact.
  */
-function _replaceBody(rawContent: string, newBody: string): string {
+export function _replaceBody(rawContent: string, newBody: string): string {
   const m = rawContent.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (m) return m[0] + newBody;
   return newBody;

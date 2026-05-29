@@ -31,6 +31,7 @@ import { javascriptLanguage } from '@codemirror/lang-javascript';
 import { xmlLanguage } from '@codemirror/lang-xml';
 
 import { spellcheckPlugin } from './spellcheck.js';
+import { pasteHandler } from './paste-handler.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -291,6 +292,9 @@ export function createEditor(
 
     // ── Spellcheck ───────────────────────────────────────────────────────
     spellcheckPlugin(),
+
+    // ── Paste handling (turndown + image editor) ───────────────────────────
+    pasteHandler,
 
     // ── Change notification ──────────────────────────────────────────────
     EditorView.updateListener.of((update) => {
