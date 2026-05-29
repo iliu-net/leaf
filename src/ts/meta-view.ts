@@ -15,7 +15,7 @@ import {
   pendingMetaToUpdates,
   updateFrontmatter,
 } from './frontmatter.js';
-import { computeStats, formatTimestamp } from './utils.js';
+import { computeStats, formatTimestamp, html, esc } from './utils.js';
 import { getSpellcheckConfig } from './config.js';
 
 // ── Known custom-field keys with value placeholder hints ─────────────────────
@@ -399,7 +399,7 @@ function _populateLangDatalist(): void {
   const cfg = getSpellcheckConfig();
   const langs = cfg.preferred_langs;
   _langListData.innerHTML = langs
-    .map(l => `<option value="${l}">${l} — ${_langDisplayName(l)}</option>`)
+    .map(l => html`<option value="${esc(l)}">${esc(l)} — ${esc(_langDisplayName(l))}</option>`)
     .join('');
 }
 
