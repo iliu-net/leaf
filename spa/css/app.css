@@ -212,12 +212,28 @@ body {
 /* ── Sidebar ── */
 #sidebar {
   width: var(--sidebar-w);
-  min-width: var(--sidebar-w);
+  min-width: 120px;
+  max-width: 500px;
   display: flex;
   flex-direction: column;
   background: var(--bg-2);
-  border-right: 1px solid var(--border-mid);   /* was --border */
+  border-right: none;
   overflow: hidden;
+}
+
+/* ── Sidebar resizer ── */
+#sidebar-resizer {
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  user-select: none;
+  transition: background 0.1s;
+  border-right: 1px solid var(--border-mid);
+}
+#sidebar-resizer:hover,
+#sidebar-resizer.active {
+  background: var(--accent-dim);
 }
 
 #sidebar-toolbar {
@@ -393,7 +409,8 @@ body {
 
 /* ── Sidebar collapsed ── */
 
-#app.sidebar-collapsed #sidebar { display: none; }
+#app.sidebar-collapsed #sidebar          { display: none; }
+#app.sidebar-collapsed #sidebar-resizer  { display: none; }
 #app.sidebar-collapsed #header-brand {
   width: auto;
   border-right: none;
@@ -1121,11 +1138,16 @@ kbd {
   #main { flex-direction: column; }
 
   #sidebar {
-    width: 100%;
+    width: 100% !important;
+    min-width: 0;
+    max-width: none;
     max-height: 40vh;
     border-right: none;
     border-bottom: 1px solid var(--border-mid);
   }
+
+  #sidebar-resizer { display: none !important; }
+  #header-brand    { width: auto !important; }
 
   #note-area { padding: 16px; }
 

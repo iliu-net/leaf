@@ -74,6 +74,8 @@ export const DOM = {
   SYNC_STATUS:     'sync-status',
 
   // ── Sidebar ─────────────────────────────────────────────────────────────
+  SIDEBAR:          'sidebar',
+  SIDEBAR_RESIZER:  'sidebar-resizer',
   FILE_LIST:        'file-list',
   SEARCH:           'search',
   SIDEBAR_LOADING:  'sidebar-loading',

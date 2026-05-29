@@ -64,6 +64,8 @@ function setupDOM() {
           </div>
         </aside>
 
+        <div id="sidebar-resizer"></div>
+
         <main id="editor-wrap">
           <div id="empty-state">
             <p>Select a note or create a new one</p>
@@ -1103,5 +1105,98 @@ describe('bindEvents()', () => {
 
     appMenu.click();
     expect(brand.classList.contains('open')).toBe(true);
+  });
+});
+
+// ── Resizable sidebar ───────────────────────────────────────────────────────
+
+describe('initResizer()', () => {
+  const LS_KEY = 'leaf:sidebar-width';
+
+  beforeEach(() => {
+    localStorage.removeItem(LS_KEY);
+  });
+
+  afterEach(() => {
+    localStorage.removeItem(LS_KEY);
+  });
+
+  it('restores width from localStorage on init', async () => {
+    localStorage.setItem(LS_KEY, '300');
+    const ui = await getUI();
+    ui.initResizer();
+
+    const app = document.getElementById('app');
+    expect(app.style.getPropertyValue('--sidebar-w')).toBe('300px');
+  });
+
+  it('clamps restored width to min (120)', async () => {
+    localStorage.setItem(LS_KEY, '50');
+    const ui = await getUI();
+    ui.initResizer();
+
+    const app = document.getElementById('app');
+    expect(app.style.getPropertyValue('--sidebar-w')).toBe('120px');
+  });
+
+  it('clamps restored width to max (500)', async () => {
+    localStorage.setItem(LS_KEY, '9999');
+    const ui = await getUI();
+    ui.initResizer();
+
+    const app = document.getElementById('app');
+    expect(app.style.getPropertyValue('--sidebar-w')).toBe('500px');
+  });
+
+  it('ignores NaN in localStorage', async () => {
+    localStorage.setItem(LS_KEY, 'not-a-number');
+    const ui = await getUI();
+    ui.initResizer();
+
+    const app = document.getElementById('app');
+    // Should leave the variable untouched (default 220px from CSS)
+    expect(app.style.getPropertyValue('--sidebar-w')).toBe('');
+  });
+
+  it('does not throw when resizer element is missing', async () => {
+    // Remove the resizer from the DOM
+    const resizer = document.getElementById('sidebar-resizer');
+    if (resizer) resizer.remove();
+
+    const ui = await getUI();
+    expect(() => ui.initResizer()).not.toThrow();
+  });
+
+  it('persists width to localStorage on mouseup', async () => {
+    const ui = await getUI();
+    ui.initResizer();
+
+    const sidebar  = document.getElementById('sidebar');
+    const resizer  = document.getElementById('sidebar-resizer');
+
+    // jsdom doesn't do CSS layout, so getBoundingClientRect().width
+    // always returns 0.  Mock it to return a controlled value.
+    const origRect = sidebar.getBoundingClientRect.bind(sidebar);
+    const rectW = vi.fn(() => 220);
+    sidebar.getBoundingClientRect = () => {
+      const r = origRect();
+      r.width = rectW();
+      return r;
+    };
+
+    // Simulate drag: mousedown → mousemove → mouseup
+    resizer.dispatchEvent(new MouseEvent('mousedown', {
+      clientX: 220, bubbles: true,
+    }));
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      clientX: 320, bubbles: true,
+    }));
+    // Update the mocked width so mouseup reads the new value
+    rectW.mockReturnValue(320);
+    document.dispatchEvent(new MouseEvent('mouseup', {
+      clientX: 320, bubbles: true,
+    }));
+
+    expect(localStorage.getItem(LS_KEY)).toBe('320');
   });
 });

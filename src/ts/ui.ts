@@ -29,7 +29,7 @@ export {
 export {
   renderNoteList, setActiveNote, updateNoteCount,
   setSidebarLoading, toggleSidebar, clearSearch,
-  setMode, getMode, setTrashCount,
+  setMode, getMode, setTrashCount, initResizer,
 } from './sidebar.js';
 
 // ── DOM refs (for bindEvents & status bar) ─────────────────────────────────
@@ -103,6 +103,7 @@ export function bindEvents(handlers: UIEventHandlers): void {
 
   // ── Sidebar — all sidebar DOM wiring (file-list, search, chrome, menu)
   sidebar.init(handlers);
+  sidebar.initResizer();
 
   // Buttons
   btnSave.addEventListener('click', onSave);

@@ -204,3 +204,71 @@ export function init(handlers: UIEventHandlers): void {
     headerBrand.classList.remove('open');
   });
 }
+
+// ── Resizable sidebar ──────────────────────────────────────────────────────────
+
+const RESIZER_MIN = 120;
+const RESIZER_MAX = 500;
+const RESIZER_LS_KEY = 'leaf:sidebar-width';
+
+let _resizerDragging = false;
+
+/**
+ * Initialise the sidebar drag-resize handle.
+ *
+ * Drag the `#sidebar-resizer` element to resize the sidebar (and the
+ * header-brand) between {@link RESIZER_MIN}px and {@link RESIZER_MAX}px.
+ * The width is persisted to localStorage and restored on page load.
+ */
+export function initResizer(): void {
+  const sidebar = $maybe(DOM.SIDEBAR);
+  const resizer = $maybe(DOM.SIDEBAR_RESIZER);
+  const app     = $(DOM.APP);
+  if (!sidebar || !resizer) return;
+
+  // ── Restore persisted width ──
+  const saved = localStorage.getItem(RESIZER_LS_KEY);
+  if (saved) {
+    const w = Math.min(RESIZER_MAX, Math.max(RESIZER_MIN, Number(saved)));
+    if (!Number.isNaN(w)) _setResizerWidth(app, w);
+  }
+
+  // ── Drag state ──
+  let startX = 0;
+  let startW = 0;
+
+  resizer.addEventListener('mousedown', (e: MouseEvent) => {
+    e.preventDefault();
+    _resizerDragging = true;
+    startX = e.clientX;
+    startW = sidebar.getBoundingClientRect().width;
+    resizer.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp, { once: true });
+  });
+
+  function onMouseMove(e: MouseEvent): void {
+    if (!_resizerDragging) return;
+    const dx = e.clientX - startX;
+    const w = Math.min(RESIZER_MAX, Math.max(RESIZER_MIN, startW + dx));
+    _setResizerWidth(app, w);
+  }
+
+  function onMouseUp(): void {
+    _resizerDragging = false;
+    resizer!.classList.remove('active');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    document.removeEventListener('mousemove', onMouseMove);
+
+    const w = sidebar!.getBoundingClientRect().width;
+    localStorage.setItem(RESIZER_LS_KEY, String(Math.round(w)));
+  }
+}
+
+function _setResizerWidth(container: HTMLElement, w: number): void {
+  container.style.setProperty('--sidebar-w', `${w}px`);
+}
