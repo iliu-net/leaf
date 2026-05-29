@@ -110,11 +110,50 @@ export function bindEvents(handlers: UIEventHandlers): void {
   $(DOM.BTN_NEW).addEventListener('click', onNew);
   $(DOM.BTN_TOGGLE_SIDEBAR).addEventListener('click', sidebar.toggleSidebar);
 
-  // Global keyboard shortcuts
+  // ── Global keyboard shortcuts ──────────────────────────────────────────
   document.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+
+    // ── CTRL+S — save, then switch to view (no-op on VIEW tab) ─────────
+    if (e.key === 's') {
       e.preventDefault();
+      if (editor.getActiveTab() === 'view') return;  // VIEW: no-op
       onSave();
+      editor.switchEditorTab('view');
+      return;
+    }
+
+    // ── CTRL+E — toggle edit/view (pass-through on CODE tab) ───────────
+    if (e.key === 'e') {
+      const active = editor.getActiveTab();
+      // On CODE tab: let the browser / CodeMirror handle it
+      if (active === 'code') return;
+
+      e.preventDefault();
+      if (!editor.getCurrentNoteId()) return;
+
+      if (active === 'view' || active === 'meta') {
+        // → CODE (if CM available) or RAW
+        editor.switchEditorTab(editor.isCmAvailable() ? 'code' : 'raw');
+      } else {
+        // active === 'raw' → VIEW
+        editor.switchEditorTab('view');
+      }
+      return;
+    }
+
+    // ── CTRL+M — switch to META tab ────────────────────────────────────
+    if (e.key === 'm') {
+      e.preventDefault();
+      if (!editor.getCurrentNoteId()) return;
+      if (editor.getActiveTab() === 'meta') {
+        // Already on META — re-focus the title field
+        editor.focusActiveTab();
+      } else {
+        editor.switchEditorTab('meta');
+      }
+      return;
     }
   });
 

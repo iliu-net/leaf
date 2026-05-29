@@ -89,4 +89,4 @@ function getTextArea(): HTMLTextAreaElement | null {
 }
 
 /** TabPanel contract — typed lens for editor-ctrl.ts registration. */
-export const tabPanel: TabPanel = { init, show, hide };
+export const tabPanel: TabPanel = { init, show, hide, focus };

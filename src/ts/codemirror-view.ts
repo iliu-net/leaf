@@ -161,5 +161,12 @@ function cmHide(): void {
   /* textarea kept in sync by _flushToTextarea on every keystroke */
 }
 
+/** Focus the CodeMirror editor so the user can start typing immediately. */
+function cmFocus(): void {
+  _cmView?.focus();
+}
+
 /** TabPanel contract — typed lens for editor-ctrl.ts registration. */
-export const tabPanel: TabPanel = { init: cmInit, show: cmShow, hide: cmHide };
+export const tabPanel: TabPanel = {
+  init: cmInit, show: cmShow, hide: cmHide, focus: cmFocus,
+};

@@ -170,6 +170,34 @@ export function getCurrentNoteId(): string | null {
   return _currentNoteId;
 }
 
+/** Get the currently active tab name. */
+export function getActiveTab(): string {
+  return _activeTab;
+}
+
+/** Whether CodeMirror loaded successfully. */
+export function isCmAvailable(): boolean {
+  return _cmAvailable;
+}
+
+/**
+ * Switch to the given editor tab programmatically.
+ * Focuses the target panel's primary input after it becomes active.
+ */
+export async function switchEditorTab(tab: string): Promise<void> {
+  await switchTab(tab);
+}
+
+/**
+ * Re-focus the currently active tab's primary input.
+ * Use when already on the target tab and you want to re-focus without a
+ * full tab switch (e.g. hitting the same shortcut twice).
+ */
+export function focusActiveTab(): void {
+  const panel = panels.get(_activeTab);
+  panel?.focus?.();
+}
+
 // ── Tab switching ───────────────────────────────────────────────────────────
 
 async function switchTab(tab: string): Promise<void> {
@@ -195,6 +223,9 @@ async function switchTab(tab: string): Promise<void> {
   if (panel) {
     _showOnePanelDom(`tab-${tab}`);
     await panel.show(ctx);
+    // Focus the primary input so the user can start typing immediately
+    // (keyboard shortcut or mouse click → grab focus on entry).
+    panel.focus?.();
     _updateTabButtons();
   }
 }

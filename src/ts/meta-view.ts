@@ -428,6 +428,11 @@ function _updateValuePlaceholder(keyInput: HTMLElement): void {
   valInput.placeholder = KNOWN_KEYS[key] || 'value';
 }
 
+/** Focus the title field so the user can start typing immediately. */
+function metaFocus(): void {
+  _metaTitle?.focus();
+}
+
 /** TabPanel contract — typed lens for editor-ctrl.ts registration. */
-export const tabPanel: TabPanel = { init, show, hide };
+export const tabPanel: TabPanel = { init, show, hide, focus: metaFocus };
 

@@ -27,4 +27,10 @@ export interface TabPanel {
   show(ctx: TabPanelContext): void | Promise<void>;
   /** Hide the panel (called when switching away). */
   hide(): void;
+  /**
+   * Focus the panel's primary input element.
+   * Called after the panel becomes active (switchTab, keyboard shortcut).
+   * View tab has no focusable primary element and may omit this.
+   */
+  focus?(): void;
 }

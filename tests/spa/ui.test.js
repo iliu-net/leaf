@@ -889,7 +889,7 @@ describe('bindEvents()', () => {
     expect(onCancelModal).toHaveBeenCalledOnce();
   });
 
-  it('wires keyboard shortcut Ctrl+S for save', async () => {
+  it('Ctrl+S on VIEW tab is a no-op', async () => {
     const ui = await getUI();
     const onSave = vi.fn();
 
@@ -901,12 +901,39 @@ describe('bindEvents()', () => {
       onResetDB: vi.fn(),
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
+
+    // Open a note (defaults to VIEW tab).  Ctrl+S should not fire onSave.
+    await ui.showEditor({ id: 'test', content: 'hello', created_at: 0, updated_at: 0, current: '', meta: {} });
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('wires keyboard shortcut Ctrl+S for save on RAW tab', async () => {
+    const ui = await getUI();
+    const onSave = vi.fn();
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave, onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    // Open a note then switch to RAW tab by clicking its button.
+    // showEditor lands on VIEW; CodeMirror fails to load in jsdom so RAW is
+    // the editing fallback.  Wait a tick for loadCodeMirror to settle.
+    await ui.showEditor({ id: 'test', content: 'hello', created_at: 0, updated_at: 0, current: '', meta: {} });
+    await new Promise(r => setTimeout(r, 10));
+    document.getElementById('tab-btn-raw').click();
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
     expect(onSave).toHaveBeenCalledOnce();
   });
 
-  it('wires shortcut Cmd+S for save on Mac', async () => {
+  it('wires shortcut Cmd+S for save on RAW tab (Mac)', async () => {
     const ui = await getUI();
     const onSave = vi.fn();
 
@@ -919,8 +946,178 @@ describe('bindEvents()', () => {
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
+    // Open a note then switch to RAW tab.
+    await ui.showEditor({ id: 'test', content: 'hello', created_at: 0, updated_at: 0, current: '', meta: {} });
+    await new Promise(r => setTimeout(r, 10));
+    document.getElementById('tab-btn-raw').click();
+
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true }));
     expect(onSave).toHaveBeenCalledOnce();
+  });
+
+  // ── Ctrl+E shortcut ───────────────────────────────────────────────────
+
+  it('Ctrl+E on VIEW tab switches to CODE (or RAW if CM unavailable)', async () => {
+    const ui = await getUI();
+    const editor = await import('../../src/ts/editor-ctrl.ts');
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    // Open a note (lands on VIEW).  Wait for loadCodeMirror to settle.
+    await ui.showEditor({ id: 'test', content: 'hello', created_at: 0, updated_at: 0, current: '', meta: {} });
+    await new Promise(r => setTimeout(r, 10));
+    expect(editor.getActiveTab()).toBe('view');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', ctrlKey: true }));
+    await new Promise(r => setTimeout(r, 10));
+    // The destination depends on whether CodeMirror loaded in this env.
+    const dest = editor.isCmAvailable() ? 'code' : 'raw';
+    expect(editor.getActiveTab()).toBe(dest);
+  });
+
+  it('Ctrl+E on editing tab (RAW) switches to VIEW', async () => {
+    const ui = await getUI();
+    const editor = await import('../../src/ts/editor-ctrl.ts');
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    await ui.showEditor({ id: 'test', content: 'hello', created_at: 0, updated_at: 0, current: '', meta: {} });
+    await new Promise(r => setTimeout(r, 10));
+
+    // Programmatically switch to RAW — the panel is always registered.
+    await editor.switchEditorTab('raw');
+    expect(editor.getActiveTab()).toBe('raw');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', ctrlKey: true }));
+    await new Promise(r => setTimeout(r, 10));
+    expect(editor.getActiveTab()).toBe('view');
+  });
+
+  it('Ctrl+E on META tab switches to edit tab (CODE/RAW)', async () => {
+    const ui = await getUI();
+    const editor = await import('../../src/ts/editor-ctrl.ts');
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    await ui.showEditor({ id: 'test', content: 'hello', created_at: 0, updated_at: 0, current: '', meta: {} });
+    await new Promise(r => setTimeout(r, 10));
+    // Switch to META first
+    document.getElementById('tab-btn-meta').click();
+    expect(editor.getActiveTab()).toBe('meta');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', ctrlKey: true }));
+    await new Promise(r => setTimeout(r, 10));
+    const dest = editor.isCmAvailable() ? 'code' : 'raw';
+    expect(editor.getActiveTab()).toBe(dest);
+  });
+
+  it('Ctrl+E is no-op when no note is open', async () => {
+    const ui = await getUI();
+    const editor = await import('../../src/ts/editor-ctrl.ts');
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    const prev = editor.getActiveTab();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', ctrlKey: true }));
+    await new Promise(r => setTimeout(r, 10));
+    // Tab should not change
+    expect(editor.getActiveTab()).toBe(prev);
+  });
+
+  // ── Ctrl+M shortcut ───────────────────────────────────────────────────
+
+  it('Ctrl+M on VIEW tab switches to META', async () => {
+    const ui = await getUI();
+    const editor = await import('../../src/ts/editor-ctrl.ts');
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    await ui.showEditor({ id: 'test', content: 'hello', created_at: 0, updated_at: 0, current: '', meta: {} });
+    await new Promise(r => setTimeout(r, 10));
+    expect(editor.getActiveTab()).toBe('view');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', ctrlKey: true }));
+    await new Promise(r => setTimeout(r, 10));
+    expect(editor.getActiveTab()).toBe('meta');
+  });
+
+  it('Ctrl+M on RAW tab switches to META', async () => {
+    const ui = await getUI();
+    const editor = await import('../../src/ts/editor-ctrl.ts');
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    await ui.showEditor({ id: 'test', content: 'hello', created_at: 0, updated_at: 0, current: '', meta: {} });
+    await new Promise(r => setTimeout(r, 10));
+    document.getElementById('tab-btn-raw').click();
+    expect(editor.getActiveTab()).toBe('raw');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', ctrlKey: true }));
+    await new Promise(r => setTimeout(r, 10));
+    expect(editor.getActiveTab()).toBe('meta');
+  });
+
+  it('Ctrl+M is no-op when no note is open', async () => {
+    const ui = await getUI();
+    const editor = await import('../../src/ts/editor-ctrl.ts');
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    const prev = editor.getActiveTab();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', ctrlKey: true }));
+    await new Promise(r => setTimeout(r, 10));
+    expect(editor.getActiveTab()).toBe(prev);
   });
 
   it('wires Escape to close modal', async () => {
