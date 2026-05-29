@@ -30,10 +30,10 @@ import { db, dbPurgeDeletedNotes, dbGetNote } from './db.js';
 import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
 import { subscribe } from './change-bus.js';
-import { loadConfig, fetchSpaConfig, getSpaConfig, getAutosaveConfig } from './config.js';
+import { loadConfig, fetchSpaConfig, getSpaConfig, getAutosaveConfig, getNamespace } from './config.js';
 import { loadPlugins } from './markdown.js';
 import { loadTrashEntries } from './trash-ctrl.js';
-import { DOM, $maybe } from './dom-ids.js';
+import { DOM, $, $maybe } from './dom-ids.js';
 
 import * as loginCtrl  from './login-ctrl.js';
 import * as notesCtrl  from './notes-ctrl.js';
@@ -74,6 +74,51 @@ function _updateBackButton(): void {
   const btn = $maybe(DOM.BTN_BACK) as HTMLButtonElement | null;
   if (!btn) return;
   btn.disabled = _navHistory.length <= 1;
+}
+
+// ── Last-note persistence ──────────────────────────────────────────────────
+
+const _ns = getNamespace();
+const LAST_NOTE_KEY = _ns ? `leaf:last-note:${_ns}` : 'leaf:last-note';
+
+/** Persist the last opened note ID to localStorage (scoped to install path). */
+function persistLastNote(id: string): void {
+  try { localStorage.setItem(LAST_NOTE_KEY, id); } catch { /* quota / private browsing */ }
+}
+
+/**
+ * Restore the last opened note on boot.
+ * @returns true if a note was restored, false otherwise.
+ */
+async function restoreLastNote(): Promise<boolean> {
+  let lastId: string | null = null;
+  try { lastId = localStorage.getItem(LAST_NOTE_KEY); } catch { /* unavailable */ }
+  if (!lastId) return false;
+
+  const existing = await dbGetNote(lastId);
+  if (!existing) {
+    // Note no longer exists — clean up stale key
+    try { localStorage.removeItem(LAST_NOTE_KEY); } catch { /* ignore */ }
+    return false;
+  }
+
+  try {
+    const data = await notes.loadNote(lastId);
+    _current = lastId;
+    _content = data.content;
+    _savePending = false;
+    if (_autoSaveTimer !== null) {
+      clearTimeout(_autoSaveTimer);
+      _autoSaveTimer = null;
+    }
+    ui.setDirty(false);
+    ui.showEditor(data);
+    ui.setActiveNote(lastId);
+    pushHistory(lastId);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ── Editor state (current note, content, auto-save) ──────────────────────
@@ -190,6 +235,13 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
       // Refresh sidebar list only — don't re-open (content is already
       // current from the save that just happened).
       await notesCtrl.refreshList();
+      // Fix highlight: the editor may be showing a different note than
+      // app-level _current (e.g. createNote opens a note before _current
+      // is updated, and the synchronous publish races refreshList).
+      const editorId = ui.getCurrentNoteId();
+      if (editorId && editorId !== currentId) {
+        ui.setActiveNote(editorId);
+      }
       break;
     }
 
@@ -311,6 +363,7 @@ function wireUiEvents(): void {
         ui.showEditor(data);
         ui.setActiveNote(id);
         pushHistory(id);
+        persistLastNote(id);
       } catch { /* error toast handled in openNote */ }
     },
     onDelete:        async id => {
@@ -344,8 +397,22 @@ function wireUiEvents(): void {
       _savePending = false;
       ui.setDirty(false);
     },
-    onNew:           ()       => modal.openModal(ui.getCurrentNoteId(), ''),
-    onCreate:        ()       => notesCtrl.createNote(),
+    onNew:           ()       => {
+      const searchVal = ($(DOM.SEARCH) as HTMLInputElement).value;
+      modal.openModal(ui.getCurrentNoteId(), searchVal);
+    },
+    onCreate:        async () => {
+      await notesCtrl.createNote();
+      // Sync app-level state to the note just opened in the editor.
+      _current = ui.getCurrentNoteId();
+      _content = ui.getRawContent();
+      _savePending = false;
+      if (_autoSaveTimer !== null) {
+        clearTimeout(_autoSaveTimer);
+        _autoSaveTimer = null;
+      }
+      ui.setDirty(false);
+    },
     onCancelModal:   ()       => modal.closeModal(),
     onLogin:         async (u, p) => { if (await loginCtrl.handleLogin(u, p)) showAppFull(); },
     onLogout:        ()       => loginCtrl.handleLogout(),
@@ -383,6 +450,7 @@ async function handleBack(): Promise<void> {
     ui.showEditor(data);
     ui.setActiveNote(prevId);
     pushHistory(prevId);
+    persistLastNote(prevId);
   } catch {
     ui.toast(`Failed to open "${prevId}"`, true);
   }
@@ -405,6 +473,11 @@ async function showShell(): Promise<void> {
 
   await notesCtrl.refreshList();
   updateTrashCount();
+
+  // Restore the last opened note (persisted across page loads)
+  restoreLastNote().catch(err =>
+    console.warn('[boot] Failed to restore last note:', err)
+  );
 
   subscribe(event => {
     ui.setSidebarLoading(false);
@@ -444,6 +517,7 @@ async function showShell(): Promise<void> {
       ui.showEditor(data);
       ui.setActiveNote(id);
       pushHistory(id);
+      persistLastNote(id);
     } catch (err) {
       console.warn('[app] navigate-note failed:', err);
     }

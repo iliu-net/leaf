@@ -7,7 +7,7 @@
 
 import type { NoteData } from './notes.js';
 import type { FrontmatterResult } from './frontmatter.js';
-import { formatTimestamp, esc, computeStats, html } from './utils.js';
+import { formatTimestamp, relativeTime, esc, computeStats, html } from './utils.js';
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -106,6 +106,9 @@ export function renderSystemInfo(noteData: NoteData): string {
     if (noteData.created_by) {
       rows.push(html` by ${esc(noteData.created_by)}`)
     }
+    if (noteData.created_at) {
+      rows.push(html` (${relativeTime(noteData.created_at)})`)
+    }
     rows.push(html`</td></tr>`)
   }
   if (noteData.updated_at || noteData.updated_by) {
@@ -115,6 +118,9 @@ export function renderSystemInfo(noteData: NoteData): string {
     }
     if (noteData.updated_by) {
       rows.push(html` by ${esc(noteData.updated_by)}`)
+    }
+    if (noteData.updated_at) {
+      rows.push(html` (${relativeTime(noteData.updated_at)})`)
     }
     rows.push(html`</td></tr>`)
   }

@@ -91,9 +91,15 @@ export async function showEditor(noteData: NoteData): Promise<void> {
   // Show note name
   currentFile.innerHTML = `<span class="fname">${esc(noteData.id)}</span>`;
 
-  // Render the View tab as the default.
-  _activeTab = 'raw';  // force-switch so switchTab('view') doesn't early-return
-  await switchTab('view');
+  // Render the View tab as the default, or switch to edit mode
+  // for brand-new (empty) notes so the user can start typing immediately.
+  _activeTab = 'raw';  // force-switch so switchTab doesn't early-return
+  const isEmpty = !noteData.content.trim();
+  if (isEmpty) {
+    await switchTab(_cmAvailable ? 'code' : 'raw');
+  } else {
+    await switchTab('view');
+  }
 }
 
 export function hideEditor(): void {
