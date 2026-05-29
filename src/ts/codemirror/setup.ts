@@ -14,7 +14,7 @@ import {
   keymap, drawSelection, dropCursor, highlightSpecialChars,
   rectangularSelection, crosshairCursor,
 } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Compartment } from '@codemirror/state';
 import {
   defaultKeymap, history, historyKeymap, indentWithTab,
 } from '@codemirror/commands';
@@ -62,16 +62,13 @@ function codeLanguages(info: string) {
   return null;
 }
 
-// ── High-contrast syntax highlighting ──────────────────────────────────────────
+// ── Syntax highlighting: dark themes ──────────────────────────────────────────
 
 /**
- * Custom HighlightStyle with bright, distinct colours optimised for
- * readability on a near-black (#0a0a0a) background.
- *
- * Colours are pushed harder than CodeMirror's defaultHighlightStyle —
- * no muted tones, everything earns its place on screen.
+ * Bright, distinct colours optimised for readability on dark backgrounds.
+ * Used by: dark, paired-12 themes.
  */
-const highContrast = HighlightStyle.define([
+const highlightDark = HighlightStyle.define([
   // ── Markdown structure ────────────────────────────────────────────────
   { tag: tags.heading1, color: '#ffa657', fontWeight: 'bold', fontSize: '1.5em' },
   { tag: tags.heading2, color: '#ffa657', fontWeight: 'bold', fontSize: '1.3em' },
@@ -136,6 +133,104 @@ const highContrast = HighlightStyle.define([
   { tag: tags.invalid,  color: '#ff7b72', textDecoration: 'underline wavy' },
 ]);
 
+// ── Syntax highlighting: light themes ─────────────────────────────────────────
+
+/**
+ * Distinct colours optimised for readability on light backgrounds.
+ * Used by: light, magenta themes.
+ */
+const highlightLight = HighlightStyle.define([
+  // ── Markdown structure ────────────────────────────────────────────────
+  { tag: tags.heading1, color: '#0550ae', fontWeight: 'bold', fontSize: '1.5em' },
+  { tag: tags.heading2, color: '#0550ae', fontWeight: 'bold', fontSize: '1.3em' },
+  { tag: tags.heading3, color: '#0550ae', fontWeight: 'bold', fontSize: '1.15em' },
+  { tag: tags.heading4, color: '#0550ae', fontWeight: 'bold' },
+  { tag: tags.heading5, color: '#0550ae', fontWeight: 'bold' },
+  { tag: tags.heading6, color: '#0550ae', fontWeight: 'bold' },
+  { tag: tags.strong,       color: '#cf222e', fontWeight: 'bold' },
+  { tag: tags.emphasis,     color: '#8250df', fontStyle: 'italic' },
+  { tag: tags.strikethrough,color: '#6e7781', textDecoration: 'line-through' },
+  { tag: tags.link,         color: '#0550ae', textDecoration: 'underline' },
+  { tag: tags.url,          color: '#116329', textDecoration: 'underline' },
+  { tag: tags.monospace,    color: '#1a1a1a', backgroundColor: '#d0d7de52', borderRadius: '3px' },
+  { tag: tags.quote,        color: '#6e7781', fontStyle: 'italic' },
+  { tag: tags.list,         color: '#8250df', fontWeight: 'bold' },
+  { tag: tags.contentSeparator, color: '#6e7781' },
+
+  // ── Meta / hidden ─────────────────────────────────────────────────────
+  { tag: tags.meta,                 color: '#6e7781' },
+  { tag: tags.processingInstruction, color: '#6e7781', fontStyle: 'italic' },
+
+  // ── Nested code blocks: keywords & literals ───────────────────────────
+  { tag: tags.keyword,   color: '#cf222e' },
+  { tag: tags.atom,      color: '#cf222e' },
+  { tag: tags.bool,      color: '#cf222e' },
+  { tag: tags.self,      color: '#cf222e' },
+  { tag: tags.null,      color: '#cf222e' },
+  { tag: tags.string,    color: '#0a3069' },
+  { tag: tags.character, color: '#0a3069' },
+  { tag: tags.escape,    color: '#8250df' },
+  { tag: tags.number,    color: '#0550ae' },
+  { tag: tags.regexp,    color: '#0a3069' },
+  { tag: tags.color,     color: '#0550ae' },
+
+  // ── Nested code blocks: names ─────────────────────────────────────────
+  { tag: tags.typeName,      color: '#8250df' },
+  { tag: tags.className,     color: '#8250df' },
+  { tag: tags.tagName,       color: '#116329' },
+  { tag: tags.variableName,  color: '#24292f' },
+  { tag: tags.propertyName,  color: '#0550ae' },
+  { tag: tags.attributeName, color: '#8250df' },
+  { tag: tags.labelName,     color: '#0550ae' },
+  { tag: tags.namespace,     color: '#8250df' },
+  { tag: tags.macroName,     color: '#8250df' },
+
+  // ── Nested code blocks: operators & punctuation ───────────────────────
+  { tag: tags.operator,    color: '#24292f' },
+  { tag: tags.punctuation, color: '#24292f' },
+  { tag: tags.separator,   color: '#24292f' },
+  { tag: tags.bracket,     color: '#24292f' },
+
+  // ── Nested code blocks: comments ──────────────────────────────────────
+  { tag: tags.comment,      color: '#6e7781', fontStyle: 'italic' },
+  { tag: tags.lineComment,  color: '#6e7781', fontStyle: 'italic' },
+  { tag: tags.blockComment, color: '#6e7781', fontStyle: 'italic' },
+  { tag: tags.docComment,   color: '#6e7781', fontStyle: 'italic' },
+
+  // ── Diff / change markers ─────────────────────────────────────────────
+  { tag: tags.inserted, color: '#116329' },
+  { tag: tags.deleted,  color: '#cf222e' },
+  { tag: tags.changed,  color: '#8250df' },
+  { tag: tags.invalid,  color: '#cf222e', textDecoration: 'underline wavy' },
+]);
+
+// ── Theme-switchable syntax compartment ───────────────────────────────────────
+
+const syntaxCompartment = new Compartment();
+let _activeCMView: EditorView | null = null;
+
+/** Pick the right HighlightStyle for a theme name. */
+function resolveHighlight(theme: string) {
+  return (theme === 'light' || theme === 'magenta') ? highlightLight : highlightDark;
+}
+
+/**
+ * Reconfigure the syntax highlighting on the active CodeMirror editor.
+ * Safe to call before CM is loaded (no-op if editor hasn't been created yet).
+ * Exposed on window so ui.ts can call it without importing the heavy CM chunk.
+ */
+function setCMTheme(theme: string): void {
+  if (!_activeCMView) return;
+  _activeCMView.dispatch({
+    effects: syntaxCompartment.reconfigure(
+      syntaxHighlighting(resolveHighlight(theme)),
+    ),
+  });
+}
+
+// Install the global hook (lazy-loaded, so may appear after initial paint).
+(window as any).__leafSetCMTheme = setCMTheme;
+
 // ── Factory ───────────────────────────────────────────────────────────────────
 
 /**
@@ -184,8 +279,12 @@ export function createEditor(
     // ── Search highlight ─────────────────────────────────────────────────
     highlightSelectionMatches(),
 
-    // ── Syntax highlighting ──────────────────────────────────────────────
-    syntaxHighlighting(highContrast),
+    // ── Syntax highlighting (theme-switchable via Compartment) ──────────
+    syntaxCompartment.of(
+      syntaxHighlighting(resolveHighlight(
+        document.documentElement.getAttribute('data-theme') || 'dark',
+      )),
+    ),
 
     // ── Markdown language (with nested code-fence highlighting) ──────────
     markdown({ codeLanguages }),
@@ -201,7 +300,7 @@ export function createEditor(
     // ── Theme — matches app.css tokens ───────────────────────────────────
     EditorView.theme({
       '&': {
-        fontSize: '13.5px',
+        fontSize: 'var(--fs-mono)',
         lineHeight: '1.8',
         width: '100%',
         height: '100%',
@@ -245,11 +344,11 @@ export function createEditor(
         padding: '0 4px',
       },
       '.cm-selectionMatch': {
-        backgroundColor: 'rgba(212, 196, 160, 0.12)',
+        backgroundColor: 'var(--accent-glow)',
       },
       '.cm-searchMatch': {
-        backgroundColor: 'rgba(212, 196, 160, 0.18)',
-        outline: '1px solid rgba(212, 196, 160, 0.35)',
+        backgroundColor: 'var(--accent-glow)',
+        outline: '1px solid var(--accent-dim)',
       },
     }),
   ];
@@ -258,6 +357,8 @@ export function createEditor(
     state: EditorState.create({ doc: initialDoc, extensions }),
     parent,
   });
+
+  _activeCMView = view;
 
   return view;
 }

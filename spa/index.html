@@ -15,7 +15,24 @@
   <meta name="apple-mobile-web-app-title" content="Leaf">
 
   <title>Leaf</title>
-  <link rel="stylesheet" href="css/app.css">
+
+  <!-- Theme init: set data-theme before CSS loads to prevent FOUC -->
+  <script>
+    (function(){
+      var t = localStorage.getItem('leaf:theme');
+      if (!t) { t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
+      document.documentElement.setAttribute('data-theme', t);
+      var mc = document.querySelector('meta[name="theme-color"]');
+      if (mc) { mc.setAttribute('content',
+        t === 'light' ? '#fafaf8' : t === 'magenta' ? '#ffffff' : t === 'paired-12' ? '#0d1117' : '#080808'); }
+    })();
+  </script>
+
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/theme-dark.css">
+  <link rel="stylesheet" href="css/theme-light.css">
+  <link rel="stylesheet" href="css/theme-magenta.css">
+  <link rel="stylesheet" href="css/theme-paired-12.css">
   <link rel="stylesheet" href="css/hljs.css">
   <link rel="stylesheet" href="css/cm.css">
 </head>
@@ -96,6 +113,16 @@
         <button id="menu-trash" class="dropdown-item" data-view="trash">
           <span class="dropdown-check">✓</span> Trash
         </button>
+        <div class="dropdown-divider"></div>
+        <div class="dropdown-submenu">
+          <button class="dropdown-item">Theme</button>
+          <div class="dropdown-sub" id="theme-menu">
+            <button class="theme-option active" data-theme-val="dark">Dark</button>
+            <button class="theme-option" data-theme-val="light">Light</button>
+            <button class="theme-option" data-theme-val="magenta">Magenta</button>
+            <button class="theme-option" data-theme-val="paired-12">Paired-12</button>
+          </div>
+        </div>
         <div class="dropdown-divider"></div>
         <button id="menu-reset-db" class="dropdown-item">Reset Database</button>
       </div>

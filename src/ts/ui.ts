@@ -184,4 +184,43 @@ export function bindEvents(handlers: UIEventHandlers): void {
       closeMenu();
     }
   });
+
+  // ── Theme switching ────────────────────────────────────────────────────
+  const themeOptions = document.querySelectorAll<HTMLButtonElement>('.theme-option');
+
+  const THEME_COLORS: Record<string, string> = {
+    dark:     '#080808',
+    light:    '#fafaf8',
+    magenta:  '#ffffff',
+    'paired-12': '#0d1117',
+  };
+
+  function applyTheme(theme: string): void {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('leaf:theme', theme);
+    const mc = document.querySelector('meta[name="theme-color"]');
+    if (mc) mc.setAttribute('content', THEME_COLORS[theme] || '#080808');
+    themeOptions.forEach(opt => {
+      opt.classList.toggle('active', opt.dataset.themeVal === theme);
+    });
+    // Notify CodeMirror to swap syntax highlight style (no-op if CM not loaded)
+    const setCM = (window as any).__leafSetCMTheme;
+    if (setCM) setCM(theme);
+  }
+
+  themeOptions.forEach(opt => {
+    opt.addEventListener('click', () => {
+      const theme = opt.dataset.themeVal;
+      if (theme) {
+        applyTheme(theme);
+        closeMenu();
+      }
+    });
+  });
+
+  // Sync initial active indicator with whatever the <head> script set
+  const initialTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  themeOptions.forEach(opt => {
+    opt.classList.toggle('active', opt.dataset.themeVal === initialTheme);
+  });
 }
