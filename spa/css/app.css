@@ -857,6 +857,12 @@ kbd {
   color: var(--danger);
 }
 
+/* Language row — read-only key */
+.custom-row-lang .custom-key {
+  opacity: .55;
+  cursor: default;
+}
+
 /* ── Content stats ── */
 .meta-stats {
   font-size: 12px;

@@ -36,7 +36,7 @@ import { spellcheckPlugin } from './spellcheck.js';
 
 export interface CMView {
   readonly state: { readonly doc: { toString(): string; readonly length: number } };
-  dispatch(spec: { changes: { from: number; to?: number; insert?: string } }): void;
+  dispatch(spec: { changes?: { from: number; to?: number; insert?: string } }): void;
   destroy(): void;
   readonly dom: HTMLElement;
   focus(): void;
@@ -191,7 +191,7 @@ export function createEditor(
     markdown({ codeLanguages }),
 
     // ── Spellcheck ───────────────────────────────────────────────────────
-    spellcheckPlugin,
+    spellcheckPlugin(),
 
     // ── Change notification ──────────────────────────────────────────────
     EditorView.updateListener.of((update) => {
@@ -203,20 +203,23 @@ export function createEditor(
       '&': {
         fontSize: '13.5px',
         lineHeight: '1.8',
+        width: '100%',
         height: '100%',
+        maxWidth: '800px',
+        margin: '0 auto',
         backgroundColor: 'var(--bg)',
         color: 'var(--text-1)',
       },
       '.cm-scroller': {
         fontFamily: 'var(--font-mono)',
         overflow: 'auto',
-        padding: '28px 36px',
-        maxWidth: '800px',
-        margin: '0 auto',
+        padding: '28px 0',
       },
       '.cm-content': {
         caretColor: 'var(--accent)',
         fontFamily: 'var(--font-mono)',
+        padding: '0 36px',
+        minHeight: '100%',
       },
       '.cm-gutters': {
         borderRight: '1px solid var(--border-mid)',

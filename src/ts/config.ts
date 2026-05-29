@@ -97,6 +97,13 @@ export interface SpaConfig {
   deleted_notes_ttl_days: number;
   /** Timestamp format string (e.g. 'YYYY-MM-DD HH:mm'), or null for client default. */
   timestamp_format: string | null;
+  /** Spellcheck configuration (client-side only — not written to server). */
+  spellcheck?: {
+    /** Default BCP 47 language tag (e.g. 'en-US'). Falls back to <html lang> → 'en-US'. */
+    default_lang?: string;
+    /** Languages to show in the meta-tab language picker. */
+    preferred_langs?: string[];
+  };
 }
 
 /** Hardcoded safe defaults used when no config has been fetched yet. */
@@ -104,6 +111,10 @@ const DEFAULT_SPA_CONFIG: SpaConfig = {
   markdown: { html: false, plugins: [] },
   deleted_notes_ttl_days: 7,
   timestamp_format: null,
+  spellcheck: {
+    default_lang: 'en-US',
+    preferred_langs: ['en-US', 'en-GB', 'es', 'fr', 'de', 'it', 'pt', 'nl'],
+  },
 };
 
 let _spaConfig: SpaConfig = { ...DEFAULT_SPA_CONFIG };
@@ -142,4 +153,18 @@ export async function fetchSpaConfig(): Promise<void> {
  */
 export function getSpaConfig(): SpaConfig {
   return _spaConfig;
+}
+
+/**
+ * Spellcheck config with defaults filled in (never undefined).
+ * Safe to call before fetchSpaConfig() completes.
+ */
+export function getSpellcheckConfig(): Required<NonNullable<SpaConfig['spellcheck']>> {
+  const sc = _spaConfig.spellcheck ?? DEFAULT_SPA_CONFIG.spellcheck!;
+  return {
+    default_lang: sc.default_lang || DEFAULT_SPA_CONFIG.spellcheck!.default_lang!,
+    preferred_langs: sc.preferred_langs?.length
+      ? sc.preferred_langs
+      : DEFAULT_SPA_CONFIG.spellcheck!.preferred_langs!,
+  };
 }

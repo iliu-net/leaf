@@ -108,6 +108,7 @@ export const DOM = {
   META_SYS_CREATED:    'meta-sys-created',
   META_SYS_UPDATED:    'meta-sys-updated',
   BTN_ADD_CUSTOM:      'btn-add-custom',
+  BTN_ADD_LANG:        'btn-add-lang',
 
   // ── Modal ───────────────────────────────────────────────────────────────
   MODAL_OVERLAY: 'modal-overlay',
@@ -116,6 +117,10 @@ export const DOM = {
   MODAL_HINT:    'modal-hint',
   MODAL_CREATE:  'modal-create',
   MODAL_CANCEL:  'modal-cancel',
+
+  // ── Datalists ────────────────────────────────────────────────────────────
+  LANG_LIST:   'lang-list',
+  KNOWN_KEYS:  'known-keys',
 
   // ── Context menu ────────────────────────────────────────────────────────
   CONTEXT_MENU: 'context-menu',

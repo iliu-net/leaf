@@ -16,6 +16,7 @@ export interface PendingMeta {
   summary: string;
   tags: string[];
   custom: Record<string, string>;   // key → value
+  lang?: string;                     // BCP 47 spellcheck language
 }
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -29,6 +30,8 @@ const RESERVED_KEYS = new Set([
   'summary',
   'user-tags',
   'auto-tags',
+  'tags',
+  'lang',
 ]);
 
 // ── Parser ───────────────────────────────────────────────────────────────
@@ -121,11 +124,13 @@ export function updateFrontmatter(
  */
 export function initPendingMeta(fm: FrontmatterResult['meta']): PendingMeta {
   const rawTags = Array.isArray(fm['user-tags']) ? fm['user-tags'] : [];
+  const rawLang = fm['lang'];
   return {
     title:   (typeof fm['title'] === 'string' ? fm['title'] : ''),
     summary: (typeof fm['summary'] === 'string' ? fm['summary'] : ''),
     tags:    sanitizeTags(rawTags),
     custom:  extractCustom(fm),
+    lang:    typeof rawLang === 'string' ? rawLang : undefined,
   };
 }
 
@@ -139,6 +144,7 @@ export function pendingMetaToUpdates(pm: PendingMeta): Record<string, string | s
     title:      pm.title || undefined,
     summary:    pm.summary || undefined,
     'user-tags': tags.length > 0 ? tags : undefined,
+    lang:       pm.lang || undefined,
   };
 
   // Merge custom fields (only valid keys survive)
@@ -155,6 +161,7 @@ export function pendingMetaToUpdates(pm: PendingMeta): Record<string, string | s
 export function pendingMetaEqual(a: PendingMeta, b: PendingMeta): boolean {
   if (a.title !== b.title) return false;
   if (a.summary !== b.summary) return false;
+  if (a.lang !== b.lang) return false;
   if (a.tags.length !== b.tags.length) return false;
   for (let i = 0; i < a.tags.length; i++) {
     if (a.tags[i] !== b.tags[i]) return false;

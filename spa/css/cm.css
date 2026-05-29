@@ -6,9 +6,11 @@
    in setup.ts via EditorView.theme().
 ───────────────────────────────────────────── */
 
-/* Code tab layout */
+/* Code tab layout — prevent flex shrink-wrapping */
 #tab-code.active {
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
 }
 
 /* Scrollbar styling — match the native textarea */

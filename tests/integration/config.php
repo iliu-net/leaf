@@ -29,6 +29,10 @@ $spa_config = [
     ],
     'deleted_notes_ttl_days' => 7,
     'timestamp_format'      => null,
+    'spellcheck' => [
+        'default_lang'    => 'en-GB',
+        'preferred_langs' => ['en-US', 'en-GB', 'es', 'nl'],
+    ],
 ];
 
 define('CORS_ALLOW_POLICY',   '*');

@@ -253,9 +253,22 @@
             <div class="meta-section-header">
               <span>Custom Fields</span>
               <button id="btn-add-custom" class="btn-small">+ Add</button>
+              <button id="btn-add-lang" class="btn-small">+ Language</button>
             </div>
             <div id="meta-custom-rows"></div>
           </div>
+
+          <!-- Datalists for meta-tab inputs -->
+          <!-- lang-list is populated dynamically from SpaConfig.spellcheck.preferred_langs -->
+          <datalist id="lang-list"></datalist>
+          <!-- known-keys: common frontmatter keys, inspired by Word document properties -->
+          <datalist id="known-keys">
+            <option value="category">category</option>
+            <option value="comments">comments</option>
+            <option value="company">company</option>
+            <option value="manager">manager</option>
+            <option value="status">status</option>
+          </datalist>
 
           <!-- Content stats (body only) -->
           <div id="meta-stats-section">

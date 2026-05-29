@@ -20,13 +20,15 @@
 import type { TabPanel, TabPanelContext } from './tab-panel.js';
 import { parseFrontmatter } from './frontmatter.js';
 import { DOM, $maybe } from './dom-ids.js';
+import { setSpellcheckLang, resolveSpellcheckLang } from './codemirror/spellcheck.js';
+import { getSpellcheckConfig } from './config.js';
 
 // ── Minimal CM interfaces (no @codemirror/* import needed) ────────────────────
 
 /** Slice of CodeMirror EditorView that codemirror-edit.ts needs. */
 interface CMView {
   readonly state: { readonly doc: { toString(): string; readonly length: number } };
-  dispatch(spec: { changes: { from: number; to?: number; insert?: string } }): void;
+  dispatch(spec: { changes?: { from: number; to?: number; insert?: string } }): void;
   destroy(): void;
   readonly dom: HTMLElement;
   focus(): void;
@@ -49,6 +51,17 @@ let _textarea: HTMLTextAreaElement | null = null;
  * (e.g. when cmShow updates CM to match a changed textarea).
  */
 let _suppressNextFlush = false;
+
+// ── Spellcheck language change listener ──────────────────────────────────────
+
+/**
+ * When setSpellcheckLang() fires 'spellcheck-lang-changed', dispatch an
+ * empty transaction to force the spellcheck ViewPlugin's update() so the
+ * lang attribute is applied without waiting for the next keystroke.
+ */
+window.addEventListener('spellcheck-lang-changed', () => {
+  _cmView?.dispatch({});
+});
 
 // ── Public API (called by editor-ctrl.ts) ─────────────────────────────────────
 
@@ -115,6 +128,12 @@ async function cmShow(ctx: TabPanelContext): Promise<void> {
   const fm = parseFrontmatter(ctx.content);
   const parent = $maybe(DOM.TAB_CODE);
   if (!parent) return;
+
+  // Resolve spellcheck language: frontmatter → SpaConfig → <html lang> → 'en-US'
+  const fmLang = typeof fm.meta['lang'] === 'string' ? fm.meta['lang'] as string : undefined;
+  const cfgDefault = getSpellcheckConfig().default_lang;
+  const lang = resolveSpellcheckLang(fmLang, cfgDefault);
+  setSpellcheckLang(lang);
 
   if (_cmView) {
     // Editor already exists — sync its content to match current textarea body.
