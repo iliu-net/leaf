@@ -30,7 +30,7 @@ import { db, dbPurgeDeletedNotes, dbGetNote } from './db.js';
 import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
 import { subscribe } from './change-bus.js';
-import { loadConfig, fetchSpaConfig, getSpaConfig } from './config.js';
+import { loadConfig, fetchSpaConfig, getSpaConfig, getAutosaveConfig } from './config.js';
 import { loadPlugins } from './markdown.js';
 import { loadTrashEntries } from './trash-ctrl.js';
 import { DOM, $maybe } from './dom-ids.js';
@@ -39,20 +39,57 @@ import * as loginCtrl  from './login-ctrl.js';
 import * as notesCtrl  from './notes-ctrl.js';
 import * as trashCtrl  from './trash-ctrl.js';
 
-// ── Editor state (current note, content, dirty flag) ─────────────────────
+// ── Editor state (current note, content, auto-save) ──────────────────────
 
 let _current: string | null = null;
 let _content = '';
-let _dirty   = false;
 
-/** Track textarea content changes — called by textarea event listeners. */
-function updateContent(newContent: string): void {
+// ── Auto-save debounce ────────────────────────────────────────────────────
+
+let _autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let _savePending = false;
+
+/** Called on every keystroke/change. Resets the auto-save countdown. */
+function scheduleAutoSave(newContent: string): void {
+  // Honour the enabled flag — if disabled, revert to manual-save behaviour.
+  const cfg = getAutosaveConfig();
+  if (!cfg.enabled) {
+    _content = newContent;
+    if (_current !== null && !_savePending) {
+      _savePending = true;
+      ui.setDirty(true);
+    }
+    return;
+  }
+  // No-op if content hasn't changed (prevents loops from programmatic setContent).
+  if (newContent === _content) return;
   _content = newContent;
   if (_current === null) return;
-  if (!_dirty) {
-    _dirty = true;
+  if (!_savePending) {
+    _savePending = true;
     ui.setDirty(true);
   }
+  if (_autoSaveTimer !== null) clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(() => doAutoSave(), cfg.delay_ms);
+}
+
+/**
+ * Fire auto-save. Silent — no toast.
+ * Called by the debounce timer. Ctrl+S goes through notesCtrl.saveNote
+ * which shows a toast for explicit saves.
+ */
+async function doAutoSave(): Promise<void> {
+  if (_autoSaveTimer !== null) {
+    clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = null;
+  }
+  if (!_current) return;
+  const content = ui.flushAndGetContent();
+  if (!content.trim()) return; // don't save empty content
+  await notes.saveNote(_current, content);
+  _savePending = false;
+  ui.setDirty(false);
+  ui.setStatus('Saved');
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -60,7 +97,11 @@ function updateContent(newContent: string): void {
 function clearEditorState(): void {
   _current = null;
   _content = '';
-  _dirty   = false;
+  _savePending = false;
+  if (_autoSaveTimer !== null) {
+    clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = null;
+  }
 }
 
 function updateTrashCount(): void {
@@ -75,8 +116,10 @@ async function reloadOpenNote(id: string): Promise<void> {
     if (data.content === _content) return;
     _current = id;
     _content = data.content;
-    _dirty   = false;
-    ui.showEditor(data);
+    _savePending = false;
+    ui.setDirty(false);
+    // In-place refresh — no tab switch, no note-changed, preserves cursor.
+    ui.refreshActiveTab(data);
   } catch {
     clearEditorState();
     ui.hideEditor();
@@ -88,8 +131,9 @@ async function reloadOpenNoteAs(newId: string): Promise<void> {
     const data: NoteData = await notes.loadNote(newId);
     _current = newId;
     _content = data.content;
-    _dirty   = false;
-    ui.showEditor(data);
+    _savePending = false;
+    ui.setDirty(false);
+    ui.refreshActiveTab(data);
     ui.setActiveNote(newId);
   } catch {
     clearEditorState();
@@ -106,10 +150,9 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
   switch (msg.type) {
     case 'saved':
     case 'created': {
-      await notesCtrl.refreshList(currentId);
-      if (currentId && currentId === msg.id && !_dirty) {
-        await reloadOpenNote(currentId);
-      }
+      // Refresh sidebar list only — don't re-open (content is already
+      // current from the save that just happened).
+      await notesCtrl.refreshList();
       break;
     }
 
@@ -130,8 +173,8 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
 
     case 'renamed': {
       const newId = msg.newId;
-      await notesCtrl.refreshList(newId);
-      if (currentId && currentId === msg.id && newId && !_dirty) {
+      await notesCtrl.refreshList();  // sidebar only — reloadOpenNoteAs handles the editor
+      if (currentId && currentId === msg.id && newId) {
         await reloadOpenNoteAs(newId);
         ui.toast(`Renamed to "${newId}" in another tab`);
       }
@@ -142,9 +185,9 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
       if (inTrashMode) {
         await trashCtrl.refreshTrashList();
       } else {
-        await notesCtrl.refreshList(currentId);
+        await notesCtrl.refreshList();  // sidebar only — reloadOpenNote handles the editor
         updateTrashCount();
-        if (currentId && currentId === msg.id && !_dirty) {
+        if (currentId && currentId === msg.id) {
           await reloadOpenNote(currentId);
         }
       }
@@ -165,9 +208,9 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
       if (inTrashMode) {
         await trashCtrl.refreshTrashList();
       } else {
-        await notesCtrl.refreshList(currentId);
+        await notesCtrl.refreshList();  // sidebar only — reloadOpenNote handles the editor
         updateTrashCount();
-        if (currentId && !_dirty) {
+        if (currentId) {
           await reloadOpenNote(currentId);
         }
       }
@@ -210,13 +253,20 @@ async function handleResetDB(): Promise<void> {
 function wireUiEvents(): void {
   ui.bindEvents({
     onOpen:          async id => {
-      if (_dirty && !confirm('You have unsaved changes. Discard?')) return;
+      // Load data first, set _content before showEditor so the
+      // scheduleAutoSave guard sees identical content and skips.
       try {
-        const data = await notesCtrl.openNote(id);
+        const data = await notes.loadNote(id);
         _current = id;
         _content = data.content;
-        _dirty   = false;
+        _savePending = false;
+        if (_autoSaveTimer !== null) {
+          clearTimeout(_autoSaveTimer);
+          _autoSaveTimer = null;
+        }
         ui.setDirty(false);
+        ui.showEditor(data);
+        ui.setActiveNote(id);
       } catch { /* error toast handled in openNote */ }
     },
     onDelete:        async id => {
@@ -224,15 +274,24 @@ function wireUiEvents(): void {
       if (wasCurrent) {
         _current = null;
         _content = '';
-        _dirty   = false;
+        _savePending = false;
+        if (_autoSaveTimer !== null) {
+          clearTimeout(_autoSaveTimer);
+          _autoSaveTimer = null;
+        }
         ui.setDirty(false);
       }
     },
     onSearch:        q        => notesCtrl.handleSearch(q),
     onSave:          async () => {
+      // Force immediate save (Ctrl+S / button) — clear debounce, save with toast.
+      if (_autoSaveTimer !== null) {
+        clearTimeout(_autoSaveTimer);
+        _autoSaveTimer = null;
+      }
       if (!_current) return;
       await notesCtrl.saveNote(_current);
-      _dirty = false;
+      _savePending = false;
       ui.setDirty(false);
     },
     onNew:           ()       => modal.openModal(ui.getCurrentNoteId(), ''),
@@ -279,15 +338,12 @@ async function showShell(): Promise<void> {
   });
 
   document.addEventListener('note-changed', () =>
-    updateContent(ui.getRawContent())
+    scheduleAutoSave(ui.getRawContent())
   );
 
   document.addEventListener('navigate-note', async (e) => {
     const id = (e as CustomEvent).detail?.id as string | undefined;
     if (!id) return;
-
-    // Same dirty-check flow as the sidebar onOpen handler
-    if (_dirty && !confirm('You have unsaved changes. Discard?')) return;
 
     const existing = await dbGetNote(id);
     if (!existing) {
@@ -296,13 +352,21 @@ async function showShell(): Promise<void> {
       return;
     }
 
-    // Note exists — open it normally
+    // Note exists — open it normally.
+    // Set _content first so scheduleAutoSave's equality guard prevents a
+    // spurious auto-save timer from the showEditor → setContent → note-changed chain.
     try {
-      const data = await notesCtrl.openNote(id);
+      const data = await notes.loadNote(id);
       _current = id;
       _content = data.content;
-      _dirty   = false;
+      _savePending = false;
+      if (_autoSaveTimer !== null) {
+        clearTimeout(_autoSaveTimer);
+        _autoSaveTimer = null;
+      }
       ui.setDirty(false);
+      ui.showEditor(data);
+      ui.setActiveNote(id);
     } catch (err) {
       console.warn('[app] navigate-note failed:', err);
     }
@@ -316,7 +380,7 @@ async function showShell(): Promise<void> {
       open(id, {
         onRestore: (content: string) => {
           ui.setRawContent(content);
-          updateContent(content);
+          scheduleAutoSave(content);
         },
       });
     } catch (err) {
@@ -324,7 +388,7 @@ async function showShell(): Promise<void> {
     }
   });
 
-  ui.initPanels(() => updateContent(ui.getRawContent()));
+  ui.initPanels(() => scheduleAutoSave(ui.getRawContent()));
 }
 
 /** Phase 2: Upgrade shell to full-app mode (authenticated user). */
@@ -366,9 +430,6 @@ async function boot(): Promise<void> {
     loginView.showLoginScreen();
   }
   // network-error → stay offline, shell is already visible
-
-  _dirty = false;
-  ui.setDirty(false);
 
   // ?action=new query param
   if (new URLSearchParams(location.search).get('action') === 'new') {

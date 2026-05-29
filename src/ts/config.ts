@@ -104,6 +104,13 @@ export interface SpaConfig {
     /** Languages to show in the meta-tab language picker. */
     preferred_langs?: string[];
   };
+  /** Auto-save configuration. */
+  autosave?: {
+    /** Debounce delay in milliseconds before auto-save fires. Default 2000. */
+    delay_ms?: number;
+    /** Set to false to disable auto-save entirely. Default true. */
+    enabled?: boolean;
+  };
 }
 
 /** Hardcoded safe defaults used when no config has been fetched yet. */
@@ -114,6 +121,10 @@ const DEFAULT_SPA_CONFIG: SpaConfig = {
   spellcheck: {
     default_lang: 'en-US',
     preferred_langs: ['en-US', 'en-GB', 'es', 'fr', 'de', 'it', 'pt', 'nl'],
+  },
+  autosave: {
+    delay_ms: 2000,
+    enabled: true,
   },
 };
 
@@ -166,5 +177,17 @@ export function getSpellcheckConfig(): Required<NonNullable<SpaConfig['spellchec
     preferred_langs: sc.preferred_langs?.length
       ? sc.preferred_langs
       : DEFAULT_SPA_CONFIG.spellcheck!.preferred_langs!,
+  };
+}
+
+/**
+ * Auto-save config with defaults filled in.
+ * Safe to call before fetchSpaConfig() completes.
+ */
+export function getAutosaveConfig(): Required<NonNullable<SpaConfig['autosave']>> {
+  const ac = _spaConfig.autosave ?? DEFAULT_SPA_CONFIG.autosave!;
+  return {
+    delay_ms: ac.delay_ms ?? DEFAULT_SPA_CONFIG.autosave!.delay_ms!,
+    enabled: ac.enabled ?? DEFAULT_SPA_CONFIG.autosave!.enabled!,
   };
 }

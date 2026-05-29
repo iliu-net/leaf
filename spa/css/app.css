@@ -187,7 +187,7 @@ body {
 }
 
 #dirty-dot {
-  width: 7px;          /* slightly larger */
+  width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--accent);
@@ -195,7 +195,14 @@ body {
   transition: opacity var(--transition);
   flex-shrink: 0;
 }
-#dirty-dot.visible { opacity: 1; }
+#dirty-dot.visible {
+  opacity: 1;
+  animation: dirty-pulse 1.2s ease-in-out infinite;
+}
+@keyframes dirty-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
 
 #header-actions { display: flex; align-items: center; gap: 6px; }
 

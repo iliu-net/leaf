@@ -35,7 +35,6 @@ const panels = new Map<string, TabPanel>();
 const emptyState  = $(DOM.EMPTY_STATE);
 const currentFile = $(DOM.CURRENT_FILE);
 const dirtyDot    = $(DOM.DIRTY_DOT);
-const btnSave     = $(DOM.BTN_SAVE) as HTMLButtonElement;
 const editorTabs  = $(DOM.EDITOR_TABS);
 
 // ── Init ────────────────────────────────────────────────────────────────────
@@ -136,15 +135,34 @@ export function getRawContent(): string {
 
 /**
  * Programmatic write to the textarea (e.g. from history restore).
- * Publicly exposed for external callers.
+ * Dispatches note-changed so auto-save / dirty tracking picks it up.
  */
 export function setRawContent(content: string): void {
   editView.setContent(content);
 }
 
+/**
+ * Cross-tab content refresh — update the editor in-place without
+ * switching tabs, without dispatching note-changed (content came from DB).
+ * Preserves cursor position in CodeMirror and pending edits in Meta tab.
+ */
+export function refreshActiveTab(noteData: NoteData): void {
+  _currentNoteId = noteData.id;
+  _noteData = noteData;
+
+  // Update textarea silently (no note-changed → no auto-save loop).
+  editView.setContentSilent(noteData.content);
+
+  // Refresh the currently active tab panel with new content.
+  const panel = panels.get(_activeTab);
+  if (panel) {
+    const ctx: TabPanelContext = { content: noteData.content, noteData };
+    panel.show(ctx);
+  }
+}
+
 export function setDirty(val: boolean): void {
   dirtyDot.classList.toggle('visible', val);
-  btnSave.disabled = !val;
 }
 
 /** Get the ID of the currently open note. */

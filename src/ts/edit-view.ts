@@ -57,6 +57,17 @@ export function setContent(content: string): void {
   el.dispatchEvent(new CustomEvent('note-changed', { bubbles: true }));
 }
 
+/**
+ * Programmatic write WITHOUT dispatching note-changed.
+ * Use for cross-tab content syncs where the content came from the DB
+ * and should not trigger auto-save or dirty-state side-effects.
+ */
+export function setContentSilent(content: string): void {
+  const el = getTextArea();
+  if (!el) return;
+  el.value = content;
+}
+
 /** Focus the textarea. */
 export function focus(): void {
   getTextArea()?.focus();

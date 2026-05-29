@@ -44,7 +44,7 @@ function setupDOM() {
         <div id="header-actions">
           <span id="username-display"></span>
           <button id="btn-signin" style="display:none">Sign in</button>
-          <button id="btn-save" disabled>Save</button>
+          <button id="btn-save">Save</button>
           <button id="btn-logout">Sign out</button>
         </div>
       </header>
@@ -355,18 +355,25 @@ describe('showEditor() / hideEditor()', () => {
 });
 
 describe('setDirty()', () => {
-  it('toggles dirty dot and save button', async () => {
+  it('toggles dirty dot visibility', async () => {
     const ui = await getUI();
     const dirtyDot = document.getElementById('dirty-dot');
-    const btnSave = document.getElementById('btn-save');
 
     ui.setDirty(true);
     expect(dirtyDot.classList.contains('visible')).toBe(true);
-    expect(btnSave.disabled).toBe(false);
 
     ui.setDirty(false);
     expect(dirtyDot.classList.contains('visible')).toBe(false);
-    expect(btnSave.disabled).toBe(true);
+  });
+
+  it('save button is always enabled (auto-save)', async () => {
+    const ui = await getUI();
+    const btnSave = document.getElementById('btn-save');
+    expect(btnSave.disabled).toBe(false);
+    ui.setDirty(true);
+    expect(btnSave.disabled).toBe(false);
+    ui.setDirty(false);
+    expect(btnSave.disabled).toBe(false);
   });
 });
 
@@ -824,8 +831,6 @@ describe('bindEvents()', () => {
       onSignIn: vi.fn(), onDismissLogin: vi.fn(),
     });
 
-    // btn-save starts disabled — enable it so click fires
-    document.getElementById('btn-save').disabled = false;
     document.getElementById('btn-save').click();
     expect(onSave).toHaveBeenCalledOnce();
   });
@@ -974,30 +979,6 @@ describe('bindEvents()', () => {
     const input = document.getElementById('modal-input');
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     expect(onRenameConfirm).toHaveBeenCalledWith('old-name');
-  });
-
-  it('wires beforeunload guard when dirty', async () => {
-    const ui = await getUI();
-    const preventDefault = vi.fn();
-
-    ui.bindEvents({
-      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
-      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
-      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
-      onRename: vi.fn(), onRenameConfirm: vi.fn(),
-      onResetDB: vi.fn(),
-      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
-    });
-
-    // Show editor and mark dirty
-    ui.showEditor({ id: 'test', content: 'content', created_at: 0, updated_at: 0, current: '', meta: {} });
-    ui.setDirty(true);
-
-    const event = new Event('beforeunload');
-    event.preventDefault = preventDefault;
-    window.dispatchEvent(event);
-
-    expect(preventDefault).toHaveBeenCalled();
   });
 
   // ── App menu dropdown ───────────────────────────────────────────────────

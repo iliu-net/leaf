@@ -60,10 +60,12 @@ export async function openNote(id: string): Promise<NoteData> {
 
 export async function saveNote(id: string): Promise<void> {
   const content = ui.flushAndGetContent();
-  await notes.saveNote(id, content);
+  const result = await notes.saveNote(id, content);
   ui.setDirty(false);
-  ui.setStatus(`Saved "${id}"`);
-  ui.toast(`Saved "${id}"`);
+  if (result.ok) {
+    ui.setStatus(`Saved "${id}"`);
+    ui.toast(`Saved "${id}"`);
+  }
 }
 
 export async function deleteNote(id: string): Promise<{ wasCurrent: boolean }> {

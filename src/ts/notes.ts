@@ -72,6 +72,10 @@ export async function loadNote(id: string): Promise<NoteData> {
  * Save content to IndexedDB and queue an UPDATE for the server.
  */
 export async function saveNote(id: string, content: string): Promise<{ ok: boolean }> {
+  // Skip write + broadcast if content hasn't changed.
+  const existing = await dbGetNote(id);
+  if (existing && existing.content === content) return { ok: false };
+
   await dbSaveNote(id, content);
   publish({ type: 'saved', id });
   return { ok: true };

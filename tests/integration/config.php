@@ -33,6 +33,10 @@ $spa_config = [
         'default_lang'    => 'en-GB',
         'preferred_langs' => ['en-US', 'en-GB', 'es', 'nl'],
     ],
+    'autosave' => [
+        'enabled'  => true,
+        'delay_ms' => 2000,
+    ],
 ];
 
 define('CORS_ALLOW_POLICY',   '*');

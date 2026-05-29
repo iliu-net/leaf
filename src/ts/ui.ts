@@ -24,7 +24,7 @@ import * as loginView     from './login-view.js';
 export {
   initPanels, showEditor, hideEditor,
   flushAndGetContent, getRawContent, setRawContent,
-  setDirty, getCurrentNoteId,
+  refreshActiveTab, setDirty, getCurrentNoteId,
 } from './editor-ctrl.js';
 export {
   renderNoteList, setActiveNote, updateNoteCount,
@@ -34,13 +34,11 @@ export {
 
 // ── DOM refs (for bindEvents & status bar) ─────────────────────────────────
 
-const dirtyDot       = $(DOM.DIRTY_DOT);
 const btnSave        = $(DOM.BTN_SAVE) as HTMLButtonElement;
 const statusMsg      = $(DOM.STATUS_MSG);
 const offlineBadge   = $(DOM.OFFLINE_BADGE);
 const toastCont      = $(DOM.TOAST_CONTAINER);
 const syncStatus     = $(DOM.SYNC_STATUS);
-const editorTabs     = $(DOM.EDITOR_TABS);
 
 // Menu refs
 const btnMenu     = $(DOM.BTN_MENU)     as HTMLButtonElement;
@@ -116,14 +114,6 @@ export function bindEvents(handlers: UIEventHandlers): void {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
       onSave();
-    }
-  });
-
-  // Unload guard — warn if unsaved changes
-  window.addEventListener('beforeunload', e => {
-    if (editorTabs.style.display !== 'none' && dirtyDot.classList.contains('visible')) {
-      e.preventDefault();
-      e.returnValue = '';
     }
   });
 

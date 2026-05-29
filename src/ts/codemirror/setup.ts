@@ -221,6 +221,10 @@ export function createEditor(
         padding: '0 36px',
         minHeight: '100%',
       },
+      '.cm-cursor, .cm-dropCursor': {
+        borderLeftColor: 'var(--accent)',
+        borderLeftWidth: '3px',
+      },
       '.cm-gutters': {
         borderRight: '1px solid var(--border-mid)',
         backgroundColor: 'var(--bg)',
