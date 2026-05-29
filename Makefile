@@ -20,8 +20,7 @@ test-integration: ## Run integration tests (starts server, runs curl scripts)
 
 clean: ## Remove leftover test temp directories
 	rm -rf /tmp/leaf-phpunit-* /tmp/leaf-integration-* /tmp/leaf-integration-env-*
-	find spa -maxdepth 1 ! -name 'sw.js' -name '*.js' -type f -print0 | xargs -0 rm -v
-#~ 	rm -f app.js history-*.js chunk-*.js view-panel-*.js )
+	find spa -maxdepth 1 ! -name 'sw.js' -name '*.js' -type f -print0 | xargs -0r rm -v
 
 typecheck: ## Run TypeScript type checking (no emit)
 	pnpm run typecheck
