@@ -575,6 +575,10 @@ body {
   color: var(--text-1);
   border-color: var(--border-mid);
 }
+.btn-icon:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
 
 /* ── Modal ── */
 #modal-overlay {

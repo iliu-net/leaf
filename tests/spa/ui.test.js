@@ -38,6 +38,7 @@ function setupDOM() {
           </div>
         </div>
         <div id="header-center">
+          <button id="btn-back" class="btn-icon" disabled>←</button>
           <span id="current-file">No file selected</span>
           <div id="dirty-dot"></div>
         </div>
