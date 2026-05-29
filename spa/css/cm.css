@@ -1,0 +1,27 @@
+/* ─────────────────────────────────────────────
+   cm.css — CodeMirror integration styles
+   
+   Layout and scrollbar styles for the CodeMirror
+   editor panel. Syntax highlighting themes live
+   in setup.ts via EditorView.theme().
+───────────────────────────────────────────── */
+
+/* Code tab layout */
+#tab-code.active {
+  flex-direction: column;
+}
+
+/* Scrollbar styling — match the native textarea */
+.cm-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-mid) transparent;
+}
+
+.cm-scroller::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cm-scroller::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 4px;
+}

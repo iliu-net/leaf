@@ -8,6 +8,7 @@
  */
 
 import * as editView  from './edit-view.js';
+import * as cmView    from './codemirror-view.js';
 import * as metaView  from './meta-view.js';
 import * as markdownView from './markdown-view.js';
 import type { TabPanel, TabPanelContext } from './tab-panel.js';
@@ -20,6 +21,7 @@ import { esc } from './utils.js';
 let _currentNoteId: string | null = null;
 let _noteData: NoteData | null = null;
 let _activeTab: string = 'view';
+let _cmAvailable = false;
 
 /** Callback to mark editor state as dirty (set by app.ts via initPanels). */
 let _onDirty: (() => void) | null = null;
@@ -45,14 +47,13 @@ const editorTabs  = $(DOM.EDITOR_TABS);
 export function initPanels(onDirty: () => void): void {
   _onDirty = onDirty;
 
-  // ── Edit (Raw) tab ──────────────────────────────────────────────────
+  // ── Edit (Raw) tab — always initialised (textarea is always present) ─
   editView.init();
   editView.bindEvents({
     onInput: () => {
       // textarea input — handled by note-changed listener in app.ts
     },
   });
-  panels.set('raw', editView.tabPanel);
 
   // ── Meta tab ────────────────────────────────────────────────────────
   metaView.init();
@@ -67,8 +68,12 @@ export function initPanels(onDirty: () => void): void {
 
   // ── Tab button clicks ───────────────────────────────────────────────
   $maybe(DOM.TAB_BTN_VIEW)?.addEventListener('click', () => switchTab('view'));
+  $maybe(DOM.TAB_BTN_CODE)?.addEventListener('click', () => switchTab('code'));
   $maybe(DOM.TAB_BTN_RAW)?.addEventListener('click',  () => switchTab('raw'));
   $maybe(DOM.TAB_BTN_META)?.addEventListener('click', () => switchTab('meta'));
+
+  // ── CodeMirror — lazy load; fall back to raw textarea on failure ─────
+  loadCodeMirror();
 }
 
 // ── Editor lifecycle ────────────────────────────────────────────────────────
@@ -116,6 +121,8 @@ export function flushAndGetContent(): string {
     const merged = metaView.flushPending(raw);
     editView.setContent(merged);
   }
+  // Code tab textarea is kept in sync on every keystroke by
+  // codemirror-view.ts's _flushToTextarea — no extra flush needed.
   return editView.getContent();
 }
 
@@ -174,9 +181,37 @@ async function switchTab(tab: string): Promise<void> {
   }
 }
 
+// ── CodeMirror lazy-load ────────────────────────────────────────────────────
+
+async function loadCodeMirror(): Promise<void> {
+  try {
+    const mod = await import('./codemirror/setup.js');
+    cmView.init(mod.createEditor);
+    cmView.tabPanel.init();
+    panels.set('code', cmView.tabPanel);
+    _cmAvailable = true;
+
+    // Show code tab button, hide raw tab button
+    const btnRaw  = $maybe(DOM.TAB_BTN_RAW);
+    const btnCode = $maybe(DOM.TAB_BTN_CODE);
+    if (btnRaw)  btnRaw.style.display = 'none';
+    if (btnCode) btnCode.style.display = '';
+  } catch {
+    // CM chunk not in SW cache or load failed → use raw textarea
+    panels.set('raw', editView.tabPanel);
+    const btnCode = $maybe(DOM.TAB_BTN_CODE);
+    if (btnCode) btnCode.style.display = 'none';
+  }
+}
+
 // ── Internal ────────────────────────────────────────────────────────────────
 
-const TAB_PANEL_IDS = [DOM.TAB_VIEW, DOM.TAB_RAW, DOM.TAB_META] as const;
+const TAB_PANEL_IDS = [
+  DOM.TAB_VIEW,
+  DOM.TAB_CODE,
+  DOM.TAB_RAW,
+  DOM.TAB_META,
+] as const;
 
 function _showOnePanelDom(activeId: string): void {
   for (const id of TAB_PANEL_IDS) {
@@ -193,8 +228,12 @@ function _hideAllPanelsDom(): void {
 }
 
 function _updateTabButtons(): void {
-  for (const t of ['view', 'raw', 'meta'] as const) {
-    const btnId = t === 'view' ? DOM.TAB_BTN_VIEW : t === 'raw' ? DOM.TAB_BTN_RAW : DOM.TAB_BTN_META;
+  for (const t of ['view', 'code', 'raw', 'meta'] as const) {
+    const btnId =
+      t === 'view' ? DOM.TAB_BTN_VIEW
+      : t === 'code' ? DOM.TAB_BTN_CODE
+      : t === 'raw'  ? DOM.TAB_BTN_RAW
+      : DOM.TAB_BTN_META;
     const btn = $maybe(btnId);
     if (btn) {
       btn.classList.toggle('active', _activeTab === t);
