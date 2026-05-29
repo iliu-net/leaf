@@ -10,6 +10,7 @@
 
 import type { NoteData } from './notes.js';
 import type { TabPanel, TabPanelContext } from './tab-panel.js';
+import { DOM, $maybe } from './dom-ids.js';
 import { parseFrontmatter } from './frontmatter.js';
 import {
   renderFrontmatter,
@@ -17,7 +18,7 @@ import {
   renderStats,
   renderSystemInfo,
 } from './render-fm.js';
-import { esc } from './utils.js';
+import { esc, html } from './utils.js';
 import { hydrate } from './fence-hydrate.js';
 import { dbGetNote } from './db.js';
 
@@ -42,8 +43,8 @@ let _viewContent: HTMLElement | null = null;
 
 /** One-time setup: cache DOM refs. */
 export function init(): void {
-  _viewHeader  = document.querySelector('#tab-view .view-header');
-  _viewContent = document.querySelector('#tab-view .view-content');
+  _viewHeader  = $maybe(DOM.TAB_VIEW)?.querySelector('.view-header') as HTMLElement | null;
+  _viewContent = $maybe(DOM.TAB_VIEW)?.querySelector('.view-content') as HTMLElement | null;
 
   // Wikilink navigation — intercept clicks on [[page]] links and dispatch
   // a custom event so app.ts can open the note without a page reload.
@@ -85,7 +86,7 @@ export async function renderView(content: string, noteData: NoteData): Promise<s
   parts.push(renderFrontmatter(fm, noteData));
 
   // Rendered markdown body
-  parts.push(`<div class="markdown-body">${parseMk(body)}</div>`);
+  parts.push(html`<div class="markdown-body">${parseMk(body)}</div>`);
 
   // Stats and system info
   const statsText = renderStats(body);
@@ -93,8 +94,8 @@ export async function renderView(content: string, noteData: NoteData): Promise<s
 
   if (statsText || sysInfoHtml) {
     parts.push('<hr class="view-rule">');
-    if (statsText) parts.push(`<div class="view-stats">${statsText}</div>`);
-    if (sysInfoHtml) parts.push(`<div class="view-sysinfo">${sysInfoHtml}</div>`);
+    if (statsText) parts.push(html`<div class="view-stats">${statsText}</div>`);
+    if (sysInfoHtml) parts.push(html`<div class="view-sysinfo">${sysInfoHtml}</div>`);
   }
 
   return parts.join('');

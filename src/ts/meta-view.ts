@@ -8,6 +8,7 @@
 import type { NoteData } from './notes.js';
 import type { PendingMeta } from './frontmatter.js';
 import type { TabPanel, TabPanelContext } from './tab-panel.js';
+import { DOM, $maybe } from './dom-ids.js';
 import {
   parseFrontmatter,
   initPendingMeta,
@@ -35,27 +36,23 @@ let _metaTags:    HTMLInputElement | null = null;
 let _customRows:  HTMLElement | null = null;
 let _metaStats:   HTMLElement | null = null;
 
-let _sysCurrent:    HTMLElement | null = null;
-let _sysCreated:    HTMLElement | null = null;
-let _sysUpdated:    HTMLElement | null = null;
-let _sysCreatedBy:  HTMLElement | null = null;
-let _sysUpdatedBy:  HTMLElement | null = null;
+let _sysCurrent:  HTMLElement | null = null;
+let _sysCreated:  HTMLElement | null = null;
+let _sysUpdated:  HTMLElement | null = null;
 
 // ── Init (TabPanel) ────────────────────────────────────────────────────
 
 /** One-time setup: cache DOM refs. */
 export function init(): void {
-  _metaTitle   = document.getElementById('meta-title')     as HTMLInputElement | null;
-  _metaSummary = document.getElementById('meta-summary')   as HTMLTextAreaElement | null;
-  _metaTags    = document.getElementById('meta-tags')      as HTMLInputElement | null;
-  _customRows  = document.getElementById('meta-custom-rows');
-  _metaStats   = document.getElementById('meta-stats');
+  _metaTitle   = $maybe(DOM.META_TITLE)     as HTMLInputElement | null;
+  _metaSummary = $maybe(DOM.META_SUMMARY)   as HTMLTextAreaElement | null;
+  _metaTags    = $maybe(DOM.META_TAGS)      as HTMLInputElement | null;
+  _customRows  = $maybe(DOM.META_CUSTOM_ROWS);
+  _metaStats   = $maybe(DOM.META_STATS);
 
-  _sysCurrent   = document.getElementById('meta-sys-current');
-  _sysCreated   = document.getElementById('meta-sys-created');
-  _sysUpdated   = document.getElementById('meta-sys-updated');
-  _sysCreatedBy = document.getElementById('meta-sys-created-by');
-  _sysUpdatedBy = document.getElementById('meta-sys-updated-by');
+  _sysCurrent   = $maybe(DOM.META_SYS_CURRENT);
+  _sysCreated   = $maybe(DOM.META_SYS_CREATED);
+  _sysUpdated   = $maybe(DOM.META_SYS_UPDATED);
 }
 
 // ── TabPanel lifecycle ─────────────────────────────────────────────────
@@ -87,11 +84,9 @@ export function hide(): void {
   if (_customRows)  _customRows.innerHTML = '';
   if (_metaStats)   _metaStats.textContent = '';
 
-  if (_sysCurrent)   _sysCurrent.textContent   = '';
-  if (_sysCreated)   _sysCreated.textContent   = '';
-  if (_sysUpdated)   _sysUpdated.textContent   = '';
-  if (_sysCreatedBy) _sysCreatedBy.textContent = '';
-  if (_sysUpdatedBy) _sysUpdatedBy.textContent = '';
+  if (_sysCurrent) _sysCurrent.textContent = '';
+  if (_sysCreated) _sysCreated.textContent = '';
+  if (_sysUpdated) _sysUpdated.textContent = '';
 }
 
 // ── Pending meta ────────────────────────────────────────────────────────
@@ -119,13 +114,13 @@ export function flushPending(rawContent: string): string {
  */
 export function bindEvents(handlers: MetaEventHandlers): void {
   // Standard fields
-  for (const id of ['meta-title', 'meta-summary', 'meta-tags']) {
-    const el = document.getElementById(id);
+  for (const id of [DOM.META_TITLE, DOM.META_SUMMARY, DOM.META_TAGS]) {
+    const el = $maybe(id);
     if (el) el.addEventListener('input', () => _onFieldChange(handlers.onDirty));
   }
 
   // Add custom field button
-  const btnAdd = document.getElementById('btn-add-custom');
+  const btnAdd = $maybe(DOM.BTN_ADD_CUSTOM);
   if (btnAdd) {
     btnAdd.addEventListener('click', () => {
       _addEmptyRow();
@@ -200,11 +195,26 @@ function _readFormValues(): PendingMeta {
 }
 
 function _populateSystemFields(noteData: NoteData): void {
-  if (_sysCurrent)   _sysCurrent.textContent   = noteData.current ?? '';
-  if (_sysCreated)   _sysCreated.textContent   = formatTimestamp(noteData.created_at);
-  if (_sysUpdated)   _sysUpdated.textContent   = formatTimestamp(noteData.updated_at);
-  if (_sysCreatedBy) _sysCreatedBy.textContent = noteData.created_by;
-  if (_sysUpdatedBy) _sysUpdatedBy.textContent = noteData.updated_by;
+  if (_sysCurrent) _sysCurrent.textContent = noteData.current ?? '';
+
+  // Merge timestamp + author into single field (same pattern as render-fm.ts)
+  if (_sysCreated && (noteData.created_at || noteData.created_by)) {
+    const parts: string[] = [];
+    if (noteData.created_at) parts.push(formatTimestamp(noteData.created_at));
+    if (noteData.created_by) parts.push(`by ${noteData.created_by}`);
+    _sysCreated.textContent = parts.join(' ');
+  } else if (_sysCreated) {
+    _sysCreated.textContent = '';
+  }
+
+  if (_sysUpdated && (noteData.updated_at || noteData.updated_by)) {
+    const parts: string[] = [];
+    if (noteData.updated_at) parts.push(formatTimestamp(noteData.updated_at));
+    if (noteData.updated_by) parts.push(`by ${noteData.updated_by}`);
+    _sysUpdated.textContent = parts.join(' ');
+  } else if (_sysUpdated) {
+    _sysUpdated.textContent = '';
+  }
 }
 
 function _createCustomRow(key: string, value: string): HTMLElement {

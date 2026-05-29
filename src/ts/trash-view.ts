@@ -11,13 +11,15 @@ import type { SidebarView, UIEventHandlers } from './sidebar.js';
 import { hydrate } from './fence-hydrate.js';
 import type { TrashEntry } from './trash.js';
 import * as contextMenu from './context-menu.js';
-import { relativeTime } from './utils.js';
+import { relativeTime, html } from './utils.js';
 import { parseFrontmatter } from './frontmatter.js';
+import { DOM, $, $maybe } from './dom-ids.js';
+import { ICONS, createIcon } from './icons.js';
 
 // ── DOM refs ────────────────────────────────────────────────────────────────
 
 function getFileList(): HTMLElement {
-  return document.getElementById('file-list')!;
+  return $(DOM.FILE_LIST);
 }
 
 // ── Filter state ────────────────────────────────────────────────────────────
@@ -53,7 +55,7 @@ function _renderFiltered(): void {
     empty.textContent = _filter ? 'No matching items' : 'Trash is empty';
     fileList.appendChild(empty);
     // Update count
-    const countEl = document.getElementById('trash-item-count');
+    const countEl = $maybe(DOM.TRASH_ITEM_COUNT);
     if (countEl) countEl.textContent = `0 items`;
     return;
   }
@@ -66,18 +68,8 @@ function _renderFiltered(): void {
     row.dataset.id = entry.id;
     row.dataset.source = entry.source;
 
-    const ns = 'http://www.w3.org/2000/svg';
-    const icon = document.createElementNS(ns, 'svg');
-    icon.setAttribute('width', '13');
-    icon.setAttribute('height', '13');
-    icon.setAttribute('fill', 'none');
-    icon.setAttribute('stroke', 'currentColor');
-    icon.setAttribute('stroke-width', '2');
-    icon.setAttribute('viewBox', '0 0 24 24');
-    icon.setAttribute('aria-hidden', 'true');
+    const icon = createIcon(ICONS.TRASH, { 'stroke-width': '2' });
     icon.classList.add('trash-row-icon');
-    icon.innerHTML =
-      '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14"/>';
     row.appendChild(icon);
 
     const info = document.createElement('div');
@@ -113,7 +105,7 @@ function _renderFiltered(): void {
   fileList.appendChild(frag);
 
   // Update filtered count in footer
-  const countEl = document.getElementById('trash-item-count');
+  const countEl = $maybe(DOM.TRASH_ITEM_COUNT);
   const total = _entries.length;
   const shown = entries.length;
   if (countEl) {
@@ -133,7 +125,7 @@ export const TrashView: SidebarView<TrashEntry> = {
     _entries = entries;
     _filter = '';
     // Clear search input
-    const si = document.getElementById('trash-search') as HTMLInputElement | null;
+    const si = $maybe(DOM.TRASH_SEARCH) as HTMLInputElement | null;
     if (si) si.value = '';
     _renderFiltered();
   },
@@ -171,9 +163,9 @@ export const TrashView: SidebarView<TrashEntry> = {
   },
 
   updateNoteCount(total: number, _shown: number): void {
-    const el = document.getElementById('trash-item-count');
+    const el = $maybe(DOM.TRASH_ITEM_COUNT);
     if (el) el.textContent = `${total} item${total !== 1 ? 's' : ''}`;
-    const emptyBtn = document.getElementById('btn-empty-trash') as HTMLButtonElement | null;
+    const emptyBtn = $maybe(DOM.BTN_EMPTY_TRASH) as HTMLButtonElement | null;
     if (emptyBtn) emptyBtn.disabled = total === 0;
   },
 
@@ -200,21 +192,21 @@ export function showTrashPreview(
   onPurge: () => void,
 ): void {
   // DOM refs queried on each call (not cached — only shown transiently)
-  const trashBanner   = document.getElementById('trash-banner');
-  const trashBody     = document.getElementById('trash-banner-body');
-  const trashTitle    = document.getElementById('trash-banner-title');
-  const btnRestore    = document.getElementById('trash-banner-restore') as HTMLButtonElement | null;
-  const btnPurge      = document.getElementById('trash-banner-purge')   as HTMLButtonElement | null;
+  const trashBanner   = $maybe(DOM.TRASH_BANNER);
+  const trashBody     = $maybe(DOM.TRASH_BANNER_BODY);
+  const trashTitle    = $maybe(DOM.TRASH_BANNER_TITLE);
+  const btnRestore    = $maybe(DOM.TRASH_BANNER_RESTORE) as HTMLButtonElement | null;
+  const btnPurge      = $maybe(DOM.TRASH_BANNER_PURGE)   as HTMLButtonElement | null;
 
   if (!trashBanner || !trashBody) return;
 
   // Hide all editor panels + empty state
-  const editorTabs = document.getElementById('editor-tabs');
-  for (const panelId of ['tab-view', 'tab-raw', 'tab-meta']) {
-    const panel = document.getElementById(panelId);
+  const editorTabs = $maybe(DOM.EDITOR_TABS);
+  for (const panelId of [DOM.TAB_VIEW, DOM.TAB_RAW, DOM.TAB_META]) {
+    const panel = $maybe(panelId);
     if (panel) panel.classList.remove('active');
   }
-  const emptyState = document.getElementById('empty-state');
+  const emptyState = $maybe(DOM.EMPTY_STATE);
   if (editorTabs) editorTabs.style.display = 'none';
   if (emptyState) emptyState.style.display = 'none';
 
@@ -239,7 +231,7 @@ export function showTrashPreview(
 
   // Delegate to markdown view (single read-only render path)
   import('./markdown-view.js').then(async mod => {
-    trashBody.innerHTML = `<div class="trash-fm-wrap">${await mod.renderView(content, noteData)}</div>`;
+    trashBody.innerHTML = html`<div class="trash-fm-wrap">${await mod.renderView(content, noteData)}</div>`;
     hydrate(trashBody).catch(err =>
       console.warn('[trash-view] hydrate failed:', err)
     );
@@ -248,6 +240,6 @@ export function showTrashPreview(
 
 /** Hide the trash preview banner. */
 export function hideTrashPreview(): void {
-  const trashBanner = document.getElementById('trash-banner');
+  const trashBanner = $maybe(DOM.TRASH_BANNER);
   if (trashBanner) trashBanner.style.display = 'none';
 }

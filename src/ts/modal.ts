@@ -7,14 +7,14 @@
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 
-const $ = (id: string): HTMLElement => document.getElementById(id)!;
+import { DOM, $, $maybe } from './dom-ids.js';
 
-const overlay      = $('modal-overlay');
-const modalTitle   = $('modal-title');
-const modalInput   = $('modal-input') as HTMLInputElement;
-const modalHint    = $('modal-hint');
-const modalCreate  = $('modal-create');
-const modalCancel  = $('modal-cancel');
+const overlay      = $(DOM.MODAL_OVERLAY);
+const modalTitle   = $(DOM.MODAL_TITLE);
+const modalInput   = $(DOM.MODAL_INPUT) as HTMLInputElement;
+const modalHint    = $(DOM.MODAL_HINT);
+const modalCreate  = $(DOM.MODAL_CREATE);
+const modalCancel  = $(DOM.MODAL_CANCEL);
 
 // ── State ─────────────────────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ let _renameId: string | null = null;
  */
 export function openModal(currentNoteId: string | null, searchValue: string): void {
   _renameId = null;
-  if (modalTitle) modalTitle.textContent = 'New note';
+  modalTitle.textContent = 'New note';
 
   const searchVal = searchValue || '';
   let prefix = '';
@@ -56,7 +56,7 @@ export function openModal(currentNoteId: string | null, searchValue: string): vo
  */
 export function openRenameModal(id: string): void {
   _renameId = id;
-  if (modalTitle) modalTitle.textContent = 'Rename note';
+  modalTitle.textContent = 'Rename note';
   modalInput.value = id;
   modalInput.select();
   modalHint.textContent = '';

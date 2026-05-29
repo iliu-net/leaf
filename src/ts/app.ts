@@ -33,6 +33,7 @@ import { subscribe } from './change-bus.js';
 import { loadConfig, fetchSpaConfig, getSpaConfig } from './config.js';
 import { loadPlugins } from './markdown.js';
 import { loadTrashEntries } from './trash-ctrl.js';
+import { DOM, $maybe } from './dom-ids.js';
 
 import * as loginCtrl  from './login-ctrl.js';
 import * as notesCtrl  from './notes-ctrl.js';
@@ -307,7 +308,7 @@ async function showShell(): Promise<void> {
     }
   });
 
-  document.getElementById('btn-view-history')?.addEventListener('click', async () => {
+  $maybe(DOM.BTN_VIEW_HISTORY)?.addEventListener('click', async () => {
     const id = _current;
     if (!id) return;
     try {

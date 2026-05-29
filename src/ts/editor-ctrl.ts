@@ -12,6 +12,8 @@ import * as metaView  from './meta-view.js';
 import * as markdownView from './markdown-view.js';
 import type { TabPanel, TabPanelContext } from './tab-panel.js';
 import type { NoteData } from './notes.js';
+import { DOM, $, $maybe } from './dom-ids.js';
+import { esc } from './utils.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
 
@@ -28,13 +30,11 @@ const panels = new Map<string, TabPanel>();
 
 // ── DOM refs ────────────────────────────────────────────────────────────────
 
-const $ = (id: string): HTMLElement => document.getElementById(id)!;
-
-const emptyState  = $('empty-state');
-const currentFile = $('current-file');
-const dirtyDot    = $('dirty-dot');
-const btnSave     = $('btn-save') as HTMLButtonElement;
-const editorTabs  = $('editor-tabs');
+const emptyState  = $(DOM.EMPTY_STATE);
+const currentFile = $(DOM.CURRENT_FILE);
+const dirtyDot    = $(DOM.DIRTY_DOT);
+const btnSave     = $(DOM.BTN_SAVE) as HTMLButtonElement;
+const editorTabs  = $(DOM.EDITOR_TABS);
 
 // ── Init ────────────────────────────────────────────────────────────────────
 
@@ -66,9 +66,9 @@ export function initPanels(onDirty: () => void): void {
   panels.set('view', markdownView.tabPanel);
 
   // ── Tab button clicks ───────────────────────────────────────────────
-  document.getElementById('tab-btn-view')?.addEventListener('click', () => switchTab('view'));
-  document.getElementById('tab-btn-raw')?.addEventListener('click',  () => switchTab('raw'));
-  document.getElementById('tab-btn-meta')?.addEventListener('click', () => switchTab('meta'));
+  $maybe(DOM.TAB_BTN_VIEW)?.addEventListener('click', () => switchTab('view'));
+  $maybe(DOM.TAB_BTN_RAW)?.addEventListener('click',  () => switchTab('raw'));
+  $maybe(DOM.TAB_BTN_META)?.addEventListener('click', () => switchTab('meta'));
 }
 
 // ── Editor lifecycle ────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ export async function showEditor(noteData: NoteData): Promise<void> {
   editView.setContent(noteData.content);
 
   // Show note name
-  currentFile.innerHTML = `<span class="fname">${noteData.id}</span>`;
+  currentFile.innerHTML = `<span class="fname">${esc(noteData.id)}</span>`;
 
   // Render the View tab as the default.
   _activeTab = 'raw';  // force-switch so switchTab('view') doesn't early-return
@@ -176,23 +176,26 @@ async function switchTab(tab: string): Promise<void> {
 
 // ── Internal ────────────────────────────────────────────────────────────────
 
+const TAB_PANEL_IDS = [DOM.TAB_VIEW, DOM.TAB_RAW, DOM.TAB_META] as const;
+
 function _showOnePanelDom(activeId: string): void {
-  for (const id of ['tab-view', 'tab-raw', 'tab-meta']) {
-    const el = document.getElementById(id);
+  for (const id of TAB_PANEL_IDS) {
+    const el = $maybe(id);
     if (el) el.classList.toggle('active', id === activeId);
   }
 }
 
 function _hideAllPanelsDom(): void {
-  for (const id of ['tab-view', 'tab-raw', 'tab-meta']) {
-    const el = document.getElementById(id);
+  for (const id of TAB_PANEL_IDS) {
+    const el = $maybe(id);
     if (el) el.classList.remove('active');
   }
 }
 
 function _updateTabButtons(): void {
   for (const t of ['view', 'raw', 'meta'] as const) {
-    const btn = document.getElementById(`tab-btn-${t}`);
+    const btnId = t === 'view' ? DOM.TAB_BTN_VIEW : t === 'raw' ? DOM.TAB_BTN_RAW : DOM.TAB_BTN_META;
+    const btn = $maybe(btnId);
     if (btn) {
       btn.classList.toggle('active', _activeTab === t);
       btn.setAttribute('aria-selected', String(_activeTab === t));

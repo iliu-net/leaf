@@ -14,6 +14,8 @@ import type { SidebarView, UIEventHandlers } from './sidebar.js';
 import type { NoteMeta } from './notes.js';
 import * as contextMenu from './context-menu.js';
 import { naturalCompare } from './utils.js';
+import { DOM, $, $maybe } from './dom-ids.js';
+import { ICONS, createIcon } from './icons.js';
 
 // ── Tree data type ──────────────────────────────────────────────────────
 
@@ -29,18 +31,18 @@ interface TreeNode {
 const expandedPaths = new Set<string>();
 let savedExpanded: Set<string> | null = null;
 
-// ── DOM refs (queried once on first render) ─────────────────────────────
+// ── DOM refs (queried on each render) ────────────────────────────────────
 
 function getFileList(): HTMLElement {
-  return document.getElementById('file-list')!;
+  return $(DOM.FILE_LIST);
 }
 
 function getNoteCount(): HTMLElement {
-  return document.getElementById('note-count')!;
+  return $(DOM.NOTE_COUNT);
 }
 
 function getSearchInput(): HTMLInputElement | null {
-  return document.getElementById('search') as HTMLInputElement | null;
+  return $maybe(DOM.SEARCH) as HTMLInputElement | null;
 }
 
 // ── Tree builder ────────────────────────────────────────────────────────
@@ -173,18 +175,8 @@ function renderTreeNodes(
 
     // Document icon (note nodes only)
     if (hasNote) {
-      const ns = 'http://www.w3.org/2000/svg';
-      const icon = document.createElementNS(ns, 'svg');
-      icon.setAttribute('width', '13');
-      icon.setAttribute('height', '13');
-      icon.setAttribute('fill', 'none');
-      icon.setAttribute('stroke', 'currentColor');
-      icon.setAttribute('stroke-width', '1.5');
-      icon.setAttribute('viewBox', '0 0 24 24');
-      icon.setAttribute('aria-hidden', 'true');
+      const icon = createIcon(ICONS.DOCUMENT);
       icon.classList.add('file-item-icon');
-      icon.innerHTML =
-        '<path d="M9 12h6m-6 4h6m2 4H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l5 5v11a2 2 0 0 1-2 2z"/>';
       bar.appendChild(icon);
     }
 
@@ -255,12 +247,17 @@ export const TreeView: SidebarView = {
         item.className = 'file-item' + (note.id === currentId ? ' active' : '');
         item.dataset.id = note.id;
         item.setAttribute('role', 'listitem');
-        item.innerHTML =
-          '<svg class="file-item-icon" width="13" height="13" fill="none" ' +
-          'stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">' +
-          '<path d="M9 12h6m-6 4h6m2 4H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l5 5v11a2 2 0 0 1-2 2z"/>' +
-          '</svg>' +
-          `<span class="file-item-name" title="${note.id}">${note.id}</span>`;
+
+        const icon = createIcon(ICONS.DOCUMENT);
+        icon.classList.add('file-item-icon');
+        item.appendChild(icon);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'file-item-name';
+        nameSpan.title = note.id;
+        nameSpan.textContent = note.id;
+        item.appendChild(nameSpan);
+
         frag.appendChild(item);
       }
       fileList.appendChild(frag);

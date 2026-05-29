@@ -6,19 +6,19 @@
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 
-const $ = (id: string): HTMLElement => document.getElementById(id)!;
+import { DOM, $, $maybe } from './dom-ids.js';
 
-const loginScreen  = $('login-screen');
-const appShell     = $('app');
-const loginForm    = $('login-form');
-const loginUser    = $('login-username') as HTMLInputElement;
-const loginPass    = $('login-password') as HTMLInputElement;
-const loginBtn     = $('login-btn') as HTMLButtonElement;
-const loginErr     = $('login-error');
-const usernameDisp = $('username-display');
-const btnLogout    = $('btn-logout');
-const btnSignin    = $('btn-signin') as HTMLButtonElement;
-const loginClose   = $('login-close') as HTMLButtonElement;
+const loginScreen  = $(DOM.LOGIN_SCREEN);
+const appShell     = $(DOM.APP);
+const loginForm    = $(DOM.LOGIN_FORM);
+const loginUser    = $(DOM.LOGIN_USERNAME) as HTMLInputElement;
+const loginPass    = $(DOM.LOGIN_PASSWORD) as HTMLInputElement;
+const loginBtn     = $(DOM.LOGIN_BTN) as HTMLButtonElement;
+const loginErr     = $(DOM.LOGIN_ERROR);
+const usernameDisp = $(DOM.USERNAME_DISPLAY);
+const btnLogout    = $(DOM.BTN_LOGOUT);
+const btnSignin    = $(DOM.BTN_SIGNIN) as HTMLButtonElement;
+const loginClose   = $(DOM.LOGIN_CLOSE) as HTMLButtonElement;
 
 // ── Public API ────────────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ export function isLoginVisible(): boolean {
  * we're offline, and there's no session.
  */
 export function showOfflineFirstVisit(): void {
-  const fileList = document.getElementById('file-list');
+  const fileList = $maybe(DOM.FILE_LIST);
   if (!fileList) return;
   fileList.innerHTML = '';
   const el = document.createElement('div');

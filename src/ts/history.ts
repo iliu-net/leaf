@@ -11,7 +11,7 @@ import type { DiffLine } from './diff.js';
 import { computeDiff } from './diff.js';
 import type { VersionMeta, VersionListResponse } from './api.js';
 import { fetchVersionList, fetchVersionContent } from './api.js';
-import { formatTimestamp, esc } from './utils.js';
+import { formatTimestamp, esc, html } from './utils.js';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -74,13 +74,11 @@ function buildModal(
 
     const isCurrent = v.key === currentKey;
 
-    row.innerHTML = [
-      `<span class="history-version-marker">○</span>`,
-      `<span class="history-version-date">${formatTimestamp(v.saved_at)}</span>`,
-      `<span class="history-version-author">${esc(v.author)}</span>`,
-      isCurrent ? '<span class="history-version-current-label">CURRENT</span>' : '',
-      '<button class="btn-small history-view-btn" title="View raw content">view</button>',
-    ].join('');
+    row.innerHTML = html`<span class="history-version-marker">○</span>`
+      + html`<span class="history-version-date">${formatTimestamp(v.saved_at)}</span>`
+      + html`<span class="history-version-author">${esc(v.author)}</span>`
+      + (isCurrent ? '<span class="history-version-current-label">CURRENT</span>' : '')
+      + '<button class="btn-small history-view-btn" title="View raw content">view</button>';
 
     // Click to select this version
     row.addEventListener('click', (e) => {
@@ -299,13 +297,13 @@ function buildModal(
     const htmlLines = lines.map(line => {
       const cls = line.type === '+' ? 'add' : line.type === '-' ? 'remove' : 'context';
       const prefix = line.type === ' ' ? '  ' : line.type + ' ';
-      return `<div class="line ${cls}">${esc(prefix + line.text)}</div>`;
+      return html`<div class="line ${cls}">${esc(prefix + line.text)}</div>`;
     }).join('\n');
 
     const targetLabel = metaList.find(v => v.key === diffTargetKey);
     const selectedLabel = metaList.find(v => v.key === selectedKey);
 
-    const html = `<!DOCTYPE html>
+    const htmlPage = html`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Diff: ${esc(noteId)}</title>
 <style>
   body { background:#0a0a0a; color:#f0ece4; font:13px 'DM Mono',monospace; padding:24px; }
@@ -321,7 +319,7 @@ function buildModal(
 ${htmlLines}
 </body></html>`;
 
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const blob = new Blob([htmlPage], { type: 'text/html;charset=utf-8' });
     window.open(URL.createObjectURL(blob), '_blank');
   }
 
@@ -412,7 +410,7 @@ export async function open(noteId: string, callbacks: HistoryCallbacks): Promise
       // Empty state — show simple notice
       const emptyOverlay = document.createElement('div');
       emptyOverlay.className = 'history-overlay';
-      emptyOverlay.innerHTML = `<div class="history-card">
+      emptyOverlay.innerHTML = html`<div class="history-card">
         <div class="history-header"><span>Version History — <strong>${esc(noteId)}</strong></span>
         <button class="history-close" title="Close (Esc)">×</button></div>
         <div class="history-body"><div class="history-diff-empty">No version history available</div></div>
@@ -439,7 +437,7 @@ export async function open(noteId: string, callbacks: HistoryCallbacks): Promise
     // Show error
     const errOverlay = document.createElement('div');
     errOverlay.className = 'history-overlay';
-    errOverlay.innerHTML = `<div class="history-card">
+    errOverlay.innerHTML = html`<div class="history-card">
       <div class="history-header"><span>Version History — <strong>${esc(noteId)}</strong></span>
       <button class="history-close" title="Close (Esc)">×</button></div>
       <div class="history-body">

@@ -13,6 +13,7 @@
 import type { NoteMeta } from './notes.js';
 import { TreeView } from './tree-view.js';
 import { TrashView } from './trash-view.js';
+import { DOM, $, $maybe } from './dom-ids.js';
 
 // ── Interfaces ─────────────────────────────────────────────────────────────────
 
@@ -56,22 +57,6 @@ let _mode: SidebarMode = 'notes';
 let _currentView: SidebarView<any> | null = null;
 let _trashCount = 0;
 
-// ── DOM refs (lazy — queried once on first access) ─────────────────────────────
-
-let _fileList: HTMLElement | null = null;
-function fileList(): HTMLElement { return _fileList ??= document.getElementById('file-list')!; }
-
-let _searchInput: HTMLInputElement | null = null;
-function searchInput(): HTMLInputElement { return _searchInput ??= document.getElementById('search') as HTMLInputElement; }
-
-let _sidebarLoad: HTMLElement | null = null;
-function sidebarLoad(): HTMLElement { return _sidebarLoad ??= document.getElementById('sidebar-loading')!; }
-
-let _appShell: HTMLElement | null = null;
-function appShell(): HTMLElement { return _appShell ??= document.getElementById('app')!; }
-
-function getEl(id: string): HTMLElement | null { return document.getElementById(id); }
-
 // ── Mode ───────────────────────────────────────────────────────────────────────
 
 export function getMode(): SidebarMode { return _mode; }
@@ -83,10 +68,10 @@ export function setMode(mode: SidebarMode): void {
   _mode = mode;
   _updateMenuChecks();
 
-  const sidebarToolbar = getEl('sidebar-toolbar')!;
-  const noteFooter     = getEl('sidebar-footer')!;
-  const trashToolbar   = getEl('trash-toolbar');
-  const trashFooter    = getEl('trash-footer');
+  const sidebarToolbar = $(DOM.SIDEBAR_TOOLBAR);
+  const noteFooter     = $(DOM.SIDEBAR_FOOTER);
+  const trashToolbar   = $maybe(DOM.TRASH_TOOLBAR);
+  const trashFooter    = $maybe(DOM.TRASH_FOOTER);
 
   if (mode === 'trash') {
     sidebarToolbar.style.display = 'none';
@@ -107,7 +92,7 @@ export function setMode(mode: SidebarMode): void {
 
 export function setTrashCount(n: number): void {
   _trashCount = n;
-  const menuTrash = getEl('menu-trash') as HTMLButtonElement | null;
+  const menuTrash = $maybe(DOM.MENU_TRASH) as HTMLButtonElement | null;
   if (menuTrash) {
     const label = n > 0 ? `Trash (${n})` : 'Trash';
     const chk = menuTrash.querySelector('.dropdown-check');
@@ -124,7 +109,7 @@ export function renderNoteList(notes: NoteMeta[], currentId: string | null): voi
 }
 
 export function setActiveNote(id: string): void {
-  fileList().querySelectorAll('.file-item').forEach(el => {
+  $(DOM.FILE_LIST).querySelectorAll('.file-item').forEach(el => {
     el.classList.toggle('active', (el as HTMLElement).dataset.id === id);
   });
 }
@@ -134,17 +119,17 @@ export function updateNoteCount(total: number, shown: number): void {
 }
 
 export function setSidebarLoading(loading: boolean): void {
-  const el = sidebarLoad();
+  const el = $maybe(DOM.SIDEBAR_LOADING);
   if (!el) return;
   el.style.display = loading ? 'flex' : 'none';
 }
 
 export function toggleSidebar(): void {
-  appShell().classList.toggle('sidebar-collapsed');
+  $(DOM.APP).classList.toggle('sidebar-collapsed');
 }
 
 export function clearSearch(): void {
-  const si = searchInput();
+  const si = $(DOM.SEARCH) as HTMLInputElement;
   if (si.value) {
     si.value = '';
     si.dispatchEvent(new Event('input', { bubbles: true }));
@@ -154,8 +139,8 @@ export function clearSearch(): void {
 // ── Menu checkmarks ────────────────────────────────────────────────────────────
 
 function _updateMenuChecks(): void {
-  const menuFolder = getEl('menu-folder');
-  const menuTrash  = getEl('menu-trash');
+  const menuFolder = $maybe(DOM.MENU_FOLDER);
+  const menuTrash  = $maybe(DOM.MENU_TRASH);
   if (menuFolder) {
     const chk = menuFolder.querySelector('.dropdown-check') as HTMLElement | null;
     if (chk) chk.style.visibility = _mode === 'notes' ? 'visible' : 'hidden';
@@ -173,12 +158,12 @@ function _updateMenuChecks(): void {
  */
 export function init(handlers: UIEventHandlers): void {
   // File list — event delegation to the active sidebar view
-  fileList().addEventListener('click', e => {
+  $(DOM.FILE_LIST).addEventListener('click', e => {
     _currentView?.handleClick(e, handlers);
   });
 
   // Notes search
-  const si = searchInput();
+  const si = $(DOM.SEARCH) as HTMLInputElement;
   si.addEventListener('input', () => handlers.onSearch(si.value));
   si.addEventListener('keydown', e => {
     if (e.key === 'Escape' && si.value) {
@@ -189,7 +174,7 @@ export function init(handlers: UIEventHandlers): void {
   });
 
   // Trash search
-  const ts = getEl('trash-search') as HTMLInputElement | null;
+  const ts = $maybe(DOM.TRASH_SEARCH) as HTMLInputElement | null;
   if (ts) {
     ts.addEventListener('input', () => { TrashView.setFilter?.(ts.value); });
     ts.addEventListener('keydown', e => {
@@ -202,12 +187,12 @@ export function init(handlers: UIEventHandlers): void {
   }
 
   // Trash buttons
-  getEl('btn-empty-trash')?.addEventListener('click', () => handlers.onTrashEmpty?.());
+  $maybe(DOM.BTN_EMPTY_TRASH)?.addEventListener('click', () => handlers.onTrashEmpty?.());
 
   // App menu dropdown — view switching
-  const headerBrand = getEl('header-brand')!;
-  const menuFolder  = getEl('menu-folder');
-  const menuTrash   = getEl('menu-trash');
+  const headerBrand = $(DOM.HEADER_BRAND);
+  const menuFolder  = $maybe(DOM.MENU_FOLDER);
+  const menuTrash   = $maybe(DOM.MENU_TRASH);
 
   menuFolder?.addEventListener('click', () => {
     if (_mode !== 'notes') handlers.onToggleTrash?.();

@@ -7,7 +7,7 @@
 
 import type { NoteData } from './notes.js';
 import type { FrontmatterResult } from './frontmatter.js';
-import { formatTimestamp, esc, computeStats } from './utils.js';
+import { formatTimestamp, esc, computeStats, html } from './utils.js';
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -34,13 +34,13 @@ export function renderFrontmatterTable(fm: FrontmatterResult): string {
     const sorted = [...userTags].sort((a, b) =>
       a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }),
     );
-    tableParts.push(`<tr><td class="fm-key">Tags</td><td class="fm-val">${esc(sorted.join(', '))}</td></tr>`);
+    tableParts.push(html`<tr><td class="fm-key">Tags</td><td class="fm-val">${esc(sorted.join(', '))}</td></tr>`);
   }
 
   // Summary
   const summary = typeof meta['summary'] === 'string' ? meta['summary'] : '';
   if (summary) {
-    tableParts.push(`<tr><td class="fm-key">Summary</td><td class="fm-val">${esc(summary)}</td></tr>`);
+    tableParts.push(html`<tr><td class="fm-key">Summary</td><td class="fm-val">${esc(summary)}</td></tr>`);
   }
 
   // Custom fields
@@ -48,12 +48,12 @@ export function renderFrontmatterTable(fm: FrontmatterResult): string {
   for (const [key, val] of Object.entries(meta)) {
     if (reservedKeys.has(key)) continue;
     tableParts.push(
-      `<tr><td class="fm-key">${esc(key)}</td><td class="fm-val">${esc(fmtVal(val))}</td></tr>`,
+      html`<tr><td class="fm-key">${esc(key)}</td><td class="fm-val">${esc(fmtVal(val))}</td></tr>`,
     );
   }
 
   if (tableParts.length === 0) return '';
-  return `<table class="fm-table">${tableParts.join('')}</table>`;
+  return html`<table class="fm-table">${tableParts.join('')}</table>`;
 }
 
 /**
@@ -68,7 +68,7 @@ export function renderFrontmatter(
 ): string {
   const meta = fm.meta;
   const title = (typeof meta['title'] === 'string' ? meta['title'] : '') || noteData.id;
-  return `<h1 class="view-title">${esc(title)}</h1>` + renderFrontmatterTable(fm);
+  return html`<h1 class="view-title">${esc(title)}</h1>${renderFrontmatterTable(fm)}`;
 }
 
 // ── Content stats ──────────────────────────────────────────────────────────
@@ -96,22 +96,29 @@ export function renderSystemInfo(noteData: NoteData): string {
   const rows: string[] = [];
 
   if (noteData.current) {
-    rows.push(`<tr><td>Version</td><td>${esc(noteData.current)}</td></tr>`);
+    rows.push(html`<tr><td>Version</td><td>${esc(noteData.current)}</td></tr>`);
   }
-  if (noteData.created_at) {
-    rows.push(`<tr><td>Created</td><td>${formatTimestamp(noteData.created_at)}</td></tr>`);
+  if (noteData.created_at || noteData.created_by) {
+    rows.push(html`<tr><td>Created</td><td>`)
+    if (noteData.created_at) {
+      rows.push(html`${formatTimestamp(noteData.created_at)}`)
+    }
+    if (noteData.created_by) {
+      rows.push(html` by ${esc(noteData.created_by)}`)
+    }
+    rows.push(html`</td></tr>`)
   }
-  if (noteData.updated_at) {
-    rows.push(`<tr><td>Updated</td><td>${formatTimestamp(noteData.updated_at)}</td></tr>`);
+  if (noteData.updated_at || noteData.updated_by) {
+    rows.push(html`<tr><td>Updated</td><td>`)
+    if (noteData.updated_at) {
+      rows.push(html`${formatTimestamp(noteData.updated_at)}`)
+    }
+    if (noteData.updated_by) {
+      rows.push(html` by ${esc(noteData.updated_by)}`)
+    }
+    rows.push(html`</td></tr>`)
   }
-  if (noteData.created_by) {
-    rows.push(`<tr><td>Created by</td><td>${esc(noteData.created_by)}</td></tr>`);
-  }
-  if (noteData.updated_by) {
-    rows.push(`<tr><td>Updated by</td><td>${esc(noteData.updated_by)}</td></tr>`);
-  }
-
   if (rows.length === 0) return '';
 
-  return `<table class="meta-system-table">${rows.join('')}</table>`;
+  return html`<table class="meta-system-table">${rows.join('')}</table>`;
 }

@@ -13,6 +13,7 @@
  */
 
 import type { UIEventHandlers } from './sidebar.js';
+import { DOM, $ } from './dom-ids.js';
 
 import * as editor        from './editor-ctrl.js';
 import * as sidebar       from './sidebar.js';
@@ -33,19 +34,17 @@ export {
 
 // ── DOM refs (for bindEvents & status bar) ─────────────────────────────────
 
-const $ = (id: string): HTMLElement => document.getElementById(id)!;
-
-const dirtyDot       = $('dirty-dot');
-const btnSave        = $('btn-save') as HTMLButtonElement;
-const statusMsg      = $('status-msg');
-const offlineBadge   = $('offline-badge');
-const toastCont      = $('toast-container');
-const syncStatus     = $('sync-status');
-const editorTabs     = $('editor-tabs');
+const dirtyDot       = $(DOM.DIRTY_DOT);
+const btnSave        = $(DOM.BTN_SAVE) as HTMLButtonElement;
+const statusMsg      = $(DOM.STATUS_MSG);
+const offlineBadge   = $(DOM.OFFLINE_BADGE);
+const toastCont      = $(DOM.TOAST_CONTAINER);
+const syncStatus     = $(DOM.SYNC_STATUS);
+const editorTabs     = $(DOM.EDITOR_TABS);
 
 // Menu refs
-const btnMenu     = $('btn-menu')     as HTMLButtonElement;
-const menuResetDb = $('menu-reset-db') as HTMLButtonElement;
+const btnMenu     = $(DOM.BTN_MENU)     as HTMLButtonElement;
+const menuResetDb = $(DOM.MENU_RESET_DB) as HTMLButtonElement;
 
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -109,8 +108,8 @@ export function bindEvents(handlers: UIEventHandlers): void {
 
   // Buttons
   btnSave.addEventListener('click', onSave);
-  $('btn-new').addEventListener('click', onNew);
-  $('btn-toggle-sidebar').addEventListener('click', sidebar.toggleSidebar);
+  $(DOM.BTN_NEW).addEventListener('click', onNew);
+  $(DOM.BTN_TOGGLE_SIDEBAR).addEventListener('click', sidebar.toggleSidebar);
 
   // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
@@ -129,7 +128,7 @@ export function bindEvents(handlers: UIEventHandlers): void {
   });
 
   // ── App menu dropdown ──────────────────────────────────────────────────
-  const headerBrand = $('header-brand');
+  const headerBrand = $(DOM.HEADER_BRAND);
 
   function closeMenu(): void {
     headerBrand.classList.remove('open');

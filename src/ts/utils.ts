@@ -7,6 +7,26 @@
 
 import { getSpaConfig } from './config.js';
 
+// ── HTML tagged template ───────────────────────────────────────────────────
+
+/**
+ * Minimal tagged template literal for HTML strings.
+ *
+ * Returns a plain string — no DOM, no side-effects.
+ * Safe for use anywhere a string is expected.
+ *
+ * Usage:
+ *   html`<div class="foo">${esc(value)}</div>`
+ */
+export function html(strings: TemplateStringsArray, ...values: unknown[]): string {
+  let result = '';
+  for (let i = 0; i < strings.length; i++) {
+    result += strings[i];
+    if (i < values.length) result += String(values[i]);
+  }
+  return result;
+}
+
 // ── Content stats ──────────────────────────────────────────────────────────
 
 /** Statistics computed from a plain-text body (no frontmatter). */

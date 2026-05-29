@@ -9,6 +9,8 @@
  *   outsideListener — stored for cleanup on close
  */
 
+import { DOM, $ } from './dom-ids.js';
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface ContextMenuItem {
@@ -24,7 +26,7 @@ let outsideListener: ((e: MouseEvent) => void) | null = null;
 // ── DOM ref ────────────────────────────────────────────────────────────────
 
 function getMenu(): HTMLElement {
-  return document.getElementById('context-menu')!;
+  return $(DOM.CONTEXT_MENU);
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────

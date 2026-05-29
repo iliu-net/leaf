@@ -6,6 +6,7 @@
  */
 
 import type { TabPanel, TabPanelContext } from './tab-panel.js';
+import { DOM, $maybe } from './dom-ids.js';
 
 /** Handlers for edit-view events. */
 export interface EditEventHandlers {
@@ -20,7 +21,7 @@ let _noteArea: HTMLTextAreaElement | null = null;
 
 /** One-time setup: cache DOM refs. */
 export function init(): void {
-  _noteArea = document.getElementById('note-area') as HTMLTextAreaElement | null;
+  _noteArea = $maybe(DOM.NOTE_AREA) as HTMLTextAreaElement | null;
 }
 
 // ── TabPanel lifecycle ────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ export function bindEvents(handlers: EditEventHandlers): void {
 // ── Internal ──────────────────────────────────────────────────────────────
 
 function getTextArea(): HTMLTextAreaElement | null {
-  return _noteArea ?? document.getElementById('note-area') as HTMLTextAreaElement | null;
+  return _noteArea ?? $maybe(DOM.NOTE_AREA) as HTMLTextAreaElement | null;
 }
 
 /** TabPanel contract — typed lens for editor-ctrl.ts registration. */
