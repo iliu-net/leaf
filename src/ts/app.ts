@@ -66,23 +66,7 @@ async function restoreLastNote(): Promise<boolean> {
   }
 
   try {
-    const data = await notes.loadNote(lastId);
-    _current = lastId;
-    _content = data.content;
-    _savePending = false;
-    if (_autoSaveTimer !== null) {
-      clearTimeout(_autoSaveTimer);
-      _autoSaveTimer = null;
-    }
-    ui.setDirty(false);
-    ui.showEditor(data);
-    ui.setActiveNote(lastId);
-    navHistory.push(lastId);
-
-    // Start edit-time tracking for the restored note.
-    const existingSec = parseInt(data.meta['edit-time'] as string || '0', 10) || 0;
-    editTime.start(lastId, existingSec, getEditTimeConfig().inactivity_sec);
-
+    activateNote(lastId, await notes.loadNote(lastId));
     return true;
   } catch {
     return false;
@@ -168,6 +152,43 @@ function clearEditorState(): void {
     clearTimeout(_autoSaveTimer);
     _autoSaveTimer = null;
   }
+}
+
+/**
+ * Save the current note if there are pending changes, then stop edit-time
+ * tracking.  Called before navigating away from the current note.
+ */
+async function saveAndStop(): Promise<void> {
+  if (_current && _savePending) {
+    if (_autoSaveTimer !== null) {
+      clearTimeout(_autoSaveTimer);
+      _autoSaveTimer = null;
+    }
+    await doAutoSave();
+  }
+  editTime.stop();
+}
+
+/**
+ * Activate a fully-loaded note in the editor.
+ * Sets all app-level state, shows the editor, highlights the sidebar,
+ * pushes nav history, persists last-note, and starts edit-time tracking.
+ */
+function activateNote(id: string, data: NoteData): void {
+  _current = id;
+  _content = data.content;
+  _savePending = false;
+  if (_autoSaveTimer !== null) {
+    clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = null;
+  }
+  ui.setDirty(false);
+  ui.showEditor(data);
+  ui.setActiveNote(id);
+  navHistory.push(id);
+  persistLastNote(id);
+  const existingSec = parseInt(data.meta['edit-time'] as string || '0', 10) || 0;
+  editTime.start(id, existingSec, getEditTimeConfig().inactivity_sec);
 }
 
 function updateTrashCount(): void {
@@ -330,53 +351,16 @@ async function handleResetDB(): Promise<void> {
 function wireUiEvents(): void {
   ui.bindEvents({
     onOpen:          async id => {
-      // Persist pending changes + edit-time for the currently open note
-      // before switching.  Only saves if there's real unsaved content
-      // (_savePending) — never creates a version just for edit-time drift.
-      if (_current && _savePending) {
-        if (_autoSaveTimer !== null) {
-          clearTimeout(_autoSaveTimer);
-          _autoSaveTimer = null;
-        }
-        await doAutoSave();
-      }
-      editTime.stop();
-
-      // Load data first, set _content before showEditor so the
-      // scheduleAutoSave guard sees identical content and skips.
+      await saveAndStop();
       try {
-        const data = await notes.loadNote(id);
-        _current = id;
-        _content = data.content;
-        _savePending = false;
-        if (_autoSaveTimer !== null) {
-          clearTimeout(_autoSaveTimer);
-          _autoSaveTimer = null;
-        }
-        ui.setDirty(false);
-        ui.showEditor(data);
-        ui.setActiveNote(id);
-        navHistory.push(id);
-        persistLastNote(id);
-
-        // Start edit-time tracking for the newly opened note.
-        const existingSec = parseInt(data.meta['edit-time'] as string || '0', 10) || 0;
-        editTime.start(id, existingSec, getEditTimeConfig().inactivity_sec);
+        activateNote(id, await notes.loadNote(id));
       } catch { /* error toast handled in openNote */ }
     },
     onDelete:        async id => {
       const { wasCurrent } = await notesCtrl.deleteNote(id);
       if (wasCurrent) {
-        editTime.stop();  // note is being deleted — discard timer
-        _current = null;
-        _content = '';
-        _savePending = false;
-        if (_autoSaveTimer !== null) {
-          clearTimeout(_autoSaveTimer);
-          _autoSaveTimer = null;
-        }
-        ui.setDirty(false);
-        // Remove the deleted note from history stack
+        editTime.stop();
+        clearEditorState();
         navHistory.remove(id);
       }
     },
@@ -455,35 +439,9 @@ async function handleBack(): Promise<void> {
   const prevId = navHistory.pop();
   if (!prevId) return;
 
-  // Persist pending changes + edit-time for the current note before
-  // navigating away.  Only saves if there's real unsaved content.
-  if (_current && _savePending) {
-    if (_autoSaveTimer !== null) {
-      clearTimeout(_autoSaveTimer);
-      _autoSaveTimer = null;
-    }
-    await doAutoSave();
-  }
-  editTime.stop();
-
+  await saveAndStop();
   try {
-    const data = await notes.loadNote(prevId);
-    _current = prevId;
-    _content = data.content;
-    _savePending = false;
-    if (_autoSaveTimer !== null) {
-      clearTimeout(_autoSaveTimer);
-      _autoSaveTimer = null;
-    }
-    ui.setDirty(false);
-    ui.showEditor(data);
-    ui.setActiveNote(prevId);
-    navHistory.push(prevId);
-    persistLastNote(prevId);
-
-    // Start edit-time tracking for the newly opened note.
-    const existingSec = parseInt(data.meta['edit-time'] as string || '0', 10) || 0;
-    editTime.start(prevId, existingSec, getEditTimeConfig().inactivity_sec);
+    activateNote(prevId, await notes.loadNote(prevId));
   } catch {
     ui.toast(`Failed to open "${prevId}"`, true);
   }
@@ -534,38 +492,9 @@ async function showShell(): Promise<void> {
       return;
     }
 
-    // Persist pending changes + edit-time for the current note before
-    // navigating.  Only saves if there's real unsaved content.
-    if (_current && _savePending) {
-      if (_autoSaveTimer !== null) {
-        clearTimeout(_autoSaveTimer);
-        _autoSaveTimer = null;
-      }
-      await doAutoSave();
-    }
-    editTime.stop();
-
-    // Note exists — open it normally.
-    // Set _content first so scheduleAutoSave's equality guard prevents a
-    // spurious auto-save timer from the showEditor → setContent → note-changed chain.
+    await saveAndStop();
     try {
-      const data = await notes.loadNote(id);
-      _current = id;
-      _content = data.content;
-      _savePending = false;
-      if (_autoSaveTimer !== null) {
-        clearTimeout(_autoSaveTimer);
-        _autoSaveTimer = null;
-      }
-      ui.setDirty(false);
-      ui.showEditor(data);
-      ui.setActiveNote(id);
-      navHistory.push(id);
-      persistLastNote(id);
-
-      // Start edit-time tracking for the navigated note.
-      const existingSec = parseInt(data.meta['edit-time'] as string || '0', 10) || 0;
-      editTime.start(id, existingSec, getEditTimeConfig().inactivity_sec);
+      activateNote(id, await notes.loadNote(id));
     } catch (err) {
       console.warn('[app] navigate-note failed:', err);
     }
