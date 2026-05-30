@@ -14,13 +14,13 @@ class StorageTest extends TestCase
     protected function tearDown(): void
     {
         $this->cleanNotesDir();
-        @unlink(CHANGELOG_FILE);
+        if (file_exists(CHANGELOG_FILE)) unlink(CHANGELOG_FILE);
     }
 
     private function cleanNotesDir(): void
     {
         foreach (glob($this->notesDir . '*') ?: [] as $f) {
-            @unlink($f);
+            if (file_exists($f)) unlink($f);
         }
     }
 

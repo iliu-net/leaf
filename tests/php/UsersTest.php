@@ -5,12 +5,12 @@ class UsersTest extends TestCase
 {
     protected function setUp(): void
     {
-        @unlink(HTPASSWD_FILE);
+        if (file_exists(HTPASSWD_FILE)) unlink(HTPASSWD_FILE);
     }
 
     protected function tearDown(): void
     {
-        @unlink(HTPASSWD_FILE);
+        if (file_exists(HTPASSWD_FILE)) unlink(HTPASSWD_FILE);
     }
 
     private function writeHtpasswd(array $users): void

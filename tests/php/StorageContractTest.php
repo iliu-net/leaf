@@ -1,4 +1,5 @@
 <?php
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -37,13 +38,13 @@ class StorageContractTest extends TestCase
     protected function tearDown(): void
     {
         $this->cleanNotesDir();
-        @unlink(CHANGELOG_FILE);
+        if (file_exists(CHANGELOG_FILE)) unlink(CHANGELOG_FILE);
     }
 
     private function cleanNotesDir(): void
     {
         foreach (glob($this->notesDir . '*') ?: [] as $f) {
-            @unlink($f);
+            if (file_exists($f)) unlink($f);
         }
     }
 
@@ -51,13 +52,13 @@ class StorageContractTest extends TestCase
     // storage_get_note_full($id, $viewer) ── Change 026 Phase 1
     // ═══════════════════════════════════════════════════════════════
 
-    /** @test */
+    #[Test]
     public function getNoteFull_returnsNullForNonexistentNote(): void
     {
         $this->assertNull(storage_get_note_full('no-such-note', 'alice'));
     }
 
-    /** @test */
+    #[Test]
     public function getNoteFull_returnsNullForDeletedNote(): void
     {
         storage_put_note_logged('doomed', 'hello', 'alice', 'local');
@@ -66,7 +67,7 @@ class StorageContractTest extends TestCase
         $this->assertNull(storage_get_note_full('doomed', 'alice'));
     }
 
-    /** @test */
+    #[Test]
     public function getNoteFull_returnsNormalizedFlatShape(): void
     {
         [$version] = storage_put_note_logged('flat', 'hello world', 'alice', 'local');
@@ -90,7 +91,7 @@ class StorageContractTest extends TestCase
         $this->assertSame('alice',       $note['created_by']);
     }
 
-    /** @test */
+    #[Test]
     public function getNoteFull_prevLinksToPreviousVersion(): void
     {
         [$v1] = storage_put_note_logged('link', 'first',   'alice', 'local');
@@ -104,7 +105,7 @@ class StorageContractTest extends TestCase
         $this->assertSame('alice',  $note['created_by'], 'created_by immutable');
     }
 
-    /** @test */
+    #[Test]
     public function getNoteFull_returnsLatestVersion(): void
     {
         storage_put_note_logged('latest', 'v1', 'alice', 'local');
@@ -118,7 +119,7 @@ class StorageContractTest extends TestCase
 
     // ── $viewer parameter (git-backend readiness) ──────────────────
 
-    /** @test */
+    #[Test]
     public function getNoteFull_viewerParameterAcceptedForAllIdentities(): void
     {
         storage_put_note_logged('note', 'secret', 'alice', 'local');
@@ -146,7 +147,7 @@ class StorageContractTest extends TestCase
     // ── Change 026 Phase 2
     // ═══════════════════════════════════════════════════════════════
 
-    /** @test */
+    #[Test]
     public function putNoteLogged_createsNoteAndReturnsVersion(): void
     {
         [$version, $dirty] = storage_put_note_logged(
@@ -164,7 +165,7 @@ class StorageContractTest extends TestCase
         $this->assertSame('alice', $note['author']);
     }
 
-    /** @test */
+    #[Test]
     public function putNoteLogged_updatesExistingNote(): void
     {
         [$v1] = storage_put_note_logged('note', 'v1', 'alice', 'local');
@@ -180,7 +181,7 @@ class StorageContractTest extends TestCase
             'created_by must survive updates');
     }
 
-    /** @test */
+    #[Test]
     public function putNoteLogged_returnsNullForNullClientVersion(): void
     {
         $result = storage_put_note_logged('note', 'content', 'alice', null);
@@ -188,7 +189,7 @@ class StorageContractTest extends TestCase
         $this->assertFalse(storage_note_exists('note'));
     }
 
-    /** @test */
+    #[Test]
     public function putNoteLogged_returnsNullForEmptyClientVersion(): void
     {
         $result = storage_put_note_logged('note', 'content', 'alice', '');
@@ -196,7 +197,7 @@ class StorageContractTest extends TestCase
         $this->assertFalse(storage_note_exists('note'));
     }
 
-    /** @test */
+    #[Test]
     public function putNoteLogged_revivesDeletedTombstone(): void
     {
         storage_put_note_logged('note', 'original', 'alice', 'local');
@@ -223,7 +224,7 @@ class StorageContractTest extends TestCase
             'Tombstone must be gone after revive');
     }
 
-    /** @test */
+    #[Test]
     public function putNoteLogged_detectsConflictsAndStillWrites(): void
     {
         // Alice creates v1
@@ -243,7 +244,7 @@ class StorageContractTest extends TestCase
         $this->assertSame('bob-v1', $note['content']);
     }
 
-    /** @test */
+    #[Test]
     public function putNoteLogged_differentAuthorCreatesNewVersion(): void
     {
         [$v1] = storage_put_note_logged('note', 'alice-v1', 'alice', 'local');
@@ -262,7 +263,7 @@ class StorageContractTest extends TestCase
 
     // ── $dirty flag (git-backend readiness) ────────────────────────
 
-    /** @test */
+    #[Test]
     public function putNoteLogged_dirtyFlagIsBooleanOnCreate(): void
     {
         [$version, $dirty] = storage_put_note_logged(
@@ -274,7 +275,7 @@ class StorageContractTest extends TestCase
         // .md/.meta but not yet committed.
     }
 
-    /** @test */
+    #[Test]
     public function putNoteLogged_dirtyFlagIsBooleanOnUpdate(): void
     {
         [$v1] = storage_put_note_logged('note', 'v1', 'alice', 'local');
@@ -286,7 +287,7 @@ class StorageContractTest extends TestCase
     // storage_delete_note_logged($id, $author) ── Change 026 Phase 3
     // ═══════════════════════════════════════════════════════════════
 
-    /** @test */
+    #[Test]
     public function deleteNoteLogged_softDeletesLiveNote(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -298,7 +299,7 @@ class StorageContractTest extends TestCase
         $this->assertNull(storage_get_note_full('note', 'alice'));
     }
 
-    /** @test */
+    #[Test]
     public function deleteNoteLogged_failsOnAlreadyDeleted(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -307,7 +308,7 @@ class StorageContractTest extends TestCase
         $this->assertFalse(storage_delete_note_logged('note', 'alice'));
     }
 
-    /** @test */
+    #[Test]
     public function deleteNoteLogged_failsOnNonexistent(): void
     {
         $this->assertFalse(
@@ -315,7 +316,7 @@ class StorageContractTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function deleteNoteLogged_producesChangelogEntry(): void
     {
         $before = changelog_current_rev();
@@ -332,7 +333,7 @@ class StorageContractTest extends TestCase
     // storage_rename_note_logged($old, $new, $author) ── Phase 3
     // ═══════════════════════════════════════════════════════════════
 
-    /** @test */
+    #[Test]
     public function renameNoteLogged_movesNote(): void
     {
         storage_put_note_logged('old', 'content', 'alice', 'local');
@@ -347,7 +348,7 @@ class StorageContractTest extends TestCase
         $this->assertSame('alice',   $note['created_by']);
     }
 
-    /** @test */
+    #[Test]
     public function renameNoteLogged_preservesFullVersionHistory(): void
     {
         [$v1] = storage_put_note_logged('note', 'v1', 'alice',   'local');
@@ -373,7 +374,7 @@ class StorageContractTest extends TestCase
         }
     }
 
-    /** @test */
+    #[Test]
     public function renameNoteLogged_failsOnNonexistentSource(): void
     {
         $this->assertFalse(
@@ -381,7 +382,7 @@ class StorageContractTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function renameNoteLogged_failsOnOccupiedTarget(): void
     {
         storage_put_note_logged('source', 'src-content', 'alice', 'local');
@@ -399,7 +400,7 @@ class StorageContractTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function renameNoteLogged_failsOnEmptyNewId(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -409,7 +410,7 @@ class StorageContractTest extends TestCase
         $this->assertTrue(storage_note_exists('note'));
     }
 
-    /** @test */
+    #[Test]
     public function renameNoteLogged_producesChangelogEntry(): void
     {
         $before = changelog_current_rev();
@@ -426,13 +427,13 @@ class StorageContractTest extends TestCase
     // storage_get_version_list($id) ── Change 026 Phase 4
     // ═══════════════════════════════════════════════════════════════
 
-    /** @test */
+    #[Test]
     public function getVersionList_returnsEmptyForNonexistent(): void
     {
         $this->assertSame([], storage_get_version_list('no-such-note'));
     }
 
-    /** @test */
+    #[Test]
     public function getVersionList_returnsEmptyForDeleted(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -441,7 +442,7 @@ class StorageContractTest extends TestCase
         $this->assertSame([], storage_get_version_list('note'));
     }
 
-    /** @test */
+    #[Test]
     public function getVersionList_returnsAllVersionsNewestFirst(): void
     {
         [$v1] = storage_put_note_logged('note', 'v1', 'alice',   'local');
@@ -459,7 +460,7 @@ class StorageContractTest extends TestCase
         $this->assertSame($v1, $list[2]['key']);
     }
 
-    /** @test */
+    #[Test]
     public function getVersionList_eachEntryHasRequiredKeys(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -483,7 +484,7 @@ class StorageContractTest extends TestCase
     // storage_get_version_content($id, $vkey) ── Phase 4
     // ═══════════════════════════════════════════════════════════════
 
-    /** @test */
+    #[Test]
     public function getVersionContent_returnsContentForVersion(): void
     {
         // Use different authors to guarantee distinct version keys
@@ -501,7 +502,7 @@ class StorageContractTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function getVersionContent_returnsNullForUnknownKey(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -511,7 +512,7 @@ class StorageContractTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function getVersionContent_returnsNullForNonexistentNote(): void
     {
         $this->assertNull(
@@ -519,7 +520,7 @@ class StorageContractTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function getVersionContent_returnsNullForDeletedNote(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -535,20 +536,20 @@ class StorageContractTest extends TestCase
     // storage_get_tombstone($id) ── Change 026 Phase 5
     // ═══════════════════════════════════════════════════════════════
 
-    /** @test */
+    #[Test]
     public function getTombstone_returnsNullForLiveNote(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
         $this->assertNull(storage_get_tombstone('note'));
     }
 
-    /** @test */
+    #[Test]
     public function getTombstone_returnsNullForNonexistent(): void
     {
         $this->assertNull(storage_get_tombstone('no-such-note'));
     }
 
-    /** @test */
+    #[Test]
     public function getTombstone_returnsNullAfterTombstoneIsRevived(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -561,7 +562,7 @@ class StorageContractTest extends TestCase
             'Tombstone must be gone after revive');
     }
 
-    /** @test */
+    #[Test]
     public function getTombstone_returnsFullMetadata(): void
     {
         storage_put_note_logged('note', 'precious content', 'creator', 'local');
@@ -586,7 +587,7 @@ class StorageContractTest extends TestCase
         $this->assertNotEmpty($tombstone['version']);
     }
 
-    /** @test */
+    #[Test]
     public function getTombstone_preservesDeletedByCorrectly(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -603,21 +604,21 @@ class StorageContractTest extends TestCase
     // storage_housekeeping($entry) ── Change 026 maintenance hook
     // ═══════════════════════════════════════════════════════════════
 
-    /** @test */
+    #[Test]
     public function housekeeping_syncEntryReturnsInt(): void
     {
         $result = storage_housekeeping('sync');
         $this->assertIsInt($result);
     }
 
-    /** @test */
+    #[Test]
     public function housekeeping_unknownEntryReturnsZero(): void
     {
         $result = storage_housekeeping('unknown-entry');
         $this->assertSame(0, $result);
     }
 
-    /** @test */
+    #[Test]
     public function housekeeping_unknownEntryDoesNotPurge(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -633,7 +634,7 @@ class StorageContractTest extends TestCase
     // storage_e2ee_support() ── backend capability flag
     // ═══════════════════════════════════════════════════════════════
 
-    /** @test */
+    #[Test]
     public function e2eeSupport_returnsBoolean(): void
     {
         $result = storage_e2ee_support();
@@ -648,7 +649,7 @@ class StorageContractTest extends TestCase
     // Full-lifecycle integration (all contract functions)
     // ═══════════════════════════════════════════════════════════════
 
-    /** @test */
+    #[Test]
     public function fullLifecycle_createReadUpdateDeleteTombstone(): void
     {
         // ── CREATE ──────────────────────────────────────
@@ -735,13 +736,12 @@ class StorageContractTest extends TestCase
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * @test
-     *
      * git-storage concern: commits are immutable.
      * Every distinct write must produce a version key that can be used
      * to retrieve that exact content later.  Content must never change
      * under a given key once written.
      */
+    #[Test]
     public function versionImmutability_contentStableUnderKey(): void
     {
         [$v1] = storage_put_note_logged('note', 'original', 'alice', 'local');
@@ -766,12 +766,11 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage concern: changelog trail enables incremental sync
      * (fast path) AND full reconstruction from git log.  Every logged
      * operation must produce a changelog entry with consistent shape.
      */
+    #[Test]
     public function changelogTrail_everyOperationProducesEntry(): void
     {
         $before = changelog_current_rev();
@@ -788,12 +787,11 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage concern: the changelog trails by one entry in the
      * git backend (last entry is in working tree but not committed).
      * The working-tree changelog always has the full truth.
      */
+    #[Test]
     public function changelogTrail_sinceReturnsExpectedEntries(): void
     {
         // This tests the incremental sync path: given a known
@@ -812,12 +810,11 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage concern: created_by is set on the first write and
      * never overwritten, even across updates and renames.  The git
      * backend can derive this from the first commit's author.
      */
+    #[Test]
     public function createdBy_survivesAllMutations(): void
     {
         [$v1] = storage_put_note_logged('note', 'original', 'creator', 'local');
@@ -834,11 +831,10 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage concern: concurrent writers produce a linear history
      * (last-write-wins).  Both writes succeed; history contains both.
      */
+    #[Test]
     public function concurrentWriters_bothWritesSucceed(): void
     {
         [$v1] = storage_put_note_logged(
@@ -874,12 +870,11 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage concern: the $viewer parameter triggers staging
      * flushes when viewer ≠ staged author.  The contract must accept
      * any viewer identity without error on every contract function.
      */
+    #[Test]
     public function viewerParameter_acceptedOnAllRelevantFunctions(): void
     {
         storage_put_note_logged('note', 'content', 'alice', 'local');
@@ -896,13 +891,12 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage concern: `.deleted` markers are NOT committed to
      * git — they are server-side operational state carrying
      * deleted_at/deleted_by metadata.  The tombstone contract must
      * expose this metadata through storage_get_tombstone().
      */
+    #[Test]
     public function tombstoneMetadata_exposesDeletedAtAndDeletedBy(): void
     {
         $before = time();
@@ -925,13 +919,12 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage concern: the housekeeping hook is the designated
      * entry point for periodic maintenance (TTL-based tombstone
      * expiry in flat-file, stale .meta flush in git).  The contract
      * requires it to accept an entry-point identifier.
      */
+    #[Test]
     public function housekeeping_isDesignatedMaintenanceHook(): void
     {
         // The function exists and accepts the 'sync' entry point
@@ -960,8 +953,6 @@ class StorageContractTest extends TestCase
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * @test
-     *
      * git-storage § "Key Simplification: Commits Are Immutable"
      *
      * | Scenario              | Current                     | Git              |
@@ -974,6 +965,7 @@ class StorageContractTest extends TestCase
      * author's next write MUST create a new version key — never
      * overwrite the shared version.
      */
+    #[Test]
     public function gitScenario_immutability_sharedVersionNeverOverwritten(): void
     {
         // Alice saves v1
@@ -1008,8 +1000,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Write-Ahead Staging" (lazy-commit buffer)
      *
      * Alice writes v5 → .meta staged, NO git commit.
@@ -1019,6 +1009,7 @@ class StorageContractTest extends TestCase
      * Contract: same-author same-day rapid saves debounce into one
      * version slot (flat-file: overwrite; git: staged overwrite).
      */
+    #[Test]
     public function gitScenario_stagingBuffer_sameAuthorRapidSavesDebounce(): void
     {
         [$v5] = storage_put_note_logged(
@@ -1044,8 +1035,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Read-Side Trigger"
      *
      * Alice stages content (.meta exists).  Bob calls
@@ -1057,6 +1046,7 @@ class StorageContractTest extends TestCase
      * content must be flushed so the reader sees the published state.
      * consumer is unaware — just passes $viewer and gets back data.
      */
+    #[Test]
     public function gitScenario_stagingFlushOnRead_differentViewerTriggersFlush(): void
     {
         // Alice writes (creates note; in git: stages .meta)
@@ -1092,8 +1082,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Commit Triggers" — Different author writes
      *
      * Alice stages content (.meta exists, author=alice).
@@ -1104,6 +1092,7 @@ class StorageContractTest extends TestCase
      * staged content before proceeding.  Both writes end up as
      * distinct versions.
      */
+    #[Test]
     public function gitScenario_stagingFlushOnWrite_differentAuthorTriggersFlush(): void
     {
         // Alice writes (stages content)
@@ -1133,8 +1122,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Commit Triggers" — DELETE flushes stage first
      *
      * Alice stages content (.meta exists).  Bob deletes the note.
@@ -1144,6 +1131,7 @@ class StorageContractTest extends TestCase
      * Contract: delete must work even when staged content exists.
      * The tombstone captures the latest committed content.
      */
+    #[Test]
     public function gitScenario_stagingFlushBeforeDelete(): void
     {
         // Alice writes (stages)
@@ -1168,8 +1156,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Commit Triggers" — RENAME flushes stage first
      *
      * Alice stages content (.meta exists).  Bob renames the note.
@@ -1179,6 +1165,7 @@ class StorageContractTest extends TestCase
      * Contract: rename must work even with staged content.  The
      * renamed note carries all existing version history.
      */
+    #[Test]
     public function gitScenario_stagingFlushBeforeRename(): void
     {
         // Alice writes (stages) — two versions to verify history preserved
@@ -1206,8 +1193,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Bootstrap (syncedRevision===0)"
      *
      * Bootstrap flushes ALL .meta files before building the response.
@@ -1218,6 +1203,7 @@ class StorageContractTest extends TestCase
      * all notes are fully readable through storage_get_note_full and
      * have proper version keys.
      */
+    #[Test]
     public function gitScenario_bootstrap_allStagedContentFlushed(): void
     {
         // Multiple authors write to multiple notes
@@ -1244,8 +1230,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Changelog Trailing-Commit Model"
      *
      * The changelog IS committed to git but always one entry behind
@@ -1256,6 +1240,7 @@ class StorageContractTest extends TestCase
      * Contract: changelog_since() returns all entries after a given
      * revision, including the "trailing" (uncommitted) entry.
      */
+    #[Test]
     public function gitScenario_changelogTrailingEntry_workingTreeHasFullTruth(): void
     {
         $before = changelog_current_rev();
@@ -1288,8 +1273,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Commit Triggers" — Date change triggers flush
      *
      * Alice writes today (stages .meta with today's date).
@@ -1303,6 +1286,7 @@ class StorageContractTest extends TestCase
      * Simulated by manipulating the saved_at timestamp of the first
      * version to appear as if it were written on a different day.
      */
+    #[Test]
     public function gitScenario_dateChange_triggerFlushesOldStage(): void
     {
         // Alice writes today
@@ -1333,8 +1317,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Housekeeping / Staging TTL"
      *
      * storage_housekeeping() is the designated hook for flushing
@@ -1346,6 +1328,7 @@ class StorageContractTest extends TestCase
      * tombstones (flat-file) and will process stale .meta files (git).
      * The return value is an integer count of items processed.
      */
+    #[Test]
     public function gitScenario_housekeeping_staleStagingFlush(): void
     {
         // Create and delete a note, then backdate the tombstone
@@ -1375,8 +1358,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Conflict Detection"
      *
      * Conflict detection lives inside storage_put_note_logged()
@@ -1389,6 +1370,7 @@ class StorageContractTest extends TestCase
      * Contract: all writes succeed (last-write-wins).  Version history
      * contains all writes.  Current content is the latest writer's.
      */
+    #[Test]
     public function gitScenario_conflictDetection_threeWritersInterleaving(): void
     {
         // Alice creates
@@ -1430,8 +1412,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "Sync Protocol Changes" — bootstrap path
      *
      * When syncedRevision===0, storage_flush_all_stages() flushes
@@ -1441,6 +1421,7 @@ class StorageContractTest extends TestCase
      * Contract: after a simulated bootstrap, all live notes are
      * fully readable with proper version keys and content.
      */
+    #[Test]
     public function gitScenario_bootstrap_buildsFullSnapshot(): void
     {
         // Create several notes with multiple versions
@@ -1472,8 +1453,6 @@ class StorageContractTest extends TestCase
     }
 
     /**
-     * @test
-     *
      * git-storage § "History Endpoint"
      *
      * action=list → git log; action=get → git show {sha}:notes/{id}.md
@@ -1483,6 +1462,7 @@ class StorageContractTest extends TestCase
      * consistent shape; storage_get_version_content retrieves each.
      * Version keys are opaque strings (composite key today, SHA in git).
      */
+    #[Test]
     public function gitScenario_historyEndpoint_versionKeysAreOpaque(): void
     {
         // Multiple writes across different authors
