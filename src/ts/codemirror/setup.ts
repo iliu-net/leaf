@@ -20,7 +20,7 @@ import {
 } from '@codemirror/commands';
 import {
   foldGutter, foldKeymap, bracketMatching, indentOnInput,
-  syntaxHighlighting,
+  syntaxHighlighting, StreamLanguage,
 } from '@codemirror/language';
 
 import { highlightDark, highlightLight, resolveHighlight } from './highlight-themes.js';
@@ -30,6 +30,18 @@ import { htmlLanguage } from '@codemirror/lang-html';
 import { cssLanguage } from '@codemirror/lang-css';
 import { javascriptLanguage } from '@codemirror/lang-javascript';
 import { xmlLanguage } from '@codemirror/lang-xml';
+import { jsonLanguage } from '@codemirror/lang-json';
+import { pythonLanguage } from '@codemirror/lang-python';
+import { javaLanguage } from '@codemirror/lang-java';
+import { cppLanguage } from '@codemirror/lang-cpp';
+import { phpLanguage } from '@codemirror/lang-php';
+
+// Legacy (CodeMirror 5) modes — wrapped via StreamLanguage
+import { shell } from '@codemirror/legacy-modes/mode/shell';
+import { yaml as yamlMode } from '@codemirror/legacy-modes/mode/yaml';
+import { properties } from '@codemirror/legacy-modes/mode/properties';
+import { tcl } from '@codemirror/legacy-modes/mode/tcl';
+import { vb } from '@codemirror/legacy-modes/mode/vb';
 
 import { spellcheckPlugin } from './spellcheck.js';
 import { pasteHandler } from './paste-handler.js';
@@ -56,10 +68,29 @@ export type CMFactory = (parent: Element, initialDoc: string, onChange: () => vo
 function codeLanguages(info: string) {
   const name = info.split(/\s+/)[0].toLowerCase();
   switch (name) {
+    // ── Official language packages ───────────────────────────────────────
     case 'html': return htmlLanguage;
     case 'css': return cssLanguage;
     case 'js': case 'javascript': return javascriptLanguage;
     case 'xml': case 'svg': return xmlLanguage;
+    case 'json': return jsonLanguage;
+    case 'python': case 'py': return pythonLanguage;
+    case 'java': return javaLanguage;
+    case 'cpp': case 'c++': case 'c': return cppLanguage;
+    case 'php': return phpLanguage;
+
+    // ── Legacy (CodeMirror 5) modes ──────────────────────────────────────
+    case 'bash': case 'sh': case 'shell': return StreamLanguage.define(shell);
+    case 'yaml': case 'yml': return StreamLanguage.define(yamlMode);
+    case 'ini': case 'properties': return StreamLanguage.define(properties);
+    case 'tcl': return StreamLanguage.define(tcl);
+    case 'vbs': case 'vb': return StreamLanguage.define(vb);
+
+    // ── Aliased to existing languages (no extra bundle cost) ─────────────
+    case 'hcl': case 'tf': case 'terraform': return javascriptLanguage;
+
+    // ── Explicit plain-text (no highlighting) ────────────────────────────
+    case 'text': case 'plaintext': case 'txt': return null;
   }
   return null;
 }
