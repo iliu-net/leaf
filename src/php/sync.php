@@ -70,12 +70,12 @@ require_once __DIR__ . '/cors.php';
 
 $author = require_auth();   // exits with 401 if token missing/invalid
 
-// ── Daily purge of expired tombstones ──────────
+// ── Daily house keeping chores ──────────
 $purgeFile = DATA_ROOT . 'last_purge.txt';
 $lastPurge = file_exists($purgeFile) ? (int)file_get_contents($purgeFile) : 0;
 if (time() - $lastPurge > 86400) {
-    storage_purge_deleted_notes();
-    audit_purge();
+    storage_housekeeping('sync');
+    audit_purge('sync');
     file_put_contents($purgeFile, (string)time());
 }
 

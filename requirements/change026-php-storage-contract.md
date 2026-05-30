@@ -90,6 +90,18 @@ Normalized flat read for tombstone data.  Returns `null` if the
 `.deleted.json` file does not exist or is malformed.
 Used by `trash.php` `action=preview`.
 
+### `storage_housekeeping(string $entry): int` — Periodic maintenance hook
+
+Called by the daily purge block in `sync.php` (and potentially cron).
+The `$entry` parameter identifies the caller (`"sync"` for the daily
+hook) so backends can vary behaviour by context.  In the flat-file
+backend, the `"sync"` entry point expires deleted notes past the TTL.
+The git backend will use this to flush stale `.meta` staging files.
+
+Replaces direct calls to `storage_purge_deleted_notes()` from sync.php
+— the purge is now invoked through this hook instead, keeping all
+periodic maintenance behind a single storage contract entry point.
+
 ## Files modified
 
 ### `src/php/storage.php` — 877 lines
@@ -102,11 +114,18 @@ Used by `trash.php` `action=preview`.
 - Phase 4: `storage_get_version_list()`, `storage_get_version_content()` —
   new "Version history" section before the Changelog section
 - Phase 5: `storage_get_tombstone()` — after `storage_list_deleted_notes()`
+- `storage_housekeeping($entry)` — periodic maintenance hook; the
+  `"sync"` entry point expires deleted notes.  Replaces direct
+  `storage_purge_deleted_notes()` calls from sync.php.
 - Renamed: `note_is_deleted()` → `storage_note_deleted()`,
   `next_rev()` → `changelog_next_rev()`
 
 ### `src/php/sync.php` — 359 lines
 
+- **Daily housekeeping block** — Now calls `storage_housekeeping('sync')`
+  and `audit_purge('sync')` instead of `storage_purge_deleted_notes()`
+  and `audit_purge()`.  The `'sync'` entry point lets backends vary
+  behaviour by call context.
 - **`apply_client_change()`** — Reduced from ~110 to ~42 lines, returns void.
   CREATE/UPDATE calls `storage_put_note_logged()` and destructures the
   `[$version, $dirty]` tuple for audit logging.  DELETE and RENAME use the
@@ -163,13 +182,16 @@ Used by `trash.php` `action=preview`.
                               │                          │
                               │  storage_get_tombstone   │◄── trash.php (preview)
                               │                          │
+                              │  storage_housekeeping    │◄── sync.php (daily hook)
+                              │    ($entry)              │◄── cron (future)
+                              │                          │
                               │  changelog_*()           │  <- internal
                               │  storage_note_deleted()  │
                               │  versions map            │
                               └──────────────────────────┘
 ```
 
-Consumer endpoints see only the seven contract functions.  The internal
+Consumer endpoints see only the eight contract functions.  The internal
 `versions` map is never accessed outside `storage.php`.  `changelog_append()`
 has one remaining consumer call site (trash restore), which passes no
 format-specific knowledge.
@@ -189,6 +211,11 @@ the git storage backend (see `TODO/git-storage.md`):
 - **`bool` returns** from delete/rename simplify callers (they only used the
   previous `?array` return as a truthiness check anyway) and will work
   unchanged when those operations gain staging-aware flush logic.
+
+The `$entry` parameter on `storage_housekeeping()` lets backends vary
+behaviour by call context (`"sync"` for the daily hook, future values
+for cron or CLI).  The flat-file backend expires deleted notes on
+`"sync"`; the git backend will flush stale `.meta` staging files.
 
 The git plan eliminates `storage_resolve_version()` and
 `storage_mark_version_seen()` (immutable commits make overwrite logic

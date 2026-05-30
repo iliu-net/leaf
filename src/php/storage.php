@@ -304,6 +304,27 @@ function storage_purge_deleted_notes(): int {
 }
 
 /**
+ * Periodic housekeeping hook.
+ *
+ * Called by cron or the daily purge hook in sync.php.  Alternative
+ * backends may use this for tasks like flushing
+ * stale write-ahead stages, compacting data files, or rotating logs.
+ *
+ * This backend uses this expire deleted notes over the TTL.
+ *
+ * @param string $entry Entry point for housekeeping
+ * @return int  Number of items processed (always 0 in flat-file backend)
+ *
+ * Currently only one entry point is defined: "sync"
+ */
+function storage_housekeeping(string $entry): int {
+  if ($entry == 'sync') {
+    return storage_purge_deleted_notes();
+  }
+  return 0;
+}
+
+/**
  * Immediately hard-delete a single tombstone (no TTL check).
  *
  * Idempotent — no-op if the tombstone does not exist.
@@ -875,3 +896,4 @@ function changelog_earliest_rev(): int {
  * @return bool true if E2EE can be supported, false if it is not
  */
 function storage_e2ee_support(): bool { return true; }
+

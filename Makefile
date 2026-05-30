@@ -12,6 +12,8 @@ test-js: ## Run JavaScript unit tests (vitest)
 	pnpm test
 
 test-phpunit: ## Run PHPUnit unit tests
+	# Do a basic syntax check first
+	for i in src/php/*.php ; do php -l $$i ; done
 	composer install
 	vendor/bin/phpunit -c tests/php/phpunit.xml
 

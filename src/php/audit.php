@@ -95,9 +95,10 @@ function audit_log(string $event, array $data = []): void {
  *
  * Purging is a single unlink() per file — no line scanning needed.
  *
+ * @param string $entry Entry point from housekeeping
  * @return int  Number of monthly audit files removed
  */
-function audit_purge(): int {
+function audit_purge(string $entry): int {
     $cutoff  = time() - (AUDIT_RETENTION_DAYS * 86400);
     $removed = 0;
 
