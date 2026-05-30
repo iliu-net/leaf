@@ -14,6 +14,7 @@
  */
 
 import { getNamespace } from './local-store.js';
+import { createListenerList } from './utils.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -40,21 +41,14 @@ function getChannel(): BroadcastChannel {
 
 // ── Local listeners ────────────────────────────────────────────────────────
 
-const _listeners: Listener[] = [];
-
 /**
  * Subscribe to all change events — local mutations, cross-tab broadcasts,
  * and server-sync notifications all flow through this single API.
  *
  * Returns an unsubscribe function.
  */
-export function subscribe(fn: Listener): () => void {
-  _listeners.push(fn);
-  return () => {
-    const i = _listeners.indexOf(fn);
-    if (i !== -1) _listeners.splice(i, 1);
-  };
-}
+const _bus = createListenerList<Listener>();
+export const subscribe = _bus.subscribe;
 
 // ── Pending async listeners (for testability) ──────────────────────────────
 
@@ -69,7 +63,7 @@ export function flush(): Promise<void> {
 
 try {
   getChannel().addEventListener('message', (e: MessageEvent<ChangeEvent>) => {
-    for (const fn of _listeners) fn(e.data);
+    for (const fn of _bus.listeners) fn(e.data);
   });
 } catch {
   // BroadcastChannel not available (test environment, Safari < 15.4).
@@ -97,7 +91,7 @@ export function publish(event: ChangeEvent): void {
   } catch { /* ignore */ }
 
   // Local listeners — track async listeners so tests can flush()
-  for (const fn of _listeners) {
+  for (const fn of _bus.listeners) {
     const result = fn(event) as unknown;
     if (result && typeof (result as Promise<unknown>).then === 'function') {
       const p = result as Promise<void>;

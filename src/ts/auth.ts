@@ -33,6 +33,7 @@ type AuthFailureListener = () => void;
 // ── Imports ──────────────────────────────────────────────────────────────
 
 import { apiUrl } from './config.js';
+import { createListenerList } from './utils.js';
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -63,19 +64,13 @@ function clearToken(): void {
 // ── Auth failure listeners ────────────────────────────────────────────────
 // Called when the token cannot be refreshed — user must log in again
 
-const authFailureListeners: AuthFailureListener[] = [];
+const _authBus = createListenerList<AuthFailureListener>();
 
-export function onAuthFailure(fn: AuthFailureListener): () => void {
-  authFailureListeners.push(fn);
-  return () => {
-    const i = authFailureListeners.indexOf(fn);
-    if (i !== -1) authFailureListeners.splice(i, 1);
-  };
-}
+export const onAuthFailure = _authBus.subscribe;
 
 function notifyAuthFailure(): void {
   clearToken();
-  authFailureListeners.forEach(fn => fn());
+  _authBus.notify();
 }
 
 // ── Login ─────────────────────────────────────────────────────────────────

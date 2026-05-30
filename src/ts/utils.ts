@@ -7,6 +7,38 @@
 
 import { getSpaConfig } from './config.js';
 
+// ── Observer helper ──────────────────────────────────────────────────────────
+
+/**
+ * Generic typed observer — creates a listener list with subscribe/notify.
+ * Eliminates the push/splice boilerplate duplicated across change-bus,
+ * sync-status, and auth-failure modules.
+ *
+ * Usage:
+ *   const bus = createListenerList<(msg: string) => void>();
+ *   const unsub = bus.subscribe(msg => console.log(msg));
+ *   bus.notify('hello');
+ */
+export function createListenerList<T extends (...args: never[]) => void>() {
+  const _listeners: T[] = [];
+  return {
+    /** Readonly access to the listener array — for custom iteration. */
+    listeners: _listeners as readonly T[],
+    /** Subscribe a listener. Returns an unsubscribe function. */
+    subscribe(fn: T): () => void {
+      _listeners.push(fn);
+      return () => {
+        const i = _listeners.indexOf(fn);
+        if (i !== -1) _listeners.splice(i, 1);
+      };
+    },
+    /** Notify all listeners with the given arguments. */
+    notify(...args: Parameters<T>): void {
+      for (const fn of _listeners) fn(...args);
+    },
+  };
+}
+
 // ── HTML tagged template ───────────────────────────────────────────────────
 
 /**

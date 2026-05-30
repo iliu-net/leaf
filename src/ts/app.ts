@@ -138,16 +138,8 @@ async function doAutoSave(): Promise<void> {
     _autoSaveTimer = null;
   }
   if (!_current) return;
-  let content = ui.flushAndGetContent();
+  const content = getContentWithEditTime();
   if (!content.trim()) return; // don't save empty content
-
-  // Merge current edit-time into frontmatter before saving.
-  // Only the body/metadata changes triggered this save — edit-time
-  // is just along for the ride.  No extra server versions created.
-  const et = editTime.getCurrentSeconds();
-  if (et > 0) {
-    content = updateFrontmatter(content, { 'edit-time': String(et) });
-  }
 
   await notes.saveNote(_current, content);
   _content = content;  // keep cache in sync with DB (includes merged edit-time)
@@ -157,6 +149,16 @@ async function doAutoSave(): Promise<void> {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Get editor content with current edit-time merged into frontmatter. */
+function getContentWithEditTime(): string {
+  let content = ui.flushAndGetContent();
+  const et = editTime.getCurrentSeconds();
+  if (et > 0) {
+    content = updateFrontmatter(content, { 'edit-time': String(et) });
+  }
+  return content;
+}
 
 function clearEditorState(): void {
   _current = null;
@@ -387,12 +389,7 @@ function wireUiEvents(): void {
       }
       if (!_current) return;
 
-      // Merge current edit-time into frontmatter before saving.
-      let content = ui.flushAndGetContent();
-      const et = editTime.getCurrentSeconds();
-      if (et > 0) {
-        content = updateFrontmatter(content, { 'edit-time': String(et) });
-      }
+      const content = getContentWithEditTime();
       const result = await notes.saveNote(_current, content);
       _content = content;
       _savePending = false;

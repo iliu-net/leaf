@@ -17,13 +17,14 @@ import {
   queueChange,
   dbGetNote,
   dbGetNoteAny,
+  dbRewriteQueueEntries,
   db,
   ensureDbOpen,
 } from './db.js';
 import type { QueueRecord } from './db.js';
 
 import { publish, subscribe } from './change-bus.js';
-import { nowSec } from './utils.js';
+import { nowSec, createListenerList } from './utils.js';
 import { syncRequest } from './api.js';
 import { revision } from './local-store.js';
 import type { SyncRequestBody, SyncResponseBody } from './api.js';
@@ -80,13 +81,13 @@ subscribe(async (event) => {
 // ── Status ────────────────────────────────────────────────────────────────
 
 let currentStatus: SyncStatus = navigator.onLine ? 'IDLE' : 'OFFLINE';
-const statusListeners: StatusListener[] = [];
+const _statusBus = createListenerList<StatusListener>();
 
 function setStatus(s: SyncStatus): void {
   if (s === currentStatus) return;
   console.log('[sync] status: %s → %s', currentStatus, s);
   currentStatus = s;
-  statusListeners.forEach(fn => fn(s, s === 'IDLE' || s === 'SYNCING'));
+  _statusBus.notify(s, s === 'IDLE' || s === 'SYNCING');
 }
 
 /**
@@ -95,12 +96,9 @@ function setStatus(s: SyncStatus): void {
  * @returns unsubscribe function
  */
 export function onSyncStatus(handler: StatusListener): () => void {
-  statusListeners.push(handler);
+  const unsub = _statusBus.subscribe(handler);
   handler(currentStatus, currentStatus !== 'OFFLINE' && currentStatus !== 'ERROR');
-  return () => {
-    const i = statusListeners.indexOf(handler);
-    if (i !== -1) statusListeners.splice(i, 1);
-  };
+  return unsub;
 }
 
 export function getSyncStatus(): SyncStatus { return currentStatus; }
@@ -204,13 +202,7 @@ export async function applyServerNoteChange(
     });
     await db.notes.delete(id);
     // Rewrite pending queue entries for old id → new id
-    const pending = await db.queue
-      .where('status').equals('pending')
-      .filter(e => e.id === id)
-      .toArray();
-    for (const entry of pending) {
-      await db.queue.update(entry.seq!, { id: newId });
-    }
+    await dbRewriteQueueEntries(id, newId);
     return;
   }
   // CREATE or UPDATE

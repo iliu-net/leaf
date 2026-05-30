@@ -14,6 +14,7 @@ import * as markdownView from './markdown-view.js';
 import type { TabPanel, TabPanelContext } from './tab-panel.js';
 import type { NoteData } from './notes.js';
 import { DOM, $, $maybe } from './dom-ids.js';
+import type { DomId } from './dom-ids.js';
 import { esc } from './utils.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
@@ -36,6 +37,13 @@ const emptyState  = $(DOM.EMPTY_STATE);
 const currentFile = $(DOM.CURRENT_FILE);
 const dirtyDot    = $(DOM.DIRTY_DOT);
 const editorTabs  = $(DOM.EDITOR_TABS);
+
+const TAB_BTN_MAP: Record<string, DomId> = {
+  view: DOM.TAB_BTN_VIEW,
+  code: DOM.TAB_BTN_CODE,
+  raw:  DOM.TAB_BTN_RAW,
+  meta: DOM.TAB_BTN_META,
+};
 
 // ── Init ────────────────────────────────────────────────────────────────────
 
@@ -284,12 +292,7 @@ function _hideAllPanelsDom(): void {
 
 function _updateTabButtons(): void {
   for (const t of ['view', 'code', 'raw', 'meta'] as const) {
-    const btnId =
-      t === 'view' ? DOM.TAB_BTN_VIEW
-      : t === 'code' ? DOM.TAB_BTN_CODE
-      : t === 'raw'  ? DOM.TAB_BTN_RAW
-      : DOM.TAB_BTN_META;
-    const btn = $maybe(btnId);
+    const btn = $maybe(TAB_BTN_MAP[t]);
     if (btn) {
       btn.classList.toggle('active', _activeTab === t);
       btn.setAttribute('aria-selected', String(_activeTab === t));

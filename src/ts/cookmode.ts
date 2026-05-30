@@ -11,6 +11,8 @@
  * with a user gesture (button click).  No persistence.
  */
 
+import { DOM, $maybe } from './dom-ids.js';
+
 // ── State ──────────────────────────────────────────────────────────────────
 
 let _wakeLock: WakeLockSentinel | null = null;
@@ -112,7 +114,7 @@ export async function toggle(): Promise<boolean> {
  * Safe to call even if the button isn't in the DOM yet.
  */
 export function updateButton(): void {
-  const btn = document.getElementById('btn-cookmode') as HTMLButtonElement | null;
+  const btn = $maybe(DOM.BTN_COOKMODE) as HTMLButtonElement | null;
   if (!btn) return;
   btn.classList.toggle('active', _active);
   btn.title = _active ? 'Cookmode: ON — screen will stay awake' : 'Cookmode: OFF — click to keep screen awake';

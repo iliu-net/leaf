@@ -168,6 +168,16 @@ export async function dbRenameNote(oldId: string, newId: string): Promise<void> 
   await db.notes.put({ ...existing, id: newId, updated_at: nowSec() });
   await db.notes.delete(oldId);
   // Rewrite pending queue entries for old id → new id
+  await dbRewriteQueueEntries(oldId, newId);
+}
+
+/**
+ * Rewrite all pending queue entries that reference oldId to point to newId.
+ * Used both by local renames (dbRenameNote) and server-pushed renames
+ * (applyServerNoteChange in sync.ts).
+ */
+export async function dbRewriteQueueEntries(oldId: string, newId: string): Promise<void> {
+  await ensureDbOpen();
   const pending = await db.queue
     .where('status').equals('pending')
     .filter(e => e.id === oldId)
