@@ -135,7 +135,7 @@ function deleted_path(string $id): string {
  * @param string $id  Note identifier
  * @return bool       True if the note has been soft-deleted
  */
-function note_is_deleted(string $id): bool {
+function storage_note_deleted(string $id): bool {
     return file_exists(deleted_path($id));
 }
 
@@ -149,7 +149,7 @@ function note_is_deleted(string $id): bool {
  * @return bool       True if the note exists and is not deleted
  */
 function storage_note_exists(string $id): bool {
-    return !note_is_deleted($id) && file_exists(note_path($id));
+    return !storage_note_deleted($id) && file_exists(note_path($id));
 }
 
 /**
@@ -168,11 +168,39 @@ function storage_note_exists(string $id): bool {
  * @return array|null  Note data array, or null if not found or deleted
  */
 function storage_get_note(string $id): ?array {
-    if (note_is_deleted($id)) return null;
+    if (storage_note_deleted($id)) return null;
     $path = note_path($id);
     if (!file_exists($path)) return null;
     $data = json_decode(file_get_contents($path), true);
     return is_array($data) ? $data : null;
+}
+
+/**
+ * Return a note in a normalized flat shape for sync-protocol consumers.
+ *
+ * Hides the internal versions map.  Returns null if the note does not
+ * exist or is deleted.
+ *
+ * @param string $id  Note identifier
+ * @return array|null  Normalized note array, or null if not found
+ */
+function storage_get_note_full(string $id): ?array {
+    $note = storage_get_note($id);
+    if (!$note) return null;
+
+    $current = $note['current'] ?? null;
+    $version = ($current && isset($note['versions'][$current]))
+        ? $note['versions'][$current] : null;
+
+    return [
+        'content'    => $version ? ($version['content'] ?? '') : '',
+        'version'    => $current ?? '',
+        'prev'       => $version ? ($version['prev'] ?? null) : null,
+        'author'     => $version ? ($version['author'] ?? '') : '',
+        'updated_at' => $version ? ($version['saved_at'] ?? 0) : 0,
+        'created_at' => $note['created_at'] ?? 0,
+        'created_by' => $note['created_by'] ?? '',
+    ];
 }
 
 /**
@@ -208,7 +236,7 @@ function storage_put_note(string $id, array $data): void {
  */
 function storage_delete_note(string $id, string $deleted_by = ''): void {
     $path = note_path($id);
-    if (!file_exists($path) || note_is_deleted($id)) return;
+    if (!file_exists($path) || storage_note_deleted($id)) return;
 
     $data = json_decode(file_get_contents($path), true);
     if (is_array($data)) {
@@ -318,6 +346,35 @@ function storage_list_deleted_notes(): array {
 }
 
 /**
+ * Return tombstone data in a normalized flat shape.
+ *
+ * Returns null if the tombstone file does not exist or is malformed.
+ *
+ * @param string $id  Note identifier
+ * @return array|null  Normalized tombstone data, or null if not found
+ */
+function storage_get_tombstone(string $id): ?array {
+    $path = deleted_path($id);
+    if (!file_exists($path)) return null;
+
+    $data = json_decode(file_get_contents($path), true);
+    if (!is_array($data)) return null;
+
+    $current = $data['current'] ?? null;
+    $content = ($current && isset($data['versions'][$current]))
+        ? ($data['versions'][$current]['content'] ?? '') : '';
+
+    return [
+        'content'    => $content,
+        'version'    => $current ?? '',
+        'created_at' => $data['created_at'] ?? 0,
+        'created_by' => $data['created_by'] ?? '',
+        'deleted_at' => $data['deleted_at'] ?? 0,
+        'deleted_by' => $data['deleted_by'] ?? '',
+    ];
+}
+
+/**
  * Rename a live note by moving its JSON file.
  *
  * Both files must be on the same filesystem, so PHP's rename() is atomic.
@@ -330,8 +387,8 @@ function storage_list_deleted_notes(): array {
  * @return bool           True if the rename succeeded
  */
 function storage_rename_note(string $old_id, string $new_id): bool {
-    if (note_is_deleted($old_id)) return false;
-    if (note_is_deleted($new_id)) return false;
+    if (storage_note_deleted($old_id)) return false;
+    if (storage_note_deleted($new_id)) return false;
     if (!file_exists(note_path($old_id))) return false;
     if (file_exists(note_path($new_id))) return false;
 
@@ -477,6 +534,118 @@ function storage_apply_write(string $id, string $content, string $author): strin
     return $vkey;
 }
 
+/**
+ * Apply a CREATE or UPDATE from a client and write a changelog entry.
+ *
+ * Returns the changelog entry, or null if the client version is missing.
+ *
+ * @param string      $id              Note identifier
+ * @param string      $content         Note content (opaque)
+ * @param string      $author          Username making the write
+ * @param string|null $client_version  Version the client is basing this write on
+ * @return array|null  Changelog entry written, or null if version is missing
+ */
+function storage_put_note_logged(
+    string $id, string $content, string $author, ?string $client_version
+): ?array {
+    if ($client_version === null || $client_version === '') return null;
+
+    if (storage_note_deleted($id)) {
+        storage_revive_note($id);
+    }
+
+    $pre_note = storage_get_note($id);
+    $is_new   = $pre_note === null;
+
+    if (!$is_new && $pre_note['current'] !== null
+        && $pre_note['current'] !== $client_version) {
+        error_log("Conflict on {$id}: client {$client_version}"
+            . " != server {$pre_note['current']}");
+    }
+
+    $vkey = storage_apply_write($id, $content, $author);
+
+    $note      = storage_get_note($id);
+    $prev_vkey = $note['versions'][$vkey]['prev'] ?? null;
+
+    $entry = [
+        'rev'          => changelog_next_rev(),
+        'file'         => $id,
+        'type'         => $is_new ? 'CREATE' : 'UPDATE',
+        'ts'           => time(),
+        'version'      => $vkey,
+        'prev_version' => $prev_vkey,
+    ];
+    changelog_append($entry);
+    return $entry;
+}
+
+/**
+ * Soft-delete a note and log the action to the changelog.
+ *
+ * Returns null if the note is already deleted or does not exist.
+ *
+ * @param string $id      Note identifier
+ * @param string $author  Username performing the deletion
+ * @return array|null  Changelog entry written, or null if skipped
+ */
+function storage_delete_note_logged(string $id, string $author): ?array {
+    if (storage_note_deleted($id)) return null;
+    if (!storage_note_exists($id)) return null;
+
+    $note    = storage_get_note($id);
+    $current = $note['current'] ?? null;
+
+    storage_delete_note($id, $author);
+
+    $entry = [
+        'rev'          => changelog_next_rev(),
+        'file'         => $id,
+        'type'         => 'DELETE',
+        'ts'           => time(),
+        'version'      => null,
+        'prev_version' => $current,
+        'deleted_by'   => $author,
+    ];
+    changelog_append($entry);
+    return $entry;
+}
+
+/**
+ * Rename a live note and log the action to the changelog.
+ *
+ * Returns null if the rename cannot be performed (source missing,
+ * target occupied, etc.).
+ *
+ * @param string $old_id  Current note identifier
+ * @param string $new_id  New note identifier
+ * @param string $author  Username performing the rename
+ * @return array|null  Changelog entry written, or null if skipped
+ */
+function storage_rename_note_logged(
+    string $old_id, string $new_id, string $author
+): ?array {
+    if ($new_id === '') return null;
+    if (!storage_note_exists($old_id)) return null;
+    if (storage_note_exists($new_id)) return null;
+    if (storage_note_deleted($new_id)) storage_hard_delete_note($new_id);
+
+    if (!storage_rename_note($old_id, $new_id)) return null;
+
+    $entry = [
+        'rev'          => changelog_next_rev(),
+        'file'         => $old_id,
+        'type'         => 'RENAME',
+        'ts'           => time(),
+        'renamed_to'   => $new_id,
+        'renamed_by'   => $author,
+        'version'      => null,
+        'prev_version' => null,
+    ];
+    changelog_append($entry);
+    return $entry;
+}
+
 // ─────────────────────────────────────────────
 // Version-exclusive flag
 // ─────────────────────────────────────────────
@@ -508,6 +677,49 @@ function storage_mark_version_seen(string $id, string $viewer): void {
         $note['versions'][$current_vkey]['exclusive'] = false;
         storage_put_note($id, $note);
     }
+}
+
+// ─────────────────────────────────────────────
+// Version history
+// ─────────────────────────────────────────────
+
+/**
+ * Return version metadata for all versions of a note, newest first.
+ *
+ * @param string $id  Note identifier
+ * @return array<int, array{key: string, author: string, saved_at: int, prev: string|null}>
+ */
+function storage_get_version_list(string $id): array {
+    $note = storage_get_note($id);
+    if (!$note) return [];
+
+    $versions = $note['versions'] ?? [];
+    $result   = [];
+    foreach ($versions as $vkey => $ventry) {
+        $result[] = [
+            'key'      => $vkey,
+            'author'   => $ventry['author'] ?? '',
+            'saved_at' => $ventry['saved_at'] ?? 0,
+            'prev'     => $ventry['prev'] ?? null,
+        ];
+    }
+    usort($result, fn($a, $b) => $b['saved_at'] <=> $a['saved_at']);
+    return $result;
+}
+
+/**
+ * Return content for a specific version, or null if not found.
+ *
+ * @param string $id    Note identifier
+ * @param string $vkey  Version key
+ * @return string|null  Version content, or null if not found
+ */
+function storage_get_version_content(string $id, string $vkey): ?string {
+    $note = storage_get_note($id);
+    if (!$note) return null;
+    $versions = $note['versions'] ?? [];
+    return isset($versions[$vkey])
+        ? ($versions[$vkey]['content'] ?? '') : null;
 }
 
 // ─────────────────────────────────────────────
@@ -547,7 +759,7 @@ function changelog_append(array $entry): void {
  *
  * @return int  The next revision number (1 if changelog is empty or missing)
  */
-function next_rev(): int {
+function changelog_next_rev(): int {
     if (!file_exists(CHANGELOG_FILE)) return 1;
 
     $fh = fopen(CHANGELOG_FILE, 'r');
@@ -619,7 +831,7 @@ function changelog_since(int $since): array {
  * @return int  Current revision number, or 0 if changelog is empty
  */
 function changelog_current_rev(): int {
-    return next_rev() - 1;
+    return changelog_next_rev() - 1;
 }
 
 /**

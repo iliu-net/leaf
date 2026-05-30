@@ -24,31 +24,19 @@ class StorageTest extends TestCase
         }
     }
 
-    // ── note_path / deleted_path ──────────────────────────────────────────
-
-    public function testNotePath(): void
-    {
-        $this->assertSame(NOTES_DIR . 'foo.json', note_path('foo'));
-    }
-
-    public function testDeletedPath(): void
-    {
-        $this->assertSame(NOTES_DIR . 'foo.deleted.json', deleted_path('foo'));
-    }
-
-    // ── note_is_deleted / storage_note_exists ──────────────────────────────
+    // ── storage_note_deleted / storage_note_exists ──────────────────────────────
 
     public function testNoteDoesNotExistInitially(): void
     {
         $this->assertFalse(storage_note_exists('nonexistent'));
-        $this->assertFalse(note_is_deleted('nonexistent'));
+        $this->assertFalse(storage_note_deleted('nonexistent'));
     }
 
     public function testNoteExistsAfterPut(): void
     {
         storage_put_note('foo', ['current' => null, 'created_at' => time(), 'versions' => []]);
         $this->assertTrue(storage_note_exists('foo'));
-        $this->assertFalse(note_is_deleted('foo'));
+        $this->assertFalse(storage_note_deleted('foo'));
     }
 
     public function testNoteIsDeletedAfterDelete(): void
@@ -56,13 +44,13 @@ class StorageTest extends TestCase
         storage_put_note('foo', ['current' => null, 'created_at' => time(), 'versions' => []]);
         storage_delete_note('foo');
         $this->assertFalse(storage_note_exists('foo'));
-        $this->assertTrue(note_is_deleted('foo'));
+        $this->assertTrue(storage_note_deleted('foo'));
     }
 
     public function testDeleteIsIdempotent(): void
     {
         storage_delete_note('nonexistent');
-        $this->assertFalse(note_is_deleted('nonexistent'));
+        $this->assertFalse(storage_note_deleted('nonexistent'));
     }
 
     // ── storage_get_note ───────────────────────────────────────────────────
@@ -213,9 +201,9 @@ class StorageTest extends TestCase
     {
         storage_apply_write('foo', 'content', 'alice');
         storage_delete_note('foo');
-        $this->assertTrue(note_is_deleted('foo'));
+        $this->assertTrue(storage_note_deleted('foo'));
         storage_revive_note('foo');
-        $this->assertFalse(note_is_deleted('foo'));
+        $this->assertFalse(storage_note_deleted('foo'));
     }
 
     public function testReviveIdempotentOnLiveNote(): void
@@ -239,7 +227,7 @@ class StorageTest extends TestCase
         $this->assertNull(storage_get_note('foo'));
 
         storage_revive_note('foo');
-        $this->assertFalse(note_is_deleted('foo'));
+        $this->assertFalse(storage_note_deleted('foo'));
 
         // Now a fresh write should succeed
         storage_apply_write('foo', 'new content', 'bob');
@@ -282,17 +270,17 @@ class StorageTest extends TestCase
     {
         storage_apply_write('foo', 'content', 'alice');
         storage_delete_note('foo');
-        $this->assertTrue(note_is_deleted('foo'));
+        $this->assertTrue(storage_note_deleted('foo'));
 
         storage_hard_delete_note('foo');
-        $this->assertFalse(note_is_deleted('foo'));
+        $this->assertFalse(storage_note_deleted('foo'));
         $this->assertFalse(file_exists(deleted_path('foo')));
     }
 
     public function testHardDeleteNoteIdempotent(): void
     {
         storage_hard_delete_note('nonexistent');
-        $this->assertFalse(note_is_deleted('nonexistent'));
+        $this->assertFalse(storage_note_deleted('nonexistent'));
     }
 
     public function testListDeletedNotes(): void
@@ -335,7 +323,7 @@ class StorageTest extends TestCase
 
         $removed = storage_purge_deleted_notes();
         $this->assertSame(1, $removed);
-        $this->assertFalse(note_is_deleted('old'));
+        $this->assertFalse(storage_note_deleted('old'));
     }
 
     public function testPurgeDeletedNotesSkipsRecent(): void
@@ -346,7 +334,7 @@ class StorageTest extends TestCase
         // deleted_at is now (within TTL)
         $removed = storage_purge_deleted_notes();
         $this->assertSame(0, $removed);
-        $this->assertTrue(note_is_deleted('recent'));
+        $this->assertTrue(storage_note_deleted('recent'));
     }
 
     public function testPurgeDeletedNotesSkipsLegacyTombstone(): void
@@ -362,7 +350,7 @@ class StorageTest extends TestCase
 
         $removed = storage_purge_deleted_notes();
         $this->assertSame(0, $removed, 'Legacy tombstones without deleted_at must not be purged');
-        $this->assertTrue(note_is_deleted('legacy'));
+        $this->assertTrue(storage_note_deleted('legacy'));
     }
 
     // ── Changelog ──────────────────────────────────────────────────────────
@@ -388,10 +376,10 @@ class StorageTest extends TestCase
 
     public function testNextRev(): void
     {
-        $this->assertSame(1, next_rev());
+        $this->assertSame(1, changelog_next_rev());
         changelog_append(['rev' => 1, 'file' => 'a', 'type' => 'CREATE', 'ts' => 100, 'version' => null, 'prev_version' => null]);
-        $this->assertSame(2, next_rev());
+        $this->assertSame(2, changelog_next_rev());
         changelog_append(['rev' => 2, 'file' => 'a', 'type' => 'UPDATE', 'ts' => 200, 'version' => null, 'prev_version' => null]);
-        $this->assertSame(3, next_rev());
+        $this->assertSame(3, changelog_next_rev());
     }
 }

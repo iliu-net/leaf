@@ -68,7 +68,7 @@ $spa_config = [
     ],
     'deleted_notes_ttl_days' => 7,      // days before deleted notes are purged client-side
     'timestamp_format'      => null,    // null = client decides; or e.g. 'YYYY-MM-DD HH:mm'
-    'e2ee' => storage_e2ee_support() ? null : false,	// true if e2ee is required, false if e2ee is not supported by this endpoint, null if supported but not required/enforced.
+    'e2ee' => null,	// true if e2ee is required, false if e2ee is not supported by this endpoint, null if supported but not required/enforced.
 ];
 
 // ── CORS policy ──────────────────────────────────────────────────────────

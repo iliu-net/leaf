@@ -69,7 +69,7 @@ switch ($action) {
         }
 
         // Append changelog entry so other clients sync the revived note
-        $rev = next_rev();
+        $rev = changelog_next_rev();
         changelog_append([
             'rev'          => $rev,
             'file'         => $id,
@@ -80,17 +80,15 @@ switch ($action) {
         ]);
         audit_log('NOTE_RESTORE', ['user' => $author, 'note_id' => $id]);
 
-        $current = $note['current'] ?? null;
+        $n = storage_get_note_full($id);
         respond([
             'ok'   => true,
             'note' => [
                 'id'         => $id,
-                'created_at' => $note['created_at'] ?? 0,
-                'created_by' => $note['created_by'] ?? '',
-                'content'    => ($current && isset($note['versions'][$current]))
-                    ? $note['versions'][$current]['content']
-                    : '',
-                'current'    => $current,
+                'created_at' => $n['created_at'],
+                'created_by' => $n['created_by'],
+                'content'    => $n['content'],
+                'current'    => $n['version'],
             ],
         ]);
 
@@ -100,24 +98,19 @@ switch ($action) {
         if ($id === '') {
             fail('Missing "id" parameter');
         }
-        $deletedPath = deleted_path($id);
-        if (!file_exists($deletedPath)) {
+        $tombstone = storage_get_tombstone($id);
+        if (!$tombstone) {
             fail('Tombstone not found', 404);
         }
-        $data = json_decode(file_get_contents($deletedPath), true);
-        $current = $data['current'] ?? null;
-        $content = ($current && isset($data['versions'][$current]))
-            ? $data['versions'][$current]['content']
-            : '';
         respond([
             'ok'   => true,
             'note' => [
                 'id'         => $id,
-                'content'    => $content,
-                'created_at' => $data['created_at'] ?? 0,
-                'created_by' => $data['created_by'] ?? '',
-                'deleted_at' => $data['deleted_at'] ?? 0,
-                'deleted_by' => $data['deleted_by'] ?? '',
+                'content'    => $tombstone['content'],
+                'created_at' => $tombstone['created_at'],
+                'created_by' => $tombstone['created_by'],
+                'deleted_at' => $tombstone['deleted_at'],
+                'deleted_by' => $tombstone['deleted_by'],
             ],
         ]);
 
@@ -127,7 +120,7 @@ switch ($action) {
         if ($id === '') {
             fail('Missing "id" parameter');
         }
-        if (!note_is_deleted($id)) {
+        if (!storage_note_deleted($id)) {
             fail('Tombstone not found', 404);
         }
         storage_hard_delete_note($id);

@@ -48,26 +48,11 @@ if ($action === 'list') {
         respond(['ok' => true, 'current' => null, 'versions' => []]);
     }
 
-    $versions = $note['versions'] ?? [];
-    $current  = $note['current']  ?? null;
-
-    $result = [];
-    foreach ($versions as $vkey => $ventry) {
-        $author = $ventry['author'] ?? '';
-        $result[] = [
-            'key'      => $vkey,
-            'author'   => $author,
-            'saved_at' => $ventry['saved_at'] ?? 0,
-            'prev'     => $ventry['prev']     ?? null,
-        ];
-    }
-
-    // Sort by saved_at descending (most recent first)
-    usort($result, fn($a, $b) => $b['saved_at'] <=> $a['saved_at']);
+    $result = storage_get_version_list($id);
 
     respond([
         'ok'       => true,
-        'current'  => $current,
+        'current'  => $note['current'] ?? null,
         'versions' => $result,
     ]);
 }
@@ -81,15 +66,9 @@ if ($action === 'get') {
     $note = storage_get_note($id);
     if (!$note) fail('Note not found', 404);
 
-    $note_versions = $note['versions'] ?? [];
     $contents = [];
-
     foreach ($requested_versions as $vkey) {
-        if (isset($note_versions[$vkey])) {
-            $contents[$vkey] = $note_versions[$vkey]['content'] ?? '';
-        } else {
-            $contents[$vkey] = null;
-        }
+        $contents[$vkey] = storage_get_version_content($id, $vkey);
     }
 
     respond([

@@ -121,105 +121,37 @@ function apply_client_change(array $change, string $author): ?array {
 
     if ($key === '') return null;
 
-    // ── All non-DELETE operations require a version field ──────
-    if ($type !== DEXIE_DELETE && $obj !== null) {
-        $incoming_version = $obj['version'] ?? null;
-        if ($incoming_version === null || $incoming_version === '') {
-            // Version is required — reject
-            return null;
-        }
-    }
-
     // ── CREATE or UPDATE ──────────────────────
     if ($type === DEXIE_CREATE || $type === DEXIE_UPDATE) {
-        $content = (string)($obj['content'] ?? '');
-
-        if (note_is_deleted($key)) {
-            // Tombstone exists — revive (remove tombstone) so the note
-            // can be re-created or updated rather than silently ignored.
-            storage_revive_note($key);
+        $entry = storage_put_note_logged(
+            $key, (string)($obj['content'] ?? ''), $author,
+            $obj['version'] ?? null
+        );
+        if ($entry) {
+            audit_log('NOTE_WRITE', [
+                'user' => $author, 'note_id' => $key,
+                'version' => $entry['version'],
+            ]);
         }
-
-        // Capture current version before the write for conflict detection
-        $pre_note  = storage_get_note($key);
-        $is_new    = $pre_note === null;
-
-        // Conflict detection: if the note already existed and the client's
-        // base version doesn't match the server's current version, another
-        // client has made a competing edit.  We still accept the write (both
-        // versions survive in the chain) and flag it for future UI.
-        if (!$is_new && $pre_note['current'] !== null && $pre_note['current'] !== $incoming_version) {
-            error_log("Conflict on {$key}: client {$incoming_version} != server {$pre_note['current']}");
-        }
-
-        $vkey = storage_apply_write($key, $content, $author);
-
-        // Read back the prev pointer storage_apply_write computed
-        $note      = storage_get_note($key);
-        $prev_vkey = $note['versions'][$vkey]['prev'] ?? null;
-
-        $entry = [
-            'rev'          => next_rev(),
-            'file'         => $key,
-            'type'         => $is_new ? 'CREATE' : 'UPDATE',
-            'ts'           => time(),
-            'version'      => $vkey,
-            'prev_version' => $prev_vkey,
-        ];
-        changelog_append($entry);
-        audit_log('NOTE_WRITE', ['user' => $author, 'note_id' => $key, 'version' => $vkey]);
         return $entry;
     }
 
     // ── DELETE ────────────────────────────────
     if ($type === DEXIE_DELETE) {
-        // Idempotent — already deleted is fine
-        if (note_is_deleted($key)) return null;
-        if (!storage_note_exists($key)) return null;
-
-        $note    = storage_get_note($key);
-        $current = $note['current'] ?? null;
-
-        storage_delete_note($key, $author);
-
-        $entry = [
-            'rev'          => next_rev(),
-            'file'         => $key,
-            'type'         => 'DELETE',
-            'ts'           => time(),
-            'version'      => null,
-            'prev_version' => $current,
-            'deleted_by'   => $author,
-        ];
-        changelog_append($entry);
-        audit_log('NOTE_DELETE', ['user' => $author, 'note_id' => $key]);
+        $entry = storage_delete_note_logged($key, $author);
+        if ($entry) {
+            audit_log('NOTE_DELETE', ['user' => $author, 'note_id' => $key]);
+        }
         return $entry;
     }
 
     // ── RENAME ────────────────────────────────
     if ($type === DEXIE_RENAME) {
         $new_id = safe_id($obj['renamed_to'] ?? '');
-        if ($new_id === '') return null;
-        if (!storage_note_exists($key)) return null;
-        if (storage_note_exists($new_id)) return null;
-        // If target is tombstoned, remove it so the rename succeeds
-        // (the target's old content is replaced by the source's content)
-        if (note_is_deleted($new_id)) storage_hard_delete_note($new_id);
-
-        if (!storage_rename_note($key, $new_id)) return null;
-
-        $entry = [
-            'rev'          => next_rev(),
-            'file'         => $key,
-            'type'         => 'RENAME',
-            'ts'           => time(),
-            'renamed_to'   => $new_id,
-            'renamed_by'   => $author,
-            'version'      => null,
-            'prev_version' => null,
-        ];
-        changelog_append($entry);
-        audit_log('NOTE_RENAME', ['user' => $author, 'note_id' => $key, 'renamed_to' => $new_id]);
+        $entry = storage_rename_note_logged($key, $new_id, $author);
+        if ($entry) {
+            audit_log('NOTE_RENAME', ['user' => $author, 'note_id' => $key, 'renamed_to' => $new_id]);
+        }
         return $entry;
     }
 
@@ -272,26 +204,8 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
     }
 
     // CREATE or UPDATE — need to return current content
-    $note = storage_get_note($key);
-    if (!$note) return null;   // deleted between changelog write and now — skip
-
-    $current = $note['current'] ?? null;
-    $content = ($current && isset($note['versions'][$current]))
-        ? $note['versions'][$current]['content']
-        : '';
-
-    $author = ($current && isset($note['versions'][$current]))
-        ? ($note['versions'][$current]['author'] ?? '')
-        : '';
-
-    // $created_by is the original creator — stored at the note level, never overwritten.
-    // Needed because deduplication may collapse a CREATE+UPDATE into just an UPDATE,
-    // so the client can't derive the original creator from the change type alone.
-    $created_by = $note['created_by'] ?? '';
-    $created_at = $note['created_at'] ?? 0;
-    $updated_at = ($current && isset($note['versions'][$current]))
-        ? ($note['versions'][$current]['saved_at'] ?? 0)
-        : 0;
+    $n = storage_get_note_full($key);
+    if (!$n) return null;   // deleted between changelog write and now — skip
 
     $dexie_type = ($type === 'CREATE') ? DEXIE_CREATE : DEXIE_UPDATE;
 
@@ -299,13 +213,13 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
         'type' => $dexie_type,
         'key'  => $key,
         'obj'  => [
-            'content'      => $content,   // opaque — not inspected
+            'content'      => $n['content'],
             'version'      => $version,
             'prev_version' => $prev_version,
-            'author'       => $author,
-            'created_by'   => $created_by,
-            'created_at'   => $created_at,
-            'updated_at'   => $updated_at,
+            'author'       => $n['author'],
+            'created_by'   => $n['created_by'],
+            'created_at'   => $n['created_at'],
+            'updated_at'   => $n['updated_at'],
         ],
     ];
 }
@@ -352,31 +266,20 @@ if ($synced_revision === 0) {
 
     // Live notes → CREATE changes
     foreach (storage_list_notes() as $meta) {
-        $note = storage_get_note($meta['id']);
-        if (!$note) continue;
-
-        $current = $note['current'] ?? null;
-        $content = ($current && isset($note['versions'][$current]))
-            ? $note['versions'][$current]['content']
-            : '';
-
-        $author = ($current && isset($note['versions'][$current]))
-            ? ($note['versions'][$current]['author'] ?? '')
-            : '';
+        $n = storage_get_note_full($meta['id']);
+        if (!$n) continue;
 
         $server_changes[] = [
             'type' => DEXIE_CREATE,
             'key'  => $meta['id'],
             'obj'  => [
-                'content'      => $content,
-                'version'      => $current,
-                'prev_version' => ($current && isset($note['versions'][$current]))
-                    ? ($note['versions'][$current]['prev'] ?? null) : null,
-                'author'       => $author,
-                'created_by'   => $note['created_by'] ?? '',
-                'created_at'   => $note['created_at'] ?? 0,
-                'updated_at'   => ($current && isset($note['versions'][$current]))
-                    ? ($note['versions'][$current]['saved_at'] ?? 0) : 0,
+                'content'      => $n['content'],
+                'version'      => $n['version'],
+                'prev_version' => $n['prev'],
+                'author'       => $n['author'],
+                'created_by'   => $n['created_by'],
+                'created_at'   => $n['created_at'],
+                'updated_at'   => $n['updated_at'],
             ],
         ];
     }
