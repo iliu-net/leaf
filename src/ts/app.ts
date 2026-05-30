@@ -30,6 +30,8 @@ import { db, dbPurgeDeletedNotes, dbGetNote } from './db.js';
 import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
 import { subscribe } from './change-bus.js';
+import { handleChange } from './change-handler.js';
+import type { ChangeHandlerDeps } from './change-handler.js';
 import { loadConfig, fetchSpaConfig, getSpaConfig, getAutosaveConfig, getEditTimeConfig } from './config.js';
 import { loadPlugins } from './markdown.js';
 import { loadTrashEntries } from './trash-ctrl.js';
@@ -230,91 +232,24 @@ async function reloadOpenNoteAs(newId: string): Promise<void> {
   }
 }
 
-// ── Cross-tab change handler ──────────────────────────────────────────────
+// ── Change-handler dependencies (captured once per event) ────────────────
 
-async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise<void> {
-  const currentId = _current;
-  const inTrashMode = sidebar.getMode() === 'trash';
-
-  switch (msg.type) {
-    case 'saved':
-    case 'created': {
-      // Refresh sidebar list only — don't re-open (content is already
-      // current from the save that just happened).
-      await notesCtrl.refreshList();
-      // Fix highlight: the editor may be showing a different note than
-      // app-level _current (e.g. createNote opens a note before _current
-      // is updated, and the synchronous publish races refreshList).
-      const editorId = ui.getCurrentNoteId();
-      if (editorId && editorId !== currentId) {
-        ui.setActiveNote(editorId);
-      }
-      break;
-    }
-
-    case 'deleted': {
-      if (inTrashMode) {
-        await trashCtrl.refreshTrashList();
-      } else {
-        await notesCtrl.refreshList();
-        updateTrashCount();
-        if (currentId && currentId === msg.id) {
-          clearEditorState();
-          ui.hideEditor();
-          ui.toast(`"${msg.id}" was deleted in another tab`);
-        }
-        // Prune deleted note from history
-        navHistory.remove(msg.id);
-      }
-      break;
-    }
-
-    case 'renamed': {
-      const newId = msg.newId;
-      await notesCtrl.refreshList();  // sidebar only — reloadOpenNoteAs handles the editor
-      if (currentId && currentId === msg.id && newId) {
-        await reloadOpenNoteAs(newId);
-        ui.toast(`Renamed to "${newId}" in another tab`);
-      }
-      break;
-    }
-
-    case 'restored': {
-      if (inTrashMode) {
-        await trashCtrl.refreshTrashList();
-      } else {
-        await notesCtrl.refreshList();  // sidebar only — reloadOpenNote handles the editor
-        updateTrashCount();
-        if (currentId && currentId === msg.id) {
-          await reloadOpenNote(currentId);
-        }
-      }
-      break;
-    }
-
-    case 'trash-emptied': {
-      if (inTrashMode) {
-        await trashCtrl.refreshTrashList();
-        ui.toast('Trash was emptied in another tab');
-      } else {
-        ui.setTrashCount(0);
-      }
-      break;
-    }
-
-    case 'server-sync': {
-      if (inTrashMode) {
-        await trashCtrl.refreshTrashList();
-      } else {
-        await notesCtrl.refreshList();  // sidebar only — reloadOpenNote handles the editor
-        updateTrashCount();
-        if (currentId) {
-          await reloadOpenNote(currentId);
-        }
-      }
-      break;
-    }
-  }
+function buildChangeHandlerDeps(): ChangeHandlerDeps {
+  return {
+    currentId: _current,
+    isTrashMode: sidebar.getMode() === 'trash',
+    reloadCurrentNote: () => reloadOpenNote(_current!),
+    reloadNoteAs: (newId: string) => reloadOpenNoteAs(newId),
+    editorNoteId: () => ui.getCurrentNoteId(),
+    refreshSidebar: () => notesCtrl.refreshList(),
+    refreshTrash: () => trashCtrl.refreshTrashList(),
+    clearEditor: () => { clearEditorState(); ui.hideEditor(); },
+    updateTrashCount: () => updateTrashCount(),
+    toast: (msg: string) => ui.toast(msg),
+    setTrashCount: (n: number) => ui.setTrashCount(n),
+    navRemove: (id: string) => navHistory.remove(id),
+    setActiveNote: (id: string) => ui.setActiveNote(id),
+  };
 }
 
 // ── Sync status → UI ─────────────────────────────────────────────────────
@@ -472,7 +407,7 @@ async function showShell(): Promise<void> {
 
   subscribe(event => {
     ui.setSidebarLoading(false);
-    handleChange(event).catch(err =>
+    handleChange(buildChangeHandlerDeps(), event).catch(err =>
       console.warn('[change-bus] Handler error:', err)
     );
   });
