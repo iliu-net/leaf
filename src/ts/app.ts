@@ -21,7 +21,6 @@
 
 import * as ui       from './ui.js';
 import * as pwa      from './pwa.js';
-import * as sidebar  from './sidebar.js';
 import * as modal    from './modal.js';
 import * as loginView from './login-view.js';
 import * as notes    from './notes.js';
@@ -115,8 +114,8 @@ function scheduleAutoSave(newContent: string): void {
 
 /**
  * Fire auto-save. Silent — no toast.
- * Called by the debounce timer. Ctrl+S goes through notesCtrl.saveNote
- * which shows a toast for explicit saves.
+ * Called by the debounce timer. Ctrl+S goes through the onSave handler
+ * which calls getContentWithEditTime() and shows a toast.
  */
 async function doAutoSave(): Promise<void> {
   if (_autoSaveTimer !== null) {
@@ -237,7 +236,7 @@ async function reloadOpenNoteAs(newId: string): Promise<void> {
 function buildChangeHandlerDeps(): ChangeHandlerDeps {
   return {
     currentId: _current,
-    isTrashMode: sidebar.getMode() === 'trash',
+    isTrashMode: ui.getMode() === 'trash',
     reloadCurrentNote: () => reloadOpenNote(_current!),
     reloadNoteAs: (newId: string) => reloadOpenNoteAs(newId),
     editorNoteId: () => ui.getCurrentNoteId(),

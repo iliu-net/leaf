@@ -58,16 +58,6 @@ export async function openNote(id: string): Promise<NoteData> {
   return data;
 }
 
-export async function saveNote(id: string): Promise<void> {
-  const content = ui.flushAndGetContent();
-  const result = await notes.saveNote(id, content);
-  ui.setDirty(false);
-  if (result.ok) {
-    ui.setStatus(`Saved "${id}"`);
-    ui.toast(`Saved "${id}"`);
-  }
-}
-
 export async function deleteNote(id: string): Promise<{ wasCurrent: boolean }> {
   if (!confirm(`Move "${id}" to trash?`)) return { wasCurrent: false };
   await notes.deleteNote(id);
