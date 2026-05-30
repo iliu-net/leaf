@@ -152,8 +152,9 @@ if ($action === 'login') {
     $valid = validate_user($username, $password);
     if (!$valid) {
         audit_log('AUTH_LOGIN_FAIL', ['user' => $username]);
-        // Constant-time response to avoid user enumeration via timing
-        sleep(random_int(7, 12));
+        // Small random delay with microsecond granularity to blunt
+        // timing-based user enumeration without hogging a worker.
+        usleep(random_int(1_000_000, 3_000_000));
         respond(['error' => 'Invalid username or password'], 401);
     }
 
