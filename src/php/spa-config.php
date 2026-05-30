@@ -9,7 +9,8 @@
  * Called by router.php for GET /api/index.php/spa-config.
  */
 
-header('Access-Control-Allow-Origin: ' . CORS_ALLOW_POLICY);
+require_once __DIR__ . '/http-helpers.php';
 header('Access-Control-Allow-Methods: GET, OPTIONS');
-header('Content-Type: application/json');
-echo json_encode($spa_config ?? (object)[]);
+require_once __DIR__ . '/cors.php';
+
+respond($spa_config ?? (object)[]);

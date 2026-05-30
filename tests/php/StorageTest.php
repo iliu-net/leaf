@@ -114,7 +114,7 @@ class StorageTest extends TestCase
         $note  = [
             'current'    => "$today:1:alice",
             'created_at' => time(),
-            'versions'   => ["$today:1:alice" => ['saved_at' => time(), 'content' => '', 'prev' => null, 'exclusive' => true]],
+            'versions'   => ["$today:1:alice" => ['author' => 'alice', 'saved_at' => time(), 'content' => '', 'prev' => null, 'exclusive' => true]],
         ];
         [$vkey, $overwrite] = storage_resolve_version($note, 'alice');
         // Same date + same author but overwrite only if same version key

@@ -65,19 +65,8 @@ const DEXIE_UPDATE = 2;
 const DEXIE_DELETE = 3;
 const DEXIE_RENAME = 4;
 
-header('Access-Control-Allow-Origin: ' . CORS_ALLOW_POLICY);
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Content-Type: application/json');
-
-// OPTIONS preflight must bypass auth — browser sends it without Authorization header
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'POST required']);
-    exit;
-}
+require_once __DIR__ . '/http-helpers.php';
+require_once __DIR__ . '/cors.php';
 
 $author = require_auth();   // exits with 401 if token missing/invalid
 
@@ -88,34 +77,6 @@ if (time() - $lastPurge > 86400) {
     storage_purge_deleted_notes();
     audit_purge();
     file_put_contents($purgeFile, (string)time());
-}
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
-
-/**
- * Send a JSON response and terminate execution.
- *
- * @param mixed $data  Data to encode as JSON
- * @return never
- */
-function respond(mixed $data): never {
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
-/**
- * Send a JSON error response and terminate execution.
- *
- * @param string $msg   Error message
- * @param int    $code  HTTP status code (default 400)
- * @return never
- */
-function fail(string $msg, int $code = 400): never {
-    http_response_code($code);
-    echo json_encode(['error' => $msg]);
-    exit;
 }
 
 /**
@@ -319,17 +280,9 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
         ? $note['versions'][$current]['content']
         : '';
 
-    // Surface author from the version entry (explicit field, not parsed from key).
-    // $author reflects the current version's author (for updated_by).
-    // Falls back to parsing the key for old notes that lack the author field.
-    $author = '';
-    if ($current && isset($note['versions'][$current])) {
-        $author = $note['versions'][$current]['author'] ?? '';
-        if ($author === '') {
-            $parts = explode(':', $current, 3);
-            $author = $parts[2] ?? '';
-        }
-    }
+    $author = ($current && isset($note['versions'][$current]))
+        ? ($note['versions'][$current]['author'] ?? '')
+        : '';
 
     // $created_by is the original creator — stored at the note level, never overwritten.
     // Needed because deduplication may collapse a CREATE+UPDATE into just an UPDATE,
@@ -407,14 +360,9 @@ if ($synced_revision === 0) {
             ? $note['versions'][$current]['content']
             : '';
 
-        $author = '';
-        if ($current && isset($note['versions'][$current])) {
-            $author = $note['versions'][$current]['author'] ?? '';
-            if ($author === '') {
-                $parts = explode(':', $current, 3);
-                $author = $parts[2] ?? '';
-            }
-        }
+        $author = ($current && isset($note['versions'][$current]))
+            ? ($note['versions'][$current]['author'] ?? '')
+            : '';
 
         $server_changes[] = [
             'type' => DEXIE_CREATE,

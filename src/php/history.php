@@ -24,33 +24,10 @@
 require_once __DIR__ . '/storage.php';
 require_once __DIR__ . '/auth_guard.php';
 
-header('Access-Control-Allow-Origin: ' . CORS_ALLOW_POLICY);
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Content-Type: application/json');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'POST required']);
-    exit;
-}
+require_once __DIR__ . '/http-helpers.php';
+require_once __DIR__ . '/cors.php';
 
 $author = require_auth();   // exits with 401 if token missing/invalid
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function respond(mixed $data): never {
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
-function fail(string $msg, int $code = 400): never {
-    http_response_code($code);
-    echo json_encode(['error' => $msg]);
-    exit;
-}
 
 // ── Parse request ─────────────────────────────────────────────────────────────
 
@@ -77,11 +54,6 @@ if ($action === 'list') {
     $result = [];
     foreach ($versions as $vkey => $ventry) {
         $author = $ventry['author'] ?? '';
-        // Fall back to parsing the key for old notes that lack the author field
-        if ($author === '') {
-            $parts  = explode(':', $vkey, 3);
-            $author = $parts[2] ?? '';
-        }
         $result[] = [
             'key'      => $vkey,
             'author'   => $author,

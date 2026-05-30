@@ -29,13 +29,9 @@ require_once __DIR__ . '/jwt.php';
 require_once __DIR__ . '/users.php';
 require_once __DIR__ . '/audit.php';
 
-header('Access-Control-Allow-Origin: ' . CORS_ALLOW_POLICY);
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-header('Content-Type: application/json');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
-if ($_SERVER['REQUEST_METHOD'] !== 'POST')    { http_response_code(405); echo json_encode(['error' => 'POST required']); exit; }
+require_once __DIR__ . '/http-helpers.php';
+header('Access-Control-Allow-Headers: Content-Type');   // auth.php needs no Authorization header
+require_once __DIR__ . '/cors.php';
 
 $action = $_GET['action'] ?? '';
 
@@ -115,19 +111,6 @@ function clear_refresh_cookie(): void {
  */
 function get_refresh_token_from_cookie(): string {
     return $_COOKIE['refresh_token'] ?? '';
-}
-
-/**
- * Send a JSON response and terminate execution.
- *
- * @param mixed $data  Data to encode as JSON
- * @param int   $code  HTTP status code (default 200)
- * @return never
- */
-function respond(mixed $data, int $code = 200): never {
-    http_response_code($code);
-    echo json_encode($data);
-    exit;
 }
 
 /**

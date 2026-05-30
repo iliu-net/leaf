@@ -19,6 +19,7 @@
  */
 
 require_once __DIR__ . '/jwt.php';
+require_once __DIR__ . '/http-helpers.php';
 
 /**
  * Verify the Bearer token and return the authenticated username.
@@ -30,25 +31,19 @@ function require_auth(): string {
     $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
 
     if (!str_starts_with($header, 'Bearer ')) {
-        http_response_code(401);
-        echo json_encode(['error' => 'Missing or malformed Authorization header']);
-        exit;
+        fail('Missing or malformed Authorization header', 401);
     }
 
     $token   = substr($header, 7);
     $payload = jwt_decode($token);
 
     if ($payload === false) {
-        http_response_code(401);
-        echo json_encode(['error' => 'Invalid or expired token']);
-        exit;
+        fail('Invalid or expired token', 401);
     }
 
     $username = $payload['sub'] ?? '';
     if ($username === '') {
-        http_response_code(401);
-        echo json_encode(['error' => 'Token missing subject claim']);
-        exit;
+        fail('Token missing subject claim', 401);
     }
 
     return $username;

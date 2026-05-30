@@ -407,9 +407,8 @@ function storage_resolve_version(array $note, string $author): array {
     $current  = $note['current']  ?? null;
 
     if ($current) {
-        $parts      = explode(':', $current, 3);   // [date, counter, author]
-        $cur_date   = $parts[0] ?? '';
-        $cur_author = $parts[2] ?? '';
+        $cur_author = $note['versions'][$current]['author'] ?? '';
+        $cur_date   = gmdate('Y-m-d', $note['versions'][$current]['saved_at'] ?? 0);
         $exclusive  = $note['versions'][$current]['exclusive'] ?? false;
 
         if ($cur_author === $author && $cur_date === $today && $exclusive) {
@@ -457,23 +456,6 @@ function storage_apply_write(string $id, string $content, string $author): strin
         $note['created_by'] = $author;
     }
 
-    // Lazy-migrate old notes that lack created_by: walk the prev chain
-    // to the root version and extract the author from there.
-    if (empty($note['created_by']) && $note['current']) {
-        $vkey = $note['current'];
-        $versions = $note['versions'] ?? [];
-        while ($vkey && isset($versions[$vkey])) {
-            $ventry = $versions[$vkey];
-            $prev   = $ventry['prev'] ?? null;
-            if ($prev === null && isset($versions[$vkey])) {
-                // Root version found — use its author field or parse from key
-                $note['created_by'] = $ventry['author'] ?? (explode(':', $vkey, 3)[2] ?? '');
-                break;
-            }
-            $vkey = $prev;
-        }
-    }
-
     [$vkey, $overwrite] = storage_resolve_version($note, $author);
 
     $prev_vkey = $overwrite
@@ -519,8 +501,7 @@ function storage_mark_version_seen(string $id, string $viewer): void {
     $current_vkey = $note['current'] ?? null;
     if (!$current_vkey) return;
 
-    $parts  = explode(':', $current_vkey, 3);
-    $author = $note['versions'][$current_vkey]['author'] ?? ($parts[2] ?? '');
+    $author = $note['versions'][$current_vkey]['author'] ?? '';
 
     if ($author !== $viewer) {
         // Another user is receiving this version → clear exclusivity
@@ -670,3 +651,14 @@ function changelog_earliest_rev(): int {
     fclose($fh);
     return 1;
 }
+
+/**
+ * Returns the E2EE support for this storage implementation.
+ *
+ * Not all backends are able to support E2EE semantics.  This fuction
+ * lets the sync protocol and the SPA application know what can be
+ * supported.
+ *
+ * @return bool true if E2EE can be supported, false if it is not
+ */
+function storage_e2ee_support(): bool { return true; }
