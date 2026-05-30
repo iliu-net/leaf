@@ -24,7 +24,8 @@
  */
 
 import Dexie, { type Table } from 'dexie';
-import { getNamespace, getSpaConfig } from './config.js';
+import { getNamespace } from './local-store.js';
+import { getSpaConfig } from './config.js';
 import { getUsername } from './auth.js';
 import { nowSec } from './utils.js';
 

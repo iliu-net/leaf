@@ -30,7 +30,7 @@ import { db, dbPurgeDeletedNotes, dbGetNote } from './db.js';
 import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
 import { subscribe } from './change-bus.js';
-import { loadConfig, fetchSpaConfig, getSpaConfig, getAutosaveConfig, getEditTimeConfig, getNamespace } from './config.js';
+import { loadConfig, fetchSpaConfig, getSpaConfig, getAutosaveConfig, getEditTimeConfig } from './config.js';
 import { loadPlugins } from './markdown.js';
 import { loadTrashEntries } from './trash-ctrl.js';
 import { DOM, $, $maybe } from './dom-ids.js';
@@ -40,52 +40,14 @@ import * as loginCtrl  from './login-ctrl.js';
 import * as notesCtrl  from './notes-ctrl.js';
 import * as trashCtrl  from './trash-ctrl.js';
 import * as editTime   from './edit-time.js';
-
-// ── Navigation history ───────────────────────────────────────────────────
-
-/** Stack of previously visited note IDs (most recent last). */
-const _navHistory: string[] = [];
-const MAX_HISTORY = 50;
-
-/** Push a note ID onto the history stack. Skips if same as top. */
-function pushHistory(id: string): void {
-  // Don't push if it's the same as the most recent entry
-  if (_navHistory.length > 0 && _navHistory[_navHistory.length - 1] === id) return;
-  _navHistory.push(id);
-  if (_navHistory.length > MAX_HISTORY) _navHistory.shift();
-  _updateBackButton();
-}
-
-/** Pop and return the previous note ID, or null if no history. */
-function popHistory(): string | null {
-  // Remove current (last entry), then return new last (or null)
-  if (_navHistory.length === 0) return null;
-  _navHistory.pop(); // discard current
-  if (_navHistory.length === 0) {
-    _updateBackButton();
-    return null;
-  }
-  const prev = _navHistory[_navHistory.length - 1];
-  _navHistory.pop(); // also remove the previous one (it'll be pushed again when opened)
-  _updateBackButton();
-  return prev;
-}
-
-/** Update the back button's enabled/disabled state. */
-function _updateBackButton(): void {
-  const btn = $maybe(DOM.BTN_BACK) as HTMLButtonElement | null;
-  if (!btn) return;
-  btn.disabled = _navHistory.length <= 1;
-}
+import * as navHistory  from './nav-history.js';
+import { lastNote }      from './local-store.js';
 
 // ── Last-note persistence ──────────────────────────────────────────────────
 
-const _ns = getNamespace();
-const LAST_NOTE_KEY = _ns ? `leaf:last-note:${_ns}` : 'leaf:last-note';
-
 /** Persist the last opened note ID to localStorage (scoped to install path). */
 function persistLastNote(id: string): void {
-  try { localStorage.setItem(LAST_NOTE_KEY, id); } catch { /* quota / private browsing */ }
+  lastNote.set(id);
 }
 
 /**
@@ -93,14 +55,13 @@ function persistLastNote(id: string): void {
  * @returns true if a note was restored, false otherwise.
  */
 async function restoreLastNote(): Promise<boolean> {
-  let lastId: string | null = null;
-  try { lastId = localStorage.getItem(LAST_NOTE_KEY); } catch { /* unavailable */ }
+  const lastId = lastNote.get();
   if (!lastId) return false;
 
   const existing = await dbGetNote(lastId);
   if (!existing) {
     // Note no longer exists — clean up stale key
-    try { localStorage.removeItem(LAST_NOTE_KEY); } catch { /* ignore */ }
+    lastNote.remove();
     return false;
   }
 
@@ -116,7 +77,7 @@ async function restoreLastNote(): Promise<boolean> {
     ui.setDirty(false);
     ui.showEditor(data);
     ui.setActiveNote(lastId);
-    pushHistory(lastId);
+    navHistory.push(lastId);
 
     // Start edit-time tracking for the restored note.
     const existingSec = parseInt(data.meta['edit-time'] as string || '0', 10) || 0;
@@ -280,11 +241,7 @@ async function handleChange(msg: import('./change-bus.js').ChangeEvent): Promise
           ui.toast(`"${msg.id}" was deleted in another tab`);
         }
         // Prune deleted note from history
-        const delIdx = _navHistory.indexOf(msg.id);
-        if (delIdx !== -1) {
-          _navHistory.splice(delIdx, 1);
-          _updateBackButton();
-        }
+        navHistory.remove(msg.id);
       }
       break;
     }
@@ -397,7 +354,7 @@ function wireUiEvents(): void {
         ui.setDirty(false);
         ui.showEditor(data);
         ui.setActiveNote(id);
-        pushHistory(id);
+        navHistory.push(id);
         persistLastNote(id);
 
         // Start edit-time tracking for the newly opened note.
@@ -418,11 +375,7 @@ function wireUiEvents(): void {
         }
         ui.setDirty(false);
         // Remove the deleted note from history stack
-        while (_navHistory.includes(id)) {
-          const idx = _navHistory.indexOf(id);
-          _navHistory.splice(idx, 1);
-        }
-        _updateBackButton();
+        navHistory.remove(id);
       }
     },
     onSearch:        q        => notesCtrl.handleSearch(q),
@@ -502,7 +455,7 @@ function wireUiEvents(): void {
 
 /** Navigate to the previous note in the history stack. */
 async function handleBack(): Promise<void> {
-  const prevId = popHistory();
+  const prevId = navHistory.pop();
   if (!prevId) return;
 
   // Persist pending changes + edit-time for the current note before
@@ -528,7 +481,7 @@ async function handleBack(): Promise<void> {
     ui.setDirty(false);
     ui.showEditor(data);
     ui.setActiveNote(prevId);
-    pushHistory(prevId);
+    navHistory.push(prevId);
     persistLastNote(prevId);
 
     // Start edit-time tracking for the newly opened note.
@@ -610,7 +563,7 @@ async function showShell(): Promise<void> {
       ui.setDirty(false);
       ui.showEditor(data);
       ui.setActiveNote(id);
-      pushHistory(id);
+      navHistory.push(id);
       persistLastNote(id);
 
       // Start edit-time tracking for the navigated note.

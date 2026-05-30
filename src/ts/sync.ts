@@ -23,9 +23,9 @@ import {
 import type { QueueRecord } from './db.js';
 
 import { publish, subscribe } from './change-bus.js';
-import { getNamespace } from './config.js';
 import { nowSec } from './utils.js';
 import { syncRequest } from './api.js';
+import { revision } from './local-store.js';
 import type { SyncRequestBody, SyncResponseBody } from './api.js';
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -35,10 +35,8 @@ type StatusListener = (status: SyncStatus, isOnline: boolean) => void;
 
 // ── Config ────────────────────────────────────────────────────────────────
 
-const _NS            = getNamespace();
 const POLL_INTERVAL  = 30_000;   // ms between polls when online
 const RETRY_DELAY    = 10_000;   // ms before retrying after an error
-const REVISION_KEY   = _NS ? `notes_sync_revision:${_NS}` : 'notes_sync_revision';
 
 // ── Sync trigger via change-bus ───────────────────────────────────────────
 // Subscribe to change-bus events to:
@@ -110,13 +108,13 @@ export function getSyncStatus(): SyncStatus { return currentStatus; }
 // ── Revision tracking ─────────────────────────────────────────────────────
 
 function getRevision(): number | null {
-  const v = localStorage.getItem(REVISION_KEY);
+  const v = revision.get();
   return v === null ? null : Number(v);
 }
 
 function setRevision(rev: number | null | undefined): void {
   if (rev !== null && rev !== undefined) {
-    localStorage.setItem(REVISION_KEY, String(rev));
+    revision.set(rev);
   }
 }
 
@@ -357,7 +355,7 @@ export function stopSync(): void {
 
 /** Clear the stored revision — used before resetting the database. */
 export function clearRevision(): void {
-  localStorage.removeItem(REVISION_KEY);
+  revision.remove();
 }
 
 // ── Public API ────────────────────────────────────────────────────────────

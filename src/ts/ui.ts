@@ -15,11 +15,12 @@
 import type { UIEventHandlers } from './sidebar.js';
 import { DOM, $, $maybe } from './dom-ids.js';
 
-import * as editor        from './editor-ctrl.js';
 import * as sidebar       from './sidebar.js';
 import * as modal         from './modal.js';
 import * as loginView     from './login-view.js';
 import * as cookmode      from './cookmode.js';
+import { initThemeSwitcher } from './themes.js';
+import { init as initKeyboard } from './keyboard.js';
 
 // Re-exports so consumers of ui.* don't break
 export {
@@ -125,51 +126,7 @@ export function bindEvents(handlers: UIEventHandlers): void {
   });
 
   // ── Global keyboard shortcuts ──────────────────────────────────────────
-  document.addEventListener('keydown', e => {
-    const mod = e.ctrlKey || e.metaKey;
-    if (!mod) return;
-
-    // ── CTRL+S — save, then switch to view (no-op on VIEW tab) ─────────
-    if (e.key === 's') {
-      e.preventDefault();
-      if (editor.getActiveTab() === 'view') return;  // VIEW: no-op
-      onSave();
-      editor.switchEditorTab('view');
-      return;
-    }
-
-    // ── CTRL+E — toggle edit/view (pass-through on CODE tab) ───────────
-    if (e.key === 'e') {
-      const active = editor.getActiveTab();
-      // On CODE tab: let the browser / CodeMirror handle it
-      if (active === 'code') return;
-
-      e.preventDefault();
-      if (!editor.getCurrentNoteId()) return;
-
-      if (active === 'view' || active === 'meta') {
-        // → CODE (if CM available) or RAW
-        editor.switchEditorTab(editor.isCmAvailable() ? 'code' : 'raw');
-      } else {
-        // active === 'raw' → VIEW
-        editor.switchEditorTab('view');
-      }
-      return;
-    }
-
-    // ── CTRL+M — switch to META tab ────────────────────────────────────
-    if (e.key === 'm') {
-      e.preventDefault();
-      if (!editor.getCurrentNoteId()) return;
-      if (editor.getActiveTab() === 'meta') {
-        // Already on META — re-focus the title field
-        editor.focusActiveTab();
-      } else {
-        editor.switchEditorTab('meta');
-      }
-      return;
-    }
-  });
+  initKeyboard(onSave);
 
   // ── App menu dropdown ──────────────────────────────────────────────────
   const headerBrand = $(DOM.HEADER_BRAND);
@@ -200,41 +157,5 @@ export function bindEvents(handlers: UIEventHandlers): void {
   });
 
   // ── Theme switching ────────────────────────────────────────────────────
-  const themeOptions = document.querySelectorAll<HTMLButtonElement>('.theme-option');
-
-  const THEME_COLORS: Record<string, string> = {
-    dark:     '#080808',
-    light:    '#fafaf8',
-    magenta:  '#ffffff',
-    'paired-12': '#0d1117',
-  };
-
-  function applyTheme(theme: string): void {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('leaf:theme', theme);
-    const mc = document.querySelector('meta[name="theme-color"]');
-    if (mc) mc.setAttribute('content', THEME_COLORS[theme] || '#080808');
-    themeOptions.forEach(opt => {
-      opt.classList.toggle('active', opt.dataset.themeVal === theme);
-    });
-    // Notify CodeMirror to swap syntax highlight style (no-op if CM not loaded)
-    const setCM = (window as any).__leafSetCMTheme;
-    if (setCM) setCM(theme);
-  }
-
-  themeOptions.forEach(opt => {
-    opt.addEventListener('click', () => {
-      const theme = opt.dataset.themeVal;
-      if (theme) {
-        applyTheme(theme);
-        closeMenu();
-      }
-    });
-  });
-
-  // Sync initial active indicator with whatever the <head> script set
-  const initialTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-  themeOptions.forEach(opt => {
-    opt.classList.toggle('active', opt.dataset.themeVal === initialTheme);
-  });
+  initThemeSwitcher(closeMenu);
 }

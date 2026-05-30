@@ -13,7 +13,7 @@
  * to broadcast changes.
  */
 
-import { getNamespace } from './config.js';
+import { getNamespace } from './local-store.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

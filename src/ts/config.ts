@@ -1,59 +1,16 @@
 /**
  * config.ts — per-instance runtime configuration
  *
- * Derives an installation namespace from the URL path so that multiple
- * instances of the SPA can coexist on the same origin without colliding
- * on origin-scoped storage (IndexedDB, localStorage, BroadcastChannel,
- * Cache API, cookies).
- *
- * Derivation rules:
- *   /                  → ""             (root — backward compatible)
- *   /app1/spa/         → "app1-spa"
- *   /notes/work/       → "notes-work"
- *
- * All modules that use origin-scoped identifiers (db.ts, sync.ts,
- * cross-tab.ts, sw.js) import the namespace from here and suffix their
- * keys with it.
- *
- * This module also replaces the hardcoded '../api/' URL prefix in
- * auth.ts and sync.ts, computing the API base relative to the install
- * path.
+ * Fetches and caches server-side SPA configuration (markdown plugins,
+ * spellcheck, auto-save, etc.).  For install-path awareness, imports
+ * getInstallPath / getNamespace from local-store.ts.
  */
 
-// ── Namespace derivation ────────────────────────────────────────────────────
-
-/** Clean directory path of the SPA, e.g. "/app1/spa/" or "/" for root. */
-function deriveInstallPath(): string {
-  let p = location.pathname;
-
-  // Strip filename if present (e.g. /app1/spa/index.html → /app1/spa/)
-  p = p.replace(/\/index\.html$/, '/');
-
-  // Ensure trailing slash
-  if (!p.endsWith('/')) p += '/';
-
-  return p;
-}
-
-const _installPath = deriveInstallPath();
-
-/** The SPA's install directory, always ending with "/". */
-export function getInstallPath(): string {
-  return _installPath;
-}
-
-/**
- * A filesystem-safe slug derived from the install path.
- * Empty string for root deployments (backward compatible).
- */
-export function getNamespace(): string {
-  const trimmed = _installPath.replace(/^\/|\/$/g, '');
-  return trimmed ? trimmed.replace(/\//g, '-') : '';
-}
+import { getInstallPath, getNamespace, spaConfig } from './local-store.js';
 
 // ── API URL helpers ─────────────────────────────────────────────────────────
 
-const _apiBaseUrl = _installPath + '../api/';
+const _apiBaseUrl = getInstallPath() + '../api/';
 
 /** The API base URL, e.g. "/app1/spa/../api/" → resolves to "/app1/api/". */
 export function getApiBaseUrl(): string {
@@ -75,7 +32,7 @@ export function loadConfig(): void {
   const ns = getNamespace();
   console.log(
     '[config] install=%s  namespace=%s  api=%s',
-    _installPath,
+    getInstallPath(),
     ns || '(root)',
     _apiBaseUrl,
   );
@@ -138,11 +95,6 @@ const DEFAULT_SPA_CONFIG: SpaConfig = {
 
 let _spaConfig: SpaConfig = { ...DEFAULT_SPA_CONFIG };
 
-function cacheKey(): string {
-  const ns = getNamespace();
-  return (ns || 'root') + ':spa-config';
-}
-
 /**
  * Fetch the SPA config from the server and cache it in localStorage.
  * Fire-and-forget: catches all errors internally and never throws.
@@ -154,15 +106,13 @@ export async function fetchSpaConfig(): Promise<void> {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const json: SpaConfig = await resp.json();
     _spaConfig = json;
-    try {
-      localStorage.setItem(cacheKey(), JSON.stringify(json));
-    } catch { /* localStorage unavailable (private browsing, quota) */ }
+    spaConfig.set(JSON.stringify(json));
   } catch {
     // Server unreachable — try localStorage cache
-    try {
-      const cached = localStorage.getItem(cacheKey());
-      if (cached) _spaConfig = JSON.parse(cached) as SpaConfig;
-    } catch { /* corrupted cache or localStorage unavailable — keep defaults */ }
+    const cached = spaConfig.get();
+    if (cached) {
+      try { _spaConfig = JSON.parse(cached) as SpaConfig; } catch { /* corrupt */ }
+    }
   }
 }
 

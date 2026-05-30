@@ -14,6 +14,7 @@ import type { NoteMeta } from './notes.js';
 import { TreeView } from './tree-view.js';
 import { TrashView } from './trash-view.js';
 import { DOM, $, $maybe } from './dom-ids.js';
+import { sidebarWidth } from './local-store.js';
 
 // ── Interfaces ─────────────────────────────────────────────────────────────────
 
@@ -209,7 +210,6 @@ export function init(handlers: UIEventHandlers): void {
 
 const RESIZER_MIN = 120;
 const RESIZER_MAX = 500;
-const RESIZER_LS_KEY = 'leaf:sidebar-width';
 
 let _resizerDragging = false;
 
@@ -227,7 +227,7 @@ export function initResizer(): void {
   if (!sidebar || !resizer) return;
 
   // ── Restore persisted width ──
-  const saved = localStorage.getItem(RESIZER_LS_KEY);
+  const saved = sidebarWidth.get();
   if (saved) {
     const w = Math.min(RESIZER_MAX, Math.max(RESIZER_MIN, Number(saved)));
     if (!Number.isNaN(w)) _setResizerWidth(app, w);
@@ -265,7 +265,7 @@ export function initResizer(): void {
     document.removeEventListener('mousemove', onMouseMove);
 
     const w = sidebar!.getBoundingClientRect().width;
-    localStorage.setItem(RESIZER_LS_KEY, String(Math.round(w)));
+    sidebarWidth.set(w);
   }
 }
 
