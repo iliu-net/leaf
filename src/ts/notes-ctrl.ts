@@ -12,6 +12,9 @@ import * as modal from './modal.js';
 import * as notes from './notes.js';
 import type { NoteData, NoteMeta } from './notes.js';
 import { safeName } from './utils.js';
+import { listSystemNotes } from './system-notes/registry.js';
+import { DOM, $maybe } from './dom-ids.js';
+import { renderSystemSection } from './sidebar.js';
 
 // ── Note list state ──────────────────────────────────────────────────────────
 
@@ -42,6 +45,7 @@ export async function refreshList(selectId: string | null = null): Promise<void>
     const filtered = applyFilter();
     ui.renderNoteList(filtered, _getCurrentId());
     ui.updateNoteCount(_allNotes.length, filtered.length);
+    renderSystemSection();
     if (selectId) await openNote(selectId);
   } catch (err) {
     ui.toast(`Failed to load notes: ${(err as Error).message}`, true);
@@ -108,7 +112,30 @@ export async function createNote(): Promise<void> {
 
 export function handleSearch(query: string): void {
   _query = query.toLowerCase().trim();
-  const filtered = applyFilter();
-  ui.renderNoteList(filtered, _getCurrentId());
-  ui.updateNoteCount(_allNotes.length, filtered.length);
+  const userFiltered = applyFilter();
+
+  if (_query) {
+    // Search active → merge system notes into flat results
+    const sysMatches = listSystemNotes()
+      .filter(d => d.id.toLowerCase().includes(_query) || d.label.toLowerCase().includes(_query))
+      .map(d => ({
+        id: d.id,
+        created_at: 0,
+        updated_at: 0,
+        current: '',
+      }));
+    const merged = [...userFiltered, ...sysMatches]
+      .sort((a, b) => a.id.localeCompare(b.id));
+    ui.renderNoteList(merged, _getCurrentId());
+    ui.updateNoteCount(_allNotes.length, merged.length);
+
+    // Hide system section during search
+    const sysSection = $maybe(DOM.SYSTEM_NOTES_SECTION);
+    if (sysSection) sysSection.style.display = 'none';
+  } else {
+    // Search cleared → restore separate sections
+    ui.renderNoteList(userFiltered, _getCurrentId());
+    ui.updateNoteCount(_allNotes.length, userFiltered.length);
+    renderSystemSection();
+  }
 }

@@ -138,6 +138,10 @@ export const DOM = {
   TRASH_BANNER_RESTORE: 'trash-banner-restore',
   TRASH_BANNER_PURGE:   'trash-banner-purge',
 
+  // ── System notes ─────────────────────────────────────────────────────────
+  SYSTEM_NOTES_SECTION: 'system-notes-section',
+  SYSTEM_NOTES_LIST:    'system-notes-list',
+
   // ── Empty trash button ──────────────────────────────────────────────────
   BTN_EMPTY_TRASH: 'btn-empty-trash',
 

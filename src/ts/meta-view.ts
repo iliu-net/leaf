@@ -41,6 +41,9 @@ export interface MetaEventHandlers {
 let _pendingMeta: PendingMeta = { title: '', summary: '', tags: [], custom: {} };
 let _pendingMetaDirty = false;
 
+/** Whether the current note is read-only (system note). Set in show(). */
+let _readOnly = false;
+
 // ── DOM refs ────────────────────────────────────────────────────────────
 
 let _metaTitle:   HTMLInputElement | null = null;
@@ -85,11 +88,20 @@ export function init(): void {
 
 /** Show the meta panel: parse frontmatter from raw content, render form. */
 export function show(ctx: TabPanelContext): void {
+  _readOnly = ctx.noteData.current === 'system';
+
   const fm = parseFrontmatter(ctx.content);
   _pendingMeta = initPendingMeta(fm.meta);
   _pendingMetaDirty = false;
 
   _renderForm(_pendingMeta);
+
+  // Toggle action buttons — hidden for system notes
+  const btnAddCustom = $maybe(DOM.BTN_ADD_CUSTOM);
+  const btnViewHistory = $maybe(DOM.BTN_VIEW_HISTORY);
+  if (btnAddCustom) btnAddCustom.style.display = _readOnly ? 'none' : '';
+  if (_btnAddLang) _btnAddLang.style.display = _readOnly ? 'none' : '';
+  if (btnViewHistory) btnViewHistory.style.display = _readOnly ? 'none' : '';
 
   // Stats (body only, frontmatter stripped)
   const stats = computeStats(fm.body);
@@ -218,15 +230,16 @@ export function renderCustomRows(custom: Record<string, string>, lang?: string):
 // ── Internal ────────────────────────────────────────────────────────────
 
 function _onFieldChange(onDirty: () => void): void {
+  if (_readOnly) return;
   _pendingMeta = _readFormValues();
   _pendingMetaDirty = true;
   onDirty();
 }
 
 function _renderForm(pm: PendingMeta): void {
-  if (_metaTitle)   _metaTitle.value   = pm.title;
-  if (_metaSummary) _metaSummary.value = pm.summary;
-  if (_metaTags)    _metaTags.value    = pm.tags.join(', ');
+  if (_metaTitle)   { _metaTitle.value   = pm.title;   _metaTitle.readOnly   = _readOnly; }
+  if (_metaSummary) { _metaSummary.value = pm.summary; _metaSummary.readOnly = _readOnly; }
+  if (_metaTags)    { _metaTags.value    = pm.tags.join(', '); _metaTags.readOnly = _readOnly; }
   _renderCustomRows(pm.custom, pm.lang);
 }
 
@@ -241,7 +254,7 @@ function _renderCustomRows(custom: Record<string, string>, lang?: string): void 
     _customRows.appendChild(_createLangRow(lang));
     if (_btnAddLang) _btnAddLang.style.display = 'none';
   } else {
-    if (_btnAddLang) _btnAddLang.style.display = '';
+    if (_btnAddLang) _btnAddLang.style.display = _readOnly ? 'none' : '';
   }
 }
 
@@ -316,6 +329,7 @@ function _createCustomRow(key: string, value: string): HTMLElement {
   keyInput.className = 'meta-input custom-key';
   keyInput.placeholder = 'key';
   keyInput.value = key;
+  keyInput.readOnly = _readOnly;
   keyInput.setAttribute('list', 'known-keys');
   keyInput.setAttribute('autocomplete', 'off');
   keyInput.setAttribute('spellcheck', 'false');
@@ -325,16 +339,20 @@ function _createCustomRow(key: string, value: string): HTMLElement {
   valInput.className = 'meta-input custom-val';
   valInput.placeholder = KNOWN_KEYS[key] || 'value';
   valInput.value = value;
-
-  const removeBtn = document.createElement('button');
-  removeBtn.type = 'button';
-  removeBtn.className = 'btn-remove-custom';
-  removeBtn.textContent = '×';
-  removeBtn.title = 'Remove custom field';
+  valInput.readOnly = _readOnly;
 
   row.appendChild(keyInput);
   row.appendChild(valInput);
-  row.appendChild(removeBtn);
+
+  // Remove button — only for editable notes
+  if (!_readOnly) {
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-remove-custom';
+    removeBtn.textContent = '×';
+    removeBtn.title = 'Remove custom field';
+    row.appendChild(removeBtn);
+  }
 
   return row;
 }
@@ -361,16 +379,20 @@ function _createLangRow(lang: string): HTMLElement {
   valInput.setAttribute('spellcheck', 'false');
   valInput.placeholder = getSpellcheckConfig().default_lang;
   valInput.value = lang;
-
-  const removeBtn = document.createElement('button');
-  removeBtn.type = 'button';
-  removeBtn.className = 'btn-remove-custom';
-  removeBtn.textContent = '×';
-  removeBtn.title = 'Remove language';
+  valInput.readOnly = _readOnly;
 
   row.appendChild(keyInput);
   row.appendChild(valInput);
-  row.appendChild(removeBtn);
+
+  // Remove button — only for editable notes
+  if (!_readOnly) {
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-remove-custom';
+    removeBtn.textContent = '×';
+    removeBtn.title = 'Remove language';
+    row.appendChild(removeBtn);
+  }
 
   return row;
 }

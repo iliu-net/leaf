@@ -16,6 +16,7 @@ import type { NoteData } from './notes.js';
 import { DOM, $, $maybe } from './dom-ids.js';
 import type { DomId } from './dom-ids.js';
 import { esc } from './utils.js';
+import { isSystemNote } from './notes.js';
 
 // ── State ───────────────────────────────────────────────────────────────────
 
@@ -99,14 +100,21 @@ export async function showEditor(noteData: NoteData): Promise<void> {
   // Show note name
   currentFile.innerHTML = `<span class="fname">${esc(noteData.id)}</span>`;
 
+  // System notes: VIEW and META only — hide code/raw edit buttons.
+  // Only toggle visibility; for user notes the buttons are already correct
+  // from loadCodeMirror (init) — no need to touch them here.
+  const isSys = isSystemNote(noteData.id);
+  updateTabButtonVisibility(isSys);
+
   // Render the View tab as the default, or switch to edit mode
   // for brand-new (empty) notes so the user can start typing immediately.
+  // System notes are always VIEW-only on open.
   _activeTab = 'raw';  // force-switch so switchTab doesn't early-return
   const isEmpty = !noteData.content.trim();
-  if (isEmpty) {
-    await switchTab(_cmAvailable ? 'code' : 'raw');
-  } else {
+  if (isSys || !isEmpty) {
     await switchTab('view');
+  } else {
+    await switchTab(_cmAvailable ? 'code' : 'raw');
   }
 }
 
@@ -299,3 +307,23 @@ function _updateTabButtons(): void {
     }
   }
 }
+
+/**
+ * Show/hide CODE and RAW tab buttons.
+ *
+ * Called with `true` for system notes (VIEW/META only).
+ * Called with `false` when switching back to a user note to restore the
+ * buttons — safe because CodeMirror has already loaded by then.
+ */
+function updateTabButtonVisibility(isSystem: boolean): void {
+  const btnCode = $maybe(DOM.TAB_BTN_CODE);
+  const btnRaw  = $maybe(DOM.TAB_BTN_RAW);
+  if (isSystem) {
+    if (btnCode) btnCode.style.display = 'none';
+    if (btnRaw)  btnRaw.style.display  = 'none';
+  } else {
+    if (btnCode) btnCode.style.display = _cmAvailable ? '' : 'none';
+    if (btnRaw)  btnRaw.style.display  = _cmAvailable ? 'none' : '';
+  }
+}
+

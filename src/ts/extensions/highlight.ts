@@ -17,6 +17,14 @@
 import type MarkdownIt from 'markdown-it';
 import { registerFenceRenderer } from '../markdown.js';
 import { registerHydrator } from '../fence-hydrate.js';
+import { registerSystemNote } from '../system-notes/registry.js';
+import highlightDocs from './highlight-docs.md';
+
+registerSystemNote({
+  id: '@about:markdown:highlight',
+  label: 'Syntax Highlighting',
+  content: () => highlightDocs,
+});
 
 // ── Presets ────────────────────────────────────────────────────────────────
 

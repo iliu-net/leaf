@@ -11,7 +11,9 @@
  */
 
 import type { NoteMeta } from './notes.js';
-import { TreeView } from './tree-view.js';
+import { TreeView, SystemTreeView } from './tree-view.js';
+import type { SystemNoteDef } from './system-notes/registry.js';
+import { listSystemNotes } from './system-notes/registry.js';
 import { TrashView } from './trash-view.js';
 import { DOM, $, $maybe } from './dom-ids.js';
 import { sidebarWidth } from './local-store.js';
@@ -73,12 +75,14 @@ export function setMode(mode: SidebarMode): void {
   const noteFooter     = $(DOM.SIDEBAR_FOOTER);
   const trashToolbar   = $maybe(DOM.TRASH_TOOLBAR);
   const trashFooter    = $maybe(DOM.TRASH_FOOTER);
+  const sysSection     = $maybe(DOM.SYSTEM_NOTES_SECTION);
 
   if (mode === 'trash') {
     sidebarToolbar.style.display = 'none';
     noteFooter.style.display     = 'none';
     if (trashToolbar) trashToolbar.style.display = 'flex';
     if (trashFooter)  trashFooter.style.display  = 'flex';
+    if (sysSection)   sysSection.style.display   = 'none';
     _currentView = TrashView;
   } else {
     sidebarToolbar.style.display = 'flex';
@@ -86,6 +90,7 @@ export function setMode(mode: SidebarMode): void {
     if (trashToolbar) trashToolbar.style.display = 'none';
     if (trashFooter)  trashFooter.style.display  = 'none';
     _currentView = TreeView;
+    renderSystemSection();
   }
 }
 
@@ -110,9 +115,40 @@ export function renderNoteList(notes: NoteMeta[], currentId: string | null): voi
 }
 
 export function setActiveNote(id: string): void {
-  $(DOM.FILE_LIST).querySelectorAll('.file-item').forEach(el => {
-    el.classList.toggle('active', (el as HTMLElement).dataset.id === id);
+  // Update active state in both the user file list and the system notes list
+  [DOM.FILE_LIST, DOM.SYSTEM_NOTES_LIST].forEach(listId => {
+    const el = $maybe(listId);
+    if (!el) return;
+    el.querySelectorAll('.file-item').forEach(item => {
+      item.classList.toggle('active', (item as HTMLElement).dataset.id === id);
+    });
   });
+}
+
+/**
+ * Render (or re-render) the system notes section below the user note list.
+ */
+export function renderSystemSection(): void {
+  const section = $maybe(DOM.SYSTEM_NOTES_SECTION);
+  if (!section) return;
+
+  const sysNotes = listSystemNotes();
+  if (sysNotes.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = '';
+  // Query the search input to determine if a search is active.
+  // During search, system notes are merged into the main file list
+  // and the system section is hidden.
+  const searchInput = $maybe(DOM.SEARCH) as HTMLInputElement | null;
+  if (searchInput && searchInput.value.trim()) {
+    section.style.display = 'none';
+    return;
+  }
+
+  SystemTreeView.render(sysNotes, null);
 }
 
 export function updateNoteCount(total: number, shown: number): void {
@@ -161,6 +197,11 @@ export function init(handlers: UIEventHandlers): void {
   // File list — event delegation to the active sidebar view
   $(DOM.FILE_LIST).addEventListener('click', e => {
     _currentView?.handleClick(e, handlers);
+  });
+
+  // System notes — click delegation to SystemTreeView
+  $maybe(DOM.SYSTEM_NOTES_LIST)?.addEventListener('click', e => {
+    SystemTreeView.handleClick(e, handlers);
   });
 
   // Notes search

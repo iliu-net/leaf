@@ -164,6 +164,21 @@ html, body { height: 100%; overflow: hidden; }
 #app.sidebar-collapsed #sidebar          { display: none; }
 #app.sidebar-collapsed #sidebar-resizer  { display: none; }
 #app.sidebar-collapsed #header-brand     { width: auto; border-right: none; }
+
+/* ── System notes ── */
+#system-notes-section {
+  flex-shrink: 0;
+}
+.system-notes-divider {
+  padding: 6px 12px 2px;
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+#system-notes-list {
+  max-height: 200px; overflow-y: auto;
+  scrollbar-width: thin;
+}
+
 #sidebar-footer {
   padding: 8px 10px;
   border-top-width: 1px; border-top-style: solid;

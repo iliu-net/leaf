@@ -12,6 +12,7 @@
 
 import type { SidebarView, UIEventHandlers } from './sidebar.js';
 import type { NoteMeta } from './notes.js';
+import type { SystemNoteDef } from './system-notes/registry.js';
 import * as contextMenu from './context-menu.js';
 import { naturalCompare } from './utils.js';
 import { DOM, $, $maybe } from './dom-ids.js';
@@ -19,11 +20,17 @@ import { ICONS, createIcon } from './icons.js';
 
 // ── Tree data type ──────────────────────────────────────────────────────
 
+/** Minimal shape shared by NoteMeta and SystemNoteDef for tree building. */
+interface TreeItem {
+  id: string;
+  kind?: 'system';  // present for system notes, absent for user notes
+}
+
 interface TreeNode {
   name: string;
   path: string;
   children: TreeNode[];
-  note: NoteMeta | null;
+  note: TreeItem | null;
 }
 
 // ── Module-level state ──────────────────────────────────────────────────
@@ -47,9 +54,9 @@ function getSearchInput(): HTMLInputElement | null {
 
 // ── Tree builder ────────────────────────────────────────────────────────
 
-function buildTree(notes: NoteMeta[]): TreeNode[] {
-  // Sort notes by full ID using natural sort
-  const sorted = [...notes].sort((a, b) => naturalCompare(a.id, b.id));
+function buildTree(items: TreeItem[]): TreeNode[] {
+  // Sort items by full ID using natural sort
+  const sorted = [...items].sort((a, b) => naturalCompare(a.id, b.id));
 
   const roots: TreeNode[] = [];
   const nodeMap = new Map<string, TreeNode>();
@@ -138,7 +145,8 @@ function toggleBranch(path: string): void {
 function renderTreeNodes(
   nodes: TreeNode[],
   depth: number,
-  currentId: string | null
+  currentId: string | null,
+  showMoreButton = true,
 ): DocumentFragment {
   const frag = document.createDocumentFragment();
   const indent = 12 + depth * 16; // base padding + 16px per level
@@ -187,14 +195,20 @@ function renderTreeNodes(
     label.title = hasNote ? node.note!.id : node.path;
     bar.appendChild(label);
 
-    // More-actions button (note nodes only)
-    if (hasNote) {
+    // More-actions button (note nodes only, suppressed for system notes)
+    const isSystem = hasNote && node.note!.kind === 'system';
+    if (hasNote && showMoreButton && !isSystem) {
       const more = document.createElement('button');
       more.className = 'file-item-more btn-icon';
       more.textContent = '⋯';
       more.title = 'More actions';
       more.setAttribute('aria-label', `More actions for ${node.note!.id}`);
       bar.appendChild(more);
+    }
+
+    // Tag system-note bars so click handler can skip context menu
+    if (isSystem) {
+      bar.dataset.kind = 'system';
     }
 
     frag.appendChild(bar);
@@ -205,7 +219,7 @@ function renderTreeNodes(
       container.className = 'tree-children';
       container.dataset.parent = node.path;
       container.style.display = isExpanded ? 'block' : 'none';
-      container.appendChild(renderTreeNodes(node.children, depth + 1, currentId));
+      container.appendChild(renderTreeNodes(node.children, depth + 1, currentId, showMoreButton));
       frag.appendChild(container);
     }
   }
@@ -338,5 +352,74 @@ export const TreeView: SidebarView = {
     expandedPaths.clear();
     savedExpanded = null;
     getFileList().innerHTML = '';
+  },
+};
+
+// ── Exported: SystemTreeView object ────────────────────────────────────────
+
+function getSystemList(): HTMLElement {
+  return $(DOM.SYSTEM_NOTES_LIST);
+}
+
+function getSystemSection(): HTMLElement {
+  return $(DOM.SYSTEM_NOTES_SECTION);
+}
+
+export const SystemTreeView: SidebarView<SystemNoteDef> = {
+  render(defs: SystemNoteDef[], currentId: string | null): void {
+    const container = getSystemList();
+    container.innerHTML = '';
+
+    if (defs.length === 0) {
+      return;
+    }
+
+    // Auto-expand to the currently open system note
+    if (currentId) {
+      expandToPath(currentId);
+    }
+
+    // Convert SystemNoteDef[] → TreeItem[]
+    const items: TreeItem[] = defs.map(d => ({ id: d.id, kind: 'system' as const }));
+    const tree = buildTree(items);
+    const frag = renderTreeNodes(tree, 0, currentId, /* showMoreButton */ false);
+    container.appendChild(frag);
+  },
+
+  handleClick(e: MouseEvent, handlers: UIEventHandlers): void {
+    const target = e.target as HTMLElement;
+
+    // Toggle arrow
+    const toggle = target.closest('.tree-toggle');
+    if (toggle) {
+      const bar = (toggle as HTMLElement).closest('[data-path]') as HTMLElement | null;
+      if (bar?.dataset.path) {
+        toggleBranch(bar.dataset.path);
+      }
+      return;
+    }
+
+    // Branch-only node → toggle
+    const branchOnly = target.closest('.tree-branch-only');
+    if (branchOnly) {
+      const path = (branchOnly as HTMLElement).dataset.path;
+      if (path) toggleBranch(path);
+      return;
+    }
+
+    // Note item → open
+    const item = target.closest('.file-item');
+    if (item) {
+      const id = (item as HTMLElement).dataset.id;
+      if (id) handlers.onOpen(id);
+    }
+  },
+
+  updateNoteCount(_total: number, _shown: number): void {
+    // System notes don't show a count
+  },
+
+  destroy(): void {
+    getSystemList().innerHTML = '';
   },
 };

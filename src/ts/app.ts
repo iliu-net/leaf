@@ -26,6 +26,8 @@ import * as loginView from './login-view.js';
 import * as notes    from './notes.js';
 import type { NoteData } from './notes.js';
 import { db, dbPurgeDeletedNotes, dbGetNote } from './db.js';
+import { isSystemNote } from './notes.js';
+import './system-notes/builtin.js';  // side-effect: registers all built-in system notes
 import { syncStart, stopSync, clearRevision, onSyncStatus } from './sync.js';
 import { getUsername, tryRestoreSession, onAuthFailure } from './auth.js';
 import { subscribe } from './change-bus.js';
@@ -418,6 +420,17 @@ async function showShell(): Promise<void> {
   document.addEventListener('navigate-note', async (e) => {
     const id = (e as CustomEvent).detail?.id as string | undefined;
     if (!id) return;
+
+    // System notes resolve synchronously — skip IndexedDB lookup
+    if (isSystemNote(id)) {
+      await saveAndStop();
+      try {
+        activateNote(id, await notes.loadNote(id));
+      } catch (err) {
+        console.warn('[app] navigate-note failed:', err);
+      }
+      return;
+    }
 
     const existing = await dbGetNote(id);
     if (!existing) {

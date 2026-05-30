@@ -17,6 +17,8 @@ import {
 import { parseFrontmatter } from './frontmatter.js';
 import type { FrontmatterResult } from './frontmatter.js';
 import { publish } from './change-bus.js';
+import { isSystemNote, getSystemNote } from './system-notes/registry.js';
+export { isSystemNote };
 
 /** Note metadata returned by listNotes(). */
 export interface NoteMeta {
@@ -53,6 +55,18 @@ export async function listNotes(): Promise<NoteMeta[]> {
  * @returns NoteData with content, DB fields, and parsed frontmatter
  */
 export async function loadNote(id: string): Promise<NoteData> {
+  if (isSystemNote(id)) {
+    const def = getSystemNote(id)!;
+    const content = def.content();
+    const now = Math.floor(Date.now() / 1000);
+    const fm = parseFrontmatter(content);
+    return {
+      id, content,
+      created_at: now, updated_at: now,
+      current: 'system', created_by: 'leaf', updated_by: 'leaf',
+      meta: fm.meta,
+    };
+  }
   const note = await dbGetNote(id);
   const content = note?.content ?? '';
   const fm = parseFrontmatter(content);

@@ -21,6 +21,7 @@ import {
 import { esc, html } from './utils.js';
 import { hydrate } from './fence-hydrate.js';
 import { dbGetNote } from './db.js';
+import { isSystemNote, getSystemNote } from './system-notes/registry.js';
 
 // ── Lazy markdown-it ────────────────────────────────────────────────────────
 
@@ -124,10 +125,20 @@ async function _postProcessWikilinks(root: Element): Promise<void> {
     if (id) ids.add(id);
   }
 
-  // Load all referenced notes in parallel.  null = note doesn't exist.
+  // Load all referenced notes.  null = note doesn't exist.
   const noteMap = new Map<string, string | null>();
+
+  // Resolve system notes synchronously — they live in the registry, not IndexedDB
+  for (const id of ids) {
+    if (isSystemNote(id)) {
+      noteMap.set(id, getSystemNote(id)?.content() ?? null);
+    }
+  }
+
+  // Resolve user notes from IndexedDB (skip already-resolved system notes)
+  const remaining = Array.from(ids).filter(id => !noteMap.has(id));
   await Promise.all(
-    Array.from(ids).map(async (id) => {
+    remaining.map(async (id) => {
       try {
         const note = await dbGetNote(id);
         noteMap.set(id, note?.content ?? null);

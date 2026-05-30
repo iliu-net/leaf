@@ -32,6 +32,7 @@ export {
   renderNoteList, setActiveNote, updateNoteCount,
   setSidebarLoading, toggleSidebar, clearSearch,
   setMode, getMode, setTrashCount, initResizer,
+  renderSystemSection,
 } from './sidebar.js';
 
 // ── DOM refs (for bindEvents & status bar) ─────────────────────────────────

@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --project src/tsconfig.json --noEmit",
-    "build": "esbuild src/ts/app.ts --bundle --format=esm --splitting --minify-whitespace --outdir=spa/",
+    "build": "esbuild src/ts/app.ts --bundle --format=esm --splitting --minify-whitespace --outdir=spa/ --loader:.md=text",
     "test": "cd tests/spa && vitest run",
     "test:watch": "cd tests/spa && vitest"
   },

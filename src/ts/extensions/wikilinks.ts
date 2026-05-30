@@ -15,6 +15,14 @@
  */
 
 import type MarkdownIt from 'markdown-it';
+import { registerSystemNote } from '../system-notes/registry.js';
+import wikilinksDocs from './wikilinks-docs.md';
+
+registerSystemNote({
+  id: '@about:markdown:wikilinks',
+  label: 'WikiLinks',
+  content: () => wikilinksDocs,
+});
 
 // ── Regex ──────────────────────────────────────────────────────────────────
 
