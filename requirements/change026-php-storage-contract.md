@@ -4,35 +4,46 @@
 
 Added seven functions to `storage.php` that isolate `sync.php`, `history.php`,
 and `trash.php` from the internal storage format (the `versions` map, tombstone
-file layout, changelog mechanics).  After this change, no endpoint reads
-`$note['versions']`, calls `deleted_path()`, `next_rev()`, or
-`changelog_append()` directly.  Swapping the flat-file backend for git or MySQL
-means rewriting only `storage.php`.
+file layout, changelog mechanics).  After this change, no endpoint accesses
+`$note['versions']`, and the only caller of `changelog_append()` outside
+`storage.php` is the restore action in `trash.php` (which constructs a
+semantically unique CREATE entry — not format knowledge).  Swapping the
+flat-file backend for git or MySQL means rewriting only `storage.php`.
 
 Implements item 1 from `TODO/refactor-php.md` as detailed in
 `TODO/refactor-php-plan.md`.
 
+Also renames two internal functions for consistency with the `storage_*` /
+`changelog_*` naming convention:
+
+| Old name | New name |
+|---|---|
+| `note_is_deleted()` | `storage_note_deleted()` |
+| `next_rev()` | `changelog_next_rev()` |
+
 ## Motivation
 
-Before this change:
+Before:
 - `sync.php`, `history.php`, and `trash.php` all navigated
   `$note['versions'][$current]` inline — duplicated across ~10 locations.
 - Bootstrap and incremental sync paths used different code to read the same
   note data.
 - `trash.php`'s preview action reached directly into the filesystem
   (`deleted_path()`, `file_exists()`, `file_get_contents()`, `json_decode()`).
-- `apply_client_change()` was ~110 lines with embedded changelog construction.
+- `apply_client_change()` was ~110 lines with embedded changelog construction
+  and version-map access.
 
-After this change, the storage layer owns all knowledge of the internal format
-and changelog protocol.  Consumer endpoints only work with normalized flat
-arrays.
+After: the storage layer owns all knowledge of the internal format.
+Consumer endpoints work with normalized flat arrays and typed return values.
 
-## New functions (all in `storage.php`)
+## Contract functions (all in `storage.php`)
 
-### Phase 1 — `storage_get_note_full(string $id): ?array`
+### Phase 1 — `storage_get_note_full(string $id, string $viewer): ?array`
 
-Normalized flat read for sync-protocol consumers.  Returns a flat array hiding
-the internal `versions` map:
+Normalized flat read for sync-protocol consumers.  Hides the internal
+`versions` map.  The `$viewer` parameter carries the authenticated username
+so the storage layer can trigger staging flushes without consumer awareness
+(relevant for the git backend — see `TODO/git-storage.md`).
 
 | Key | Source | Fallback |
 |-----|--------|----------|
@@ -46,69 +57,84 @@ the internal `versions` map:
 
 ### Phase 2 — `storage_put_note_logged(string $id, string $content, string $author, ?string $client_version): ?array`
 
-CREATE or UPDATE + changelog entry in one call.  Returns null if the client
-version is missing.  Handles tombstone revival, conflict detection (via
-`error_log`), version resolution, and changelog append internally.
+CREATE or UPDATE + changelog entry in one call.  Returns `[$version, $dirty]`
+on success, or `null` if the client version is missing.  The `$dirty` boolean
+is always `false` in the current flat-file backend; the git backend will set
+it to `true` when content is staged to disk but not yet committed.
+Handles tombstone revival, conflict detection (via `error_log`), version
+resolution, and changelog append internally.
 
-### Phase 3 — `storage_delete_note_logged(string $id, string $author): ?array`
+### Phase 3 — `storage_delete_note_logged(string $id, string $author): bool`
 
-DELETE + changelog entry.  Returns null if already deleted or nonexistent.
+DELETE + changelog entry.  Returns `true` on success, `false` if already
+deleted or nonexistent.
 
-### Phase 3 — `storage_rename_note_logged(string $old_id, string $new_id, string $author): ?array`
+### Phase 3 — `storage_rename_note_logged(string $old_id, string $new_id, string $author): bool`
 
-RENAME + changelog entry.  Returns null if source missing, target occupied, or
-rename fails.
+RENAME + changelog entry.  Returns `true` on success, `false` if source
+missing, target occupied, or rename fails.
 
 ### Phase 4 — `storage_get_version_list(string $id): array`
 
-Returns version metadata (`key`, `author`, `saved_at`, `prev`) for all versions
-of a note, newest first.  Used by `history.php` `action=list`.
+Version metadata (`key`, `author`, `saved_at`, `prev`) for all versions,
+newest first.  Used by `history.php` `action=list`.
 
 ### Phase 4 — `storage_get_version_content(string $id, string $vkey): ?string`
 
-Returns opaque content for a specific version key, or null if not found.  Used
-by `history.php` `action=get`.
+Opaque content for a specific version key, or `null` if not found.
+Used by `history.php` `action=get`.
 
 ### Phase 5 — `storage_get_tombstone(string $id): ?array`
 
-Normalized flat read for tombstone data.  Returns null if the `.deleted.json`
-file does not exist or is malformed.  Used by `trash.php` `action=preview`.
+Normalized flat read for tombstone data.  Returns `null` if the
+`.deleted.json` file does not exist or is malformed.
+Used by `trash.php` `action=preview`.
 
 ## Files modified
 
-### `src/php/storage.php` — +186 lines
+### `src/php/storage.php` — 877 lines
 
-- Phase 1: `storage_get_note_full()` — after `storage_get_note()`
-- Phase 2: `storage_put_note_logged()` — after `storage_apply_write()`
-- Phase 3: `storage_delete_note_logged()`, `storage_rename_note_logged()` —
-  after `storage_put_note_logged()`
+- Phase 1: `storage_get_note_full($id, $viewer)` — after `storage_get_note()`
+- Phase 2: `storage_put_note_logged()` — after `storage_apply_write()`;
+  returns `[$vkey, $dirty]` tuple
+- Phase 3: `storage_delete_note_logged()` → `bool`,
+  `storage_rename_note_logged()` → `bool` — after `storage_put_note_logged()`
 - Phase 4: `storage_get_version_list()`, `storage_get_version_content()` —
   new "Version history" section before the Changelog section
 - Phase 5: `storage_get_tombstone()` — after `storage_list_deleted_notes()`
+- Renamed: `note_is_deleted()` → `storage_note_deleted()`,
+  `next_rev()` → `changelog_next_rev()`
 
-### `src/php/sync.php` — −177 lines
+### `src/php/sync.php` — 359 lines
 
-- **`changelog_entry_to_dexie_change()`** — CREATE/UPDATE branch replaced ~35
-  lines of inline version-map navigation with a single
-  `storage_get_note_full($key)` call.
+- **`apply_client_change()`** — Reduced from ~110 to ~42 lines, returns void.
+  CREATE/UPDATE calls `storage_put_note_logged()` and destructures the
+  `[$version, $dirty]` tuple for audit logging.  DELETE and RENAME use the
+  `bool` return from their respective logged functions.  Removed redundant
+  version validation (now inside `storage_put_note_logged()`).
+- **`changelog_entry_to_dexie_change($entry, $viewer)`** — CREATE/UPDATE
+  branch replaced inline version-map navigation with
+  `storage_get_note_full($key, $viewer)`.  Added `$viewer` parameter for
+  staging-flush support.
 - **Bootstrap path** — Replaced inline note-reading block with
-  `storage_get_note_full()` build.
-- **`apply_client_change()`** — Reduced from ~110 to ~40 lines.  CREATE/UPDATE,
-  DELETE, and RENAME branches are now thin wrappers that call the
-  `storage_*_logged()` functions and `audit_log()`.  Removed redundant
-  version validation (now handled inside `storage_put_note_logged()`).
+  `storage_get_note_full($meta['id'], $author)`.
+- **Incremental path** — `changelog_entry_to_dexie_change($entry, $author)`
+  passes the authenticated user.
 
-### `src/php/history.php` — −53 lines
+### `src/php/history.php` — 82 lines
 
 - `action=list` — Uses `storage_get_version_list()` instead of iterating
   `$note['versions']` inline.
 - `action=get` — Uses `storage_get_version_content()` instead of accessing
   `$note_versions[$vkey]['content']` directly.
 
-### `src/php/trash.php` — −56 lines
+### `src/php/trash.php` — 139 lines
 
-- `action=restore` — Response build uses `storage_get_note_full()` instead of
-  inline version-map access.
+- `action=restore` — Uses `storage_note_deleted()` for the guard check
+  and `storage_get_note_full($id, $author)` for the response build.
+  Still calls `changelog_append()` directly — the only consumer-side
+  changelog call remaining; it constructs a semantically unique CREATE entry
+  for the revive operation (no internal format knowledge involved).
 - `action=preview` — Replaced raw filesystem access (`deleted_path()`,
   `file_exists()`, `file_get_contents()`, `json_decode()`) with a single
   `storage_get_tombstone($id)` call.
@@ -116,46 +142,54 @@ file does not exist or is malformed.  Used by `trash.php` `action=preview`.
 ## Architecture
 
 ```
-                              ┌──────────────────┐
-                              │   storage.php    │
-                              │                  │
-                              │  storage_get_    │
-                              │    note_full()   │◄──────── sync.php (read)
-                              │                  │
-                              │  storage_put_    │
-                              │    note_logged() │◄──────── sync.php (write)
-                              │                  │
-                              │  storage_delete_ │
-                              │    note_logged() │◄──────── sync.php (delete)
-                              │                  │
-                              │  storage_rename_ │
-                              │    note_logged() │◄──────── sync.php (rename)
-                              │                  │
-                              │  storage_get_    │
-                              │    version_list()│◄──────── history.php (list)
-                              │                  │
-                              │  storage_get_    │
-                              │  version_content │◄──────── history.php (get)
-                              │                  │
-                              │  storage_get_    │
-                              │    tombstone()   │◄──────── trash.php (preview)
-                              │                  │
-                              │  changelog_*()  │  ← internal only
-                              │  next_rev()      │
-                              │  versions map    │
-                              └──────────────────┘
+                              ┌──────────────────────────┐
+                              │      storage.php         │
+                              │                          │
+                              │  storage_get_note_full   │◄── sync.php (read)
+                              │    ($id, $viewer)        │◄── trash.php (restore)
+                              │                          │
+                              │  storage_put_note_logged │◄── sync.php (write)
+                              │    -> [$version, $dirty] │
+                              │                          │
+                              │  storage_delete_note_    │◄── sync.php (delete)
+                              │    logged() -> bool      │
+                              │                          │
+                              │  storage_rename_note_    │◄── sync.php (rename)
+                              │    logged() -> bool      │
+                              │                          │
+                              │  storage_get_version_list│◄── history.php (list)
+                              │  storage_get_version_    │◄── history.php (get)
+                              │    content()             │
+                              │                          │
+                              │  storage_get_tombstone   │◄── trash.php (preview)
+                              │                          │
+                              │  changelog_*()           │  <- internal
+                              │  storage_note_deleted()  │
+                              │  versions map            │
+                              └──────────────────────────┘
 ```
 
-Consumer endpoints see only the seven public contract functions.  The internal
-`versions` map, `deleted_path()`, `next_rev()`, and `changelog_append()` are
-never called outside `storage.php`.
+Consumer endpoints see only the seven contract functions.  The internal
+`versions` map is never accessed outside `storage.php`.  `changelog_append()`
+has one remaining consumer call site (trash restore), which passes no
+format-specific knowledge.
 
-## Line-count impact
+## Forward-looking design
 
-| File | Before | After | Δ |
-|------|--------|-------|---|
-| `storage.php` | ~664 | ~850 | +186 |
-| `sync.php` | ~457 | ~280 | −177 |
-| `history.php` | ~103 | ~50 | −53 |
-| `trash.php` | ~146 | ~90 | −56 |
-| **Net** | | | **−100** |
+The `$viewer` parameter on `storage_get_note_full()` and the
+`[$version, $dirty]` tuple from `storage_put_note_logged()` are designed for
+the git storage backend (see `TODO/git-storage.md`):
+
+- **`$viewer`** enables the storage layer to flush staged `.meta` files
+  when a different author reads a note, without the consumer knowing staging
+  exists.
+- **`$dirty`** will be `true` when content was written to `.md` but deferred
+  from git commit (staging).  The audit log records it as a separate boolean
+  field so consumer code never needs to interpret a synthetic version string.
+- **`bool` returns** from delete/rename simplify callers (they only used the
+  previous `?array` return as a truthiness check anyway) and will work
+  unchanged when those operations gain staging-aware flush logic.
+
+The git plan eliminates `storage_resolve_version()` and
+`storage_mark_version_seen()` (immutable commits make overwrite logic
+unnecessary).  Both are internal to `storage.php` — zero consumer impact.

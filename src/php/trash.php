@@ -58,7 +58,7 @@ switch ($action) {
         if ($id === '') {
             fail('Missing "id" parameter');
         }
-        if (!note_is_deleted($id)) {
+        if (!storage_note_deleted($id)) {
             fail('Note is not deleted or tombstone not found', 404);
         }
         storage_revive_note($id);
@@ -80,7 +80,7 @@ switch ($action) {
         ]);
         audit_log('NOTE_RESTORE', ['user' => $author, 'note_id' => $id]);
 
-        $n = storage_get_note_full($id);
+        $n = storage_get_note_full($id, $author);
         respond([
             'ok'   => true,
             'note' => [

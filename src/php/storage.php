@@ -182,9 +182,10 @@ function storage_get_note(string $id): ?array {
  * exist or is deleted.
  *
  * @param string $id  Note identifier
+ * @param string $viewer Current viewer for this note
  * @return array|null  Normalized note array, or null if not found
  */
-function storage_get_note_full(string $id): ?array {
+function storage_get_note_full(string $id, string $viewer): ?array {
     $note = storage_get_note($id);
     if (!$note) return null;
 
@@ -543,7 +544,7 @@ function storage_apply_write(string $id, string $content, string $author): strin
  * @param string      $content         Note content (opaque)
  * @param string      $author          Username making the write
  * @param string|null $client_version  Version the client is basing this write on
- * @return array|null  Changelog entry written, or null if version is missing
+ * @return array|null  [$version, $dirty_bit], or null if version is missing
  */
 function storage_put_note_logged(
     string $id, string $content, string $author, ?string $client_version
@@ -577,7 +578,7 @@ function storage_put_note_logged(
         'prev_version' => $prev_vkey,
     ];
     changelog_append($entry);
-    return $entry;
+    return [ $vkey, false ];
 }
 
 /**
@@ -587,11 +588,11 @@ function storage_put_note_logged(
  *
  * @param string $id      Note identifier
  * @param string $author  Username performing the deletion
- * @return array|null  Changelog entry written, or null if skipped
+ * @return bool  true on success, false on failure
  */
-function storage_delete_note_logged(string $id, string $author): ?array {
-    if (storage_note_deleted($id)) return null;
-    if (!storage_note_exists($id)) return null;
+function storage_delete_note_logged(string $id, string $author): bool {
+    if (storage_note_deleted($id)) return false;
+    if (!storage_note_exists($id)) return false;
 
     $note    = storage_get_note($id);
     $current = $note['current'] ?? null;
@@ -608,7 +609,7 @@ function storage_delete_note_logged(string $id, string $author): ?array {
         'deleted_by'   => $author,
     ];
     changelog_append($entry);
-    return $entry;
+    return true;
 }
 
 /**
@@ -620,17 +621,17 @@ function storage_delete_note_logged(string $id, string $author): ?array {
  * @param string $old_id  Current note identifier
  * @param string $new_id  New note identifier
  * @param string $author  Username performing the rename
- * @return array|null  Changelog entry written, or null if skipped
+ * @return bool  true on success, false on failure
  */
 function storage_rename_note_logged(
     string $old_id, string $new_id, string $author
-): ?array {
-    if ($new_id === '') return null;
-    if (!storage_note_exists($old_id)) return null;
-    if (storage_note_exists($new_id)) return null;
+): bool {
+    if ($new_id === '') return false;
+    if (!storage_note_exists($old_id)) return false;
+    if (storage_note_exists($new_id)) return false;
     if (storage_note_deleted($new_id)) storage_hard_delete_note($new_id);
 
-    if (!storage_rename_note($old_id, $new_id)) return null;
+    if (!storage_rename_note($old_id, $new_id)) return false;
 
     $entry = [
         'rev'          => changelog_next_rev(),
@@ -643,7 +644,7 @@ function storage_rename_note_logged(
         'prev_version' => null,
     ];
     changelog_append($entry);
-    return $entry;
+    return true;
 }
 
 // ─────────────────────────────────────────────

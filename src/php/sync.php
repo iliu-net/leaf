@@ -107,55 +107,53 @@ function safe_id(string $raw): string {
 /**
  * Apply a single client change to storage and write a changelog entry.
  *
- * Returns the changelog entry written, or null if the change was skipped
- * (e.g. unknown type, empty key, or note was already deleted).
- *
  * @param array  $change  Change object with keys: type, key, obj
  * @param string $author  Authenticated username applying the change
- * @return array|null     Changelog entry written, or null if skipped
  */
-function apply_client_change(array $change, string $author): ?array {
+function apply_client_change(array $change, string $author) {
     $type = (int)($change['type'] ?? 0);
     $key  = safe_id((string)($change['key'] ?? ''));
     $obj  = $change['obj'] ?? null;   // null for DELETE
 
-    if ($key === '') return null;
+    if ($key === '') return;
 
     // ── CREATE or UPDATE ──────────────────────
     if ($type === DEXIE_CREATE || $type === DEXIE_UPDATE) {
-        $entry = storage_put_note_logged(
+        $vkey = storage_put_note_logged(
             $key, (string)($obj['content'] ?? ''), $author,
             $obj['version'] ?? null
         );
-        if ($entry) {
-            audit_log('NOTE_WRITE', [
+        if ($vkey) {
+	    list($version, $dirty) = $vkey;
+	    $audit = [
                 'user' => $author, 'note_id' => $key,
-                'version' => $entry['version'],
-            ]);
+                'version' => $version,
+	    ];
+	    if ($dirty) { $audit['dirty'] = true; }
+            audit_log('NOTE_WRITE', $audit);
         }
-        return $entry;
+        return;
     }
 
     // ── DELETE ────────────────────────────────
     if ($type === DEXIE_DELETE) {
-        $entry = storage_delete_note_logged($key, $author);
-        if ($entry) {
+        $ret = storage_delete_note_logged($key, $author);
+        if ($ret) {
             audit_log('NOTE_DELETE', ['user' => $author, 'note_id' => $key]);
         }
-        return $entry;
+        return;
     }
 
     // ── RENAME ────────────────────────────────
     if ($type === DEXIE_RENAME) {
         $new_id = safe_id($obj['renamed_to'] ?? '');
-        $entry = storage_rename_note_logged($key, $new_id, $author);
-        if ($entry) {
+        $ret = storage_rename_note_logged($key, $new_id, $author);
+        if ($ret) {
             audit_log('NOTE_RENAME', ['user' => $author, 'note_id' => $key, 'renamed_to' => $new_id]);
         }
-        return $entry;
+        return;
     }
 
-    return null;   // unknown type — skip
 }
 
 // ─────────────────────────────────────────────
@@ -169,9 +167,10 @@ function apply_client_change(array $change, string $author): ?array {
  * where a note was deleted between the changelog write and this read).
  *
  * @param array $entry  Changelog entry with keys: file, type, version, prev_version, renamed_to
+ * @param string $viewer current user
  * @return array{type: int, key: string, obj: array|null}|null  Change object for response
  */
-function changelog_entry_to_dexie_change(array $entry): ?array {
+function changelog_entry_to_dexie_change(array $entry, string $viewer): ?array {
     $key  = $entry['file'] ?? '';
     $type = $entry['type'] ?? '';
 
@@ -204,7 +203,7 @@ function changelog_entry_to_dexie_change(array $entry): ?array {
     }
 
     // CREATE or UPDATE — need to return current content
-    $n = storage_get_note_full($key);
+    $n = storage_get_note_full($key, $viewer);
     if (!$n) return null;   // deleted between changelog write and now — skip
 
     $dexie_type = ($type === 'CREATE') ? DEXIE_CREATE : DEXIE_UPDATE;
@@ -266,7 +265,7 @@ if ($synced_revision === 0) {
 
     // Live notes → CREATE changes
     foreach (storage_list_notes() as $meta) {
-        $n = storage_get_note_full($meta['id']);
+        $n = storage_get_note_full($meta['id'], $author);
         if (!$n) continue;
 
         $server_changes[] = [
@@ -317,7 +316,7 @@ if ($synced_revision === 0) {
         if ($key === '' || isset($seen_keys[$key])) continue;
         $seen_keys[$key] = true;
 
-        $dexie_change = changelog_entry_to_dexie_change($entry);
+        $dexie_change = changelog_entry_to_dexie_change($entry, $author);
         if ($dexie_change !== null) {
             $server_changes[] = $dexie_change;
         }
