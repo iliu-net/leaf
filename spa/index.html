@@ -245,7 +245,11 @@
       </div>
 
       <!-- Code tab — CodeMirror editor (hidden until CM chunk loads successfully) -->
-      <div id="tab-code" class="tab-panel" role="tabpanel"></div>
+      <div id="tab-code" class="tab-panel" role="tabpanel">
+        <input id="code-title" type="text" placeholder="Untitled"
+               class="code-title-input" spellcheck="false"
+               aria-label="Note title" />
+      </div>
 
       <!-- Raw tab — the textarea -->
       <div id="tab-raw" class="tab-panel" role="tabpanel">

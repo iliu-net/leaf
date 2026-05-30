@@ -140,7 +140,11 @@ html, body { height: 100%; overflow: hidden; }
   padding: 5px 10px; cursor: pointer;
   gap: 4px; margin: 1px 5px;
 }
-.tree-toggle { width: 14px; flex-shrink: 0; cursor: pointer; user-select: none; }
+.tree-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; flex-shrink: 0;
+  cursor: pointer; user-select: none;
+}
 
 /* ── Context menu ── */
 .item-context-menu {
@@ -273,6 +277,21 @@ html, body { height: 100%; overflow: hidden; }
 .tab-panel.active { display: flex; }
 #tab-raw.active  { flex-direction: column; }
 #tab-meta.active { flex-direction: column; overflow-y: auto; }
+#tab-code.active { flex-direction: column; }
+
+/* ── Code tab title input ── */
+.code-title-input {
+  width: 100%; max-width: 800px;
+  margin: 0 auto;
+  padding: 20px 36px 12px;
+  border: none; border-bottom: 1px solid var(--border-mid);
+  background: transparent; outline: none;
+  font-family: var(--font-ui);
+  font-size: 1.3em; font-weight: 500;
+  color: var(--text-1);
+  flex-shrink: 0;
+}
+.code-title-input::placeholder { color: var(--text-3); }
 
 /* ── Meta panel ── */
 #meta-panel {

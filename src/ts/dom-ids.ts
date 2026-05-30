@@ -98,6 +98,7 @@ export const DOM = {
   TAB_BTN_META: 'tab-btn-meta',
   TAB_VIEW:     'tab-view',
   TAB_CODE:     'tab-code',
+  CODE_TITLE:   'code-title',
   TAB_RAW:      'tab-raw',
   TAB_META:     'tab-meta',
   EMPTY_STATE:  'empty-state',

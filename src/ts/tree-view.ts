@@ -294,6 +294,14 @@ export const TreeView: SidebarView = {
       return;
     }
 
+    // Branch-only node → toggle (entire row is a click target)
+    const branchOnly = target.closest('.tree-branch-only');
+    if (branchOnly) {
+      const path = (branchOnly as HTMLElement).dataset.path;
+      if (path) toggleBranch(path);
+      return;
+    }
+
     // "More" button (⋯)
     const moreBtn = target.closest('.file-item-more');
     if (moreBtn) {

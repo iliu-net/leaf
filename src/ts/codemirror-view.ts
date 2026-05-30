@@ -18,7 +18,7 @@
  */
 
 import type { TabPanel, TabPanelContext } from './tab-panel.js';
-import { parseFrontmatter } from './frontmatter.js';
+import { parseFrontmatter, updateFrontmatter } from './frontmatter.js';
 import { DOM, $maybe } from './dom-ids.js';
 import { setSpellcheckLang, resolveSpellcheckLang } from './codemirror/spellcheck.js';
 import { getSpellcheckConfig } from './config.js';
@@ -44,6 +44,9 @@ let _createEditor: CMFactory | null = null;
 
 /** Cache the textarea ref so we don't query the DOM on every keystroke. */
 let _textarea: HTMLTextAreaElement | null = null;
+
+/** Cache the code-title input so we don't query the DOM on every tab switch. */
+let _codeTitleInput: HTMLInputElement | null = null;
 
 /**
  * When true, the next call to _flushToTextarea is silently dropped.
@@ -113,6 +116,16 @@ function _flushToTextarea(): void {
  */
 function cmInit(): void {
   _textarea = $maybe(DOM.NOTE_AREA) as HTMLTextAreaElement | null;
+  _codeTitleInput = $maybe(DOM.CODE_TITLE) as HTMLInputElement | null;
+
+  // Wire title input → update frontmatter on change
+  _codeTitleInput?.addEventListener('input', () => {
+    const ta = _textarea;
+    if (!ta || !_codeTitleInput) return;
+    const newTitle = _codeTitleInput.value.trim();
+    ta.value = updateFrontmatter(ta.value, { title: newTitle || undefined });
+    ta.dispatchEvent(new CustomEvent('note-changed', { bubbles: true }));
+  });
 }
 
 /**
@@ -126,6 +139,12 @@ async function cmShow(ctx: TabPanelContext): Promise<void> {
   if (!_createEditor) return;
 
   const fm = parseFrontmatter(ctx.content);
+
+  // Populate title input from frontmatter
+  if (_codeTitleInput) {
+    _codeTitleInput.value = typeof fm.meta['title'] === 'string' ? fm.meta['title'] as string : '';
+  }
+
   const parent = $maybe(DOM.TAB_CODE);
   if (!parent) return;
 
