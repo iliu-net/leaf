@@ -6,6 +6,7 @@
     <testsuite name="leaf">
       <file>JwtTest.php</file>
       <file>StorageTest.php</file>
+      <file>StorageContractTest.php</file>
       <file>UsersTest.php</file>
       <file>SyncUtilTest.php</file>
     </testsuite>
