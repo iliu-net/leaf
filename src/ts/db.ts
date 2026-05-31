@@ -279,36 +279,15 @@ export async function dbRestoreNote(id: string): Promise<void> {
 
 /**
  * Full-text search across all active notes' content.
- * Returns metadata + a snippet of the matching content.
+ * Returns matching NoteRecords (caller extracts snippets from the body).
  */
-export async function dbFullTextSearch(query: string): Promise<{
-  id: string; created_at: number; updated_at: number; current: string; snippet: string;
-}[]> {
+export async function dbFullTextSearch(query: string): Promise<NoteRecord[]> {
   await ensureDbOpen();
   const q = query.toLowerCase();
   const notes = await db.notes.where('deleted').equals(0).toArray();
-  const results: { id: string; created_at: number; updated_at: number; current: string; snippet: string }[] = [];
-  for (const n of notes) {
-    const idx = n.content.toLowerCase().indexOf(q);
-    if (idx === -1) continue;
-    // Extract a snippet: ~40 chars around the match, capped at 80 chars total
-    const start = Math.max(0, idx - 30);
-    const end = Math.min(n.content.length, idx + q.length + 30);
-    let snippet = n.content.slice(start, end);
-    if (start > 0) snippet = '…' + snippet;
-    if (end < n.content.length) snippet = snippet + '…';
-    // Collapse whitespace for compact display
-    snippet = snippet.replace(/\s+/g, ' ');
-    results.push({
-      id: n.id,
-      created_at: n.created_at,
-      updated_at: n.updated_at,
-      current: n.current,
-      snippet,
-    });
-  }
-  results.sort((a, b) => a.id.localeCompare(b.id));
-  return results;
+  return notes
+    .filter(n => n.content.toLowerCase().includes(q))
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /**

@@ -62,9 +62,45 @@ export async function listNotes(): Promise<NoteMeta[]> {
 
 /**
  * Search across all active notes' content for the given query.
+ * Snippets are extracted from the body (below frontmatter) when possible,
+ * falling back to raw content when the match is only in the frontmatter.
  */
 export async function fullTextSearch(query: string): Promise<FullTextResult[]> {
-  return dbFullTextSearch(query);
+  const matches = await dbFullTextSearch(query);
+  const q = query.toLowerCase();
+  return matches.map(n => {
+    const { body } = parseFrontmatter(n.content);
+    const bodyIdx = body.toLowerCase().indexOf(q);
+
+    let snippet: string;
+    if (bodyIdx !== -1) {
+      // Match in body — extract ~60 chars of context around the hit
+      const start = Math.max(0, bodyIdx - 30);
+      const end   = Math.min(body.length, bodyIdx + q.length + 30);
+      snippet = body.slice(start, end);
+      if (start > 0) snippet = '…' + snippet;
+      if (end < body.length) snippet = snippet + '…';
+    } else {
+      // Match only in frontmatter — extract from raw content
+      const idx   = n.content.toLowerCase().indexOf(q);
+      const start = Math.max(0, idx - 30);
+      const end   = Math.min(n.content.length, idx + q.length + 30);
+      snippet = n.content.slice(start, end);
+      if (start > 0) snippet = '…' + snippet;
+      if (end < n.content.length) snippet = snippet + '…';
+    }
+
+    // Collapse whitespace for compact single-line display
+    snippet = snippet.replace(/\s+/g, ' ');
+
+    return {
+      id:         n.id,
+      created_at: n.created_at,
+      updated_at: n.updated_at,
+      current:    n.current,
+      snippet,
+    };
+  });
 }
 
 /**

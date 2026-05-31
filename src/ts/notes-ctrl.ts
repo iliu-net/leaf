@@ -15,6 +15,7 @@ import { safeName } from './utils.js';
 import { listSystemNotes } from './system-notes/registry.js';
 import { DOM, $maybe } from './dom-ids.js';
 import { renderSystemSection, renderFullTextResults } from './sidebar.js';
+import { setSearchHighlight } from './markdown-view.js';
 
 // ── Note list state ──────────────────────────────────────────────────────────
 
@@ -137,6 +138,7 @@ export function handleSearch(query: string): void {
     ui.renderNoteList(userFiltered, _getCurrentId());
     ui.updateNoteCount(_allNotes.length, userFiltered.length);
     renderSystemSection();
+    setSearchHighlight(null);
   }
 }
 
@@ -154,6 +156,7 @@ export async function handleFullTextSearch(query: string): Promise<void> {
     const results: FullTextResult[] = await notes.fullTextSearch(q);
     renderFullTextResults(results, _getCurrentId());
     ui.updateNoteCount(_allNotes.length, results.length);
+    setSearchHighlight(q);
 
     // Hide system section during search
     const sysSection = $maybe(DOM.SYSTEM_NOTES_SECTION);

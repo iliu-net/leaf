@@ -23,6 +23,23 @@ import { hydrate } from './fence-hydrate.js';
 import { dbGetNote } from './db.js';
 import { isSystemNote, getSystemNote } from './system-notes/registry.js';
 
+// ── Search highlight state ────────────────────────────────────────────────────
+
+let _searchQuery: string | null = null;
+
+/**
+ * Set the query string to highlight in the VIEW tab.
+ * Pass `null` to clear highlighting.
+ */
+export function setSearchHighlight(query: string | null): void {
+  _searchQuery = query ? query.trim() : null;
+}
+
+/** Return the active search query, or null if no search is active. */
+export function getSearchHighlight(): string | null {
+  return _searchQuery;
+}
+
 // ── Lazy markdown-it ────────────────────────────────────────────────────────
 
 let _parseMarkdown: ((body: string) => string) | null = null;
@@ -179,6 +196,44 @@ async function _postProcessWikilinks(root: Element): Promise<void> {
 // ── TabPanel lifecycle ──────────────────────────────────────────────────────
 
 /**
+ * Walk all text nodes in `root` and wrap case-insensitive matches of `query`
+ * in `<mark class="search-highlight">` elements.
+ */
+function _highlightMatches(root: Element, query: string): void {
+  const q = query.toLowerCase();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode as Text);
+  }
+  for (const node of textNodes) {
+    const text = node.textContent || '';
+    const lower = text.toLowerCase();
+    if (lower.indexOf(q) === -1) continue;
+
+    const parent = node.parentNode!;
+    const frag = document.createDocumentFragment();
+    let pos = 0;
+    while (pos < text.length) {
+      const nextIdx = text.toLowerCase().indexOf(q, pos);
+      if (nextIdx === -1) {
+        frag.appendChild(document.createTextNode(text.slice(pos)));
+        break;
+      }
+      if (nextIdx > pos) {
+        frag.appendChild(document.createTextNode(text.slice(pos, nextIdx)));
+      }
+      const mark = document.createElement('mark');
+      mark.className = 'search-highlight';
+      mark.textContent = text.slice(nextIdx, nextIdx + q.length);
+      frag.appendChild(mark);
+      pos = nextIdx + q.length;
+    }
+    parent.replaceChild(frag, node);
+  }
+}
+
+/**
  * Render the View tab panel.
  * The <h1> title sits in the fixed header; everything else scrolls.
  * Delegates to `renderView()` for the HTML — no duplication.
@@ -202,6 +257,13 @@ export async function show(ctx: TabPanelContext): Promise<void> {
   hydrate(_viewContent).catch(err =>
     console.warn('[markdown-view] hydrate failed:', err)
   );
+
+  // Highlight full-text search matches (after hydration so code-block
+  // highlights don't interfere)
+  if (_searchQuery) {
+    _highlightMatches(_viewContent, _searchQuery);
+    if (_viewHeader) _highlightMatches(_viewHeader, _searchQuery);
+  }
 }
 
 /** Clear the View tab panel. */

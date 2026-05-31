@@ -390,6 +390,12 @@ html, body { height: 100%; overflow: hidden; }
   padding: 16px; overflow-x: auto; margin: 0 0 .8em;
 }
 .markdown-body pre code { background: none; padding: 0; }
+mark.search-highlight {
+  background: var(--highlight-bg, #ff0);
+  color: var(--highlight-fg, #000);
+  border-radius: 2px;
+  padding: 0 1px;
+}
 .markdown-body table {
   width: 100%; border-collapse: collapse; margin: 0 0 .8em;
 }

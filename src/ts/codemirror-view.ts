@@ -22,6 +22,7 @@ import { parseFrontmatter, updateFrontmatter } from './frontmatter.js';
 import { DOM, $maybe } from './dom-ids.js';
 import { setSpellcheckLang, resolveSpellcheckLang } from './codemirror/spellcheck.js';
 import { getSpellcheckConfig } from './config.js';
+import { getSearchHighlight } from './markdown-view.js';
 
 // ── Minimal CM interfaces (no @codemirror/* import needed) ────────────────────
 
@@ -41,6 +42,12 @@ type CMFactory = (parent: Element, initialDoc: string, onChange: () => void) => 
 
 let _cmView: CMView | null = null;
 let _createEditor: CMFactory | null = null;
+
+/** Search-panel opener — injected by editor-ctrl.ts after CM chunk loads.
+ *  Typed as `any` for view because the real EditorView satisfies CMView
+ *  at runtime but the types differ (CMView is a minimal interface to avoid
+ *  pulling @codemirror/* into the main bundle). */
+let _openSearchPanel: ((view: any, query: string) => void) | null = null;
 
 /** Cache the textarea ref so we don't query the DOM on every keystroke. */
 let _textarea: HTMLTextAreaElement | null = null;
@@ -74,6 +81,14 @@ window.addEventListener('spellcheck-lang-changed', () => {
  */
 export function init(factory: CMFactory): void {
   _createEditor = factory;
+}
+
+/**
+ * Receive the search-panel opener from the CM chunk.
+ * Called once alongside init() so cmShow can trigger search on tab open.
+ */
+export function setSearchOpener(fn: (view: any, query: string) => void): void {
+  _openSearchPanel = fn;
 }
 
 // ── Content merge helpers ─────────────────────────────────────────────────────
@@ -167,6 +182,13 @@ async function cmShow(ctx: TabPanelContext): Promise<void> {
     // First show — create the editor. The initial doc set won't trigger
     // docChanged in the update listener, so no flush is fired.
     _cmView = _createEditor(parent, fm.body, _flushToTextarea);
+  }
+
+  // Open the search panel pre-filled if a full-text search is active
+  const searchQuery = getSearchHighlight();
+  if (searchQuery && _cmView && _openSearchPanel) {
+    // Defer so the editor DOM is fully settled before opening the panel
+    setTimeout(() => _openSearchPanel!(_cmView!, searchQuery), 0);
   }
 }
 

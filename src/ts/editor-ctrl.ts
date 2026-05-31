@@ -258,6 +258,7 @@ async function loadCodeMirror(): Promise<void> {
   try {
     const mod = await import('./codemirror/setup.js');
     cmView.init(mod.createEditor);
+    cmView.setSearchOpener(mod.openSearchPanelWithQuery);
     cmView.tabPanel.init();
     panels.set('code', cmView.tabPanel);
     _cmAvailable = true;

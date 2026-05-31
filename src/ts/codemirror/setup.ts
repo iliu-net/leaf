@@ -24,7 +24,9 @@ import {
 } from '@codemirror/language';
 
 import { highlightDark, highlightLight, resolveHighlight } from './highlight-themes.js';
-import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
+import {
+  searchKeymap, highlightSelectionMatches, openSearchPanel, SearchQuery, setSearchQuery,
+} from '@codemirror/search';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { htmlLanguage } from '@codemirror/lang-html';
 import { cssLanguage } from '@codemirror/lang-css';
@@ -117,6 +119,19 @@ function setCMTheme(theme: string): void {
 
 // Install the global hook (lazy-loaded, so may appear after initial paint).
 (window as any).__leafSetCMTheme = setCMTheme;
+
+// ── Search ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Open the CodeMirror search panel and pre-fill it with the given query.
+ * Case-insensitive, no regex, no whole-word.
+ */
+export function openSearchPanelWithQuery(view: EditorView, query: string): void {
+  openSearchPanel(view);
+  view.dispatch({
+    effects: setSearchQuery.of(new SearchQuery({ search: query })),
+  });
+}
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
