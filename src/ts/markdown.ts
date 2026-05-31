@@ -67,6 +67,7 @@ function getMd(): MarkdownIt {
 /** Maps plugin names (from server config) to lazy-loaded plugin functions. */
 const _pluginRegistry: Record<string, () => Promise<(md: MarkdownIt, ...args: any[]) => void>> = {
   emoji:     () => import('./extensions/emoji.js').then(m => m.default),
+  footnote:  () => import('./extensions/footnote.js').then(m => m.default),
   highlight: () => import('./extensions/highlight.js').then(m => m.default),
   multimdtable: () => import('./extensions/multimd-table.js').then(m => m.default),
   svgbob:    () => import('./extensions/svgbob.js').then(m => m.default),

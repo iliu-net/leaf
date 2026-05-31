@@ -480,6 +480,15 @@ mark.search-highlight {
 }
 .markdown-body .table-of-contents li { margin-bottom: .2em; }
 
+/* ── Footnotes ── */
+.markdown-body .footnotes-sep { margin: 2em 0 1em; }
+.markdown-body .footnotes { font-size: .92em; }
+.markdown-body .footnotes-list { padding-left: 1.8em; margin: 0; }
+.markdown-body .footnote-item { margin-bottom: .5em; }
+.markdown-body .footnote-item p { display: inline; margin: 0; }
+.markdown-body .footnote-ref { font-size: .75em; line-height: 0; position: relative; vertical-align: baseline; top: -.5em; }
+.markdown-body .footnote-backref { text-decoration: none; margin-left: .3em; }
+
 /* ── View stats ── */
 .view-rule {
   border: none;

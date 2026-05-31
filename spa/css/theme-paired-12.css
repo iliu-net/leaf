@@ -535,6 +535,12 @@
 [data-theme="paired-12"] .markdown-body a.external-link::after { font-size: .75em; opacity: .5; }
 [data-theme="paired-12"] .markdown-body img { border-radius: var(--radius); }
 
+/* ── Footnotes ── */
+[data-theme="paired-12"] .markdown-body .footnotes-sep { border-top-color: var(--border); }
+[data-theme="paired-12"] .markdown-body .footnote-ref a { color: var(--accent); }
+[data-theme="paired-12"] .markdown-body .footnote-backref { color: var(--text-3); }
+[data-theme="paired-12"] .markdown-body .footnote-backref:hover { color: var(--accent); }
+
 /* ── Task lists ── */
 [data-theme="paired-12"] .markdown-body .task-list-item-checkbox {
   border: 2px solid var(--border-hi);

@@ -530,6 +530,12 @@
 [data-theme="dark"] .markdown-body a.external-link::after { font-size: .75em; opacity: .5; }
 [data-theme="dark"] .markdown-body img { border-radius: var(--radius); }
 
+/* ── Footnotes ── */
+[data-theme="dark"] .markdown-body .footnotes-sep { border-top-color: var(--border); }
+[data-theme="dark"] .markdown-body .footnote-ref a { color: var(--accent); }
+[data-theme="dark"] .markdown-body .footnote-backref { color: var(--text-3); }
+[data-theme="dark"] .markdown-body .footnote-backref:hover { color: var(--accent); }
+
 /* ── Task lists ── */
 [data-theme="dark"] .markdown-body .task-list-item-checkbox {
   border: 2px solid var(--border-hi);

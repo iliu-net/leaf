@@ -63,6 +63,7 @@ $spa_config = [
     'markdown' => [
         'html'    => false,  // allow raw HTML in markdown input
         'plugins' => [],     // e.g. ['emoji'] for :smile: shortcuts;
+                             // ['footnote'] for [^label] and ^[inline] footnotes;
                              // ['multimdtable'] for colspan/rowspan/captions;
                              // ['highlight', ['common','hcl']] for popular + extras;
                              // ['highlight', ['js','py']] for explicit list only

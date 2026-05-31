@@ -28,6 +28,7 @@ $spa_config = [
         'html' => false,
         'plugins' => [
             'emoji',
+            'footnote',
             'wikilinks',
             'multimdtable',
             'tasklists',
