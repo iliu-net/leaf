@@ -393,6 +393,27 @@ html, body { height: 100%; overflow: hidden; }
 .markdown-body ul,
 .markdown-body ol { margin: 0 0 .8em; padding-left: 1.5em; }
 .markdown-body li { margin-bottom: .3em; }
+
+/* ── Task lists ── */
+.markdown-body li.task-list-item {
+  list-style: none;
+  margin-left: -1.5em;
+}
+.markdown-body li.task-list-item.enabled .task-list-item-checkbox {
+  cursor: pointer;
+}
+.markdown-body .task-list-item-checkbox {
+  margin-right: .5em;
+  vertical-align: middle;
+  accent-color: var(--accent);
+  width: 1em;
+  height: 1em;
+  cursor: default;
+}
+.markdown-body ul.contains-task-list,
+.markdown-body ol.contains-task-list {
+  padding-left: 1.5em;
+}
 .markdown-body blockquote {
   border-left-width: 3px; border-left-style: solid;
   margin: 0 0 .8em; padding: 4px 12px;

@@ -529,6 +529,21 @@
 [data-theme="light"] .markdown-body a.external-link::after { font-size: .75em; opacity: .5; }
 [data-theme="light"] .markdown-body img { border-radius: var(--radius); }
 
+/* ── Task lists ── */
+[data-theme="light"] .markdown-body .task-list-item-checkbox {
+  border: 2px solid var(--border-hi);
+  background: var(--bg-3);
+  border-radius: 3px;
+}
+[data-theme="light"] .markdown-body .task-list-item-checkbox:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+[data-theme="light"] .markdown-body li.task-list-item.enabled .task-list-item-checkbox:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
 /* ── View stats ── */
 [data-theme="light"] .view-rule { border-top-color: var(--border); }
 [data-theme="light"] .view-stats {

@@ -26,6 +26,12 @@ define('COOKIE_PATH', '/');
 $spa_config = [
     'markdown' => [
         'html' => false,
+        'plugins' => [
+            'emoji',
+            'wikilinks',
+            'tasklists',
+            'toc',
+        ],
     ],
     'deleted_notes_ttl_days' => 7,
     'timestamp_format'      => null,
