@@ -71,6 +71,7 @@ const _pluginRegistry: Record<string, () => Promise<(md: MarkdownIt, ...args: an
   emoji:     () => import('./extensions/emoji.js').then(m => m.default),
   footnote:  () => import('./extensions/footnote.js').then(m => m.default),
   highlight: () => import('./extensions/highlight.js').then(m => m.default),
+  'inline-extras': () => import('./extensions/inline-extras.js').then(m => m.default),
   multimdtable: () => import('./extensions/multimd-table.js').then(m => m.default),
   svgbob:    () => import('./extensions/svgbob.js').then(m => m.default),
   tasklists: () => import('./extensions/task-lists.js').then(m => m.default),

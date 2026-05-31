@@ -31,6 +31,7 @@ $spa_config = [
             'deflist',
             'emoji',
             'footnote',
+            'inline-extras',
             'wikilinks',
             'multimdtable',
             'tasklists',

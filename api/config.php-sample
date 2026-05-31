@@ -66,6 +66,7 @@ $spa_config = [
                              // ['abbr'] for *[abbr]: expansion — auto-wraps in <abbr>;
                              // ['deflist'] for definition lists (Term / : Definition);
                              // ['footnote'] for [^label] and ^[inline] footnotes;
+                             // ['inline-extras'] for ++ins++, ^^sup^^, ,,sub,,, ==kbd==, ??mark??;
                              // ['multimdtable'] for colspan/rowspan/captions;
                              // ['highlight', ['common','hcl']] for popular + extras;
                              // ['highlight', ['js','py']] for explicit list only

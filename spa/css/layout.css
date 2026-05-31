@@ -506,6 +506,11 @@ mark.search-highlight {
 }
 .view-stats { margin-bottom: 12px; }
 
+/* ── Inline extras ── */
+ins { text-decoration: underline; }
+mark { padding: 0 2px; border-radius: 2px; }
+/* sup/sub use browser defaults for vertical-align + font-size */
+
 /* ── Kbd ── */
 kbd { border-width: 1px; border-style: solid; padding: 1px 5px; }
 

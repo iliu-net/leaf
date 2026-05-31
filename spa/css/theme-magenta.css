@@ -378,6 +378,10 @@
   color: var(--text-2);
 }
 
+/* ── Inline extras ── */
+[data-theme="magenta"] ins { text-decoration-color: var(--text-3); color: var(--text-1); }
+[data-theme="magenta"] mark { background: #ffe0f0; color: var(--text-1); }
+
 /* ── Scrollbar ── */
 [data-theme="magenta"] * { scrollbar-color: var(--border-mid) transparent; }
 
