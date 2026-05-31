@@ -45,6 +45,7 @@ import { vb } from '@codemirror/legacy-modes/mode/vb';
 
 import { spellcheckPlugin } from './spellcheck.js';
 import { pasteHandler } from './paste-handler.js';
+import { wikilinkAutocomplete } from './wikilink-autocomplete.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -181,6 +182,9 @@ export function createEditor(
     // ── Paste handling (turndown + image editor) ───────────────────────────
     pasteHandler,
 
+    // ── WikiLink autocomplete ─────────────────────────────────────────────
+    wikilinkAutocomplete,
+
     // ── Change notification ──────────────────────────────────────────────
     EditorView.updateListener.of((update) => {
       if (update.docChanged) onChange();
@@ -238,6 +242,29 @@ export function createEditor(
       '.cm-searchMatch': {
         backgroundColor: 'var(--accent-glow)',
         outline: '1px solid var(--accent-dim)',
+      },
+      // ── Autocomplete tooltip ────────────────────────────────────────────
+      '.cm-tooltip-autocomplete': {
+        backgroundColor: 'var(--bg-2)',
+        border: '1px solid var(--border-mid)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+        fontFamily: 'var(--font-ui)',
+        fontSize: 'var(--fs-sm)',
+        maxHeight: '300px',
+        overflowY: 'auto',
+      },
+      '.cm-tooltip-autocomplete ul li': {
+        color: 'var(--text-1)',
+        padding: '4px 12px',
+        lineHeight: '1.5',
+      },
+      '.cm-tooltip-autocomplete ul li[aria-selected]': {
+        backgroundColor: 'var(--accent-dim)',
+        color: 'var(--text-inv)',
+      },
+      '.cm-completionIcon-text::after': {
+        content: '"📄"',
       },
     }),
   ];

@@ -19,8 +19,18 @@ Set `lang` in the META tab to one of:
 - `sql`, `yaml`, `xml`, `tcl`, `bash`, `awk`, `ini`, `nginx`
 - More available via plugins
 
+## WikiLink autocomplete
+
+Typing `[[` triggers a completion dialog listing all available notes.  Continue
+typing to filter the list, then pick a note with `Enter` or click.  The full
+`[[note-id]]` syntax is inserted automatically.
+
+Press `Ctrl+Space` to re-open the dialog at any time while inside a `[[…`
+context.
+
 ## Features
 
+- WikiLink autocomplete (`[[`)
 - Line numbers
 - Bracket matching
 - Code folding
