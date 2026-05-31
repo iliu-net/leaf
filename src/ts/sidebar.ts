@@ -10,13 +10,14 @@
  * module lets the shell own all chrome decisions — views are pure renderers.
  */
 
-import type { NoteMeta } from './notes.js';
+import type { NoteMeta, FullTextResult } from './notes.js';
 import { TreeView, SystemTreeView } from './tree-view.js';
 import type { SystemNoteDef } from './system-notes/registry.js';
 import { listSystemNotes } from './system-notes/registry.js';
 import { TrashView } from './trash-view.js';
 import { DOM, $, $maybe } from './dom-ids.js';
 import { sidebarWidth } from './local-store.js';
+import { ICONS, createIcon } from './icons.js';
 
 // ── Interfaces ─────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ export interface UIEventHandlers {
   onOpen:          (id: string) => void;
   onDelete:        (id: string) => void;
   onSearch:        (q: string) => void;
+  onFullTextSearch:(q: string) => void;
   onSave:          () => void;
   onNew:           () => void;
   onCreate:        () => void;
@@ -155,6 +157,56 @@ export function updateNoteCount(total: number, shown: number): void {
   (_currentView ?? TreeView).updateNoteCount(total, shown);
 }
 
+/**
+ * Render full-text search results as a flat list with content snippets.
+ */
+export function renderFullTextResults(results: FullTextResult[], currentId: string | null): void {
+  const fileList = $(DOM.FILE_LIST);
+  fileList.innerHTML = '';
+
+  if (results.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText =
+      'padding:20px 12px;text-align:center;font-size:11px;' +
+      'color:var(--text-3);font-family:var(--font-mono)';
+    empty.textContent = 'No results found';
+    fileList.appendChild(empty);
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+
+  for (const r of results) {
+    const item = document.createElement('div');
+    item.className = 'file-item' + (r.id === currentId ? ' active' : '');
+    item.dataset.id = r.id;
+    item.setAttribute('role', 'listitem');
+
+    const icon = createIcon(ICONS.DOCUMENT);
+    icon.classList.add('file-item-icon');
+    item.appendChild(icon);
+
+    const text = document.createElement('div');
+    text.className = 'file-item-text';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'file-item-name';
+    nameSpan.title = r.id;
+    nameSpan.textContent = r.id;
+    text.appendChild(nameSpan);
+
+    const snippet = document.createElement('span');
+    snippet.className = 'file-item-snippet';
+    snippet.textContent = r.snippet;
+    text.appendChild(snippet);
+
+    item.appendChild(text);
+    frag.appendChild(item);
+  }
+
+  fileList.appendChild(frag);
+}
+
 export function setSidebarLoading(loading: boolean): void {
   const el = $maybe(DOM.SIDEBAR_LOADING);
   if (!el) return;
@@ -212,6 +264,10 @@ export function init(handlers: UIEventHandlers): void {
       e.preventDefault();
       si.value = '';
       handlers.onSearch('');
+    }
+    if (e.key === 'Enter' && si.value.trim()) {
+      e.preventDefault();
+      handlers.onFullTextSearch(si.value.trim());
     }
   });
 

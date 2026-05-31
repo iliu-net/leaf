@@ -821,6 +821,28 @@ describe('bindEvents()', () => {
     expect(onSearch).toHaveBeenCalledWith('');
   });
 
+  it('wires Enter key to trigger full text search', async () => {
+    const ui = await getUI();
+    const onFullTextSearch = vi.fn();
+
+    ui.bindEvents({
+      onOpen: vi.fn(), onDelete: vi.fn(), onSearch: vi.fn(),
+      onFullTextSearch,
+      onSave: vi.fn(), onNew: vi.fn(), onCreate: vi.fn(),
+      onCancelModal: vi.fn(), onLogin: vi.fn(), onLogout: vi.fn(),
+      onRename: vi.fn(), onRenameConfirm: vi.fn(),
+      onResetDB: vi.fn(),
+      onSignIn: vi.fn(), onDismissLogin: vi.fn(),
+    });
+
+    const searchInput = document.getElementById('search');
+    searchInput.value = 'some query';
+
+    searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    expect(onFullTextSearch).toHaveBeenCalledWith('some query');
+  });
+
   it('wires save button', async () => {
     const ui = await getUI();
     const onSave = vi.fn();

@@ -10,11 +10,11 @@
 import * as ui    from './ui.js';
 import * as modal from './modal.js';
 import * as notes from './notes.js';
-import type { NoteData, NoteMeta } from './notes.js';
+import type { NoteData, NoteMeta, FullTextResult } from './notes.js';
 import { safeName } from './utils.js';
 import { listSystemNotes } from './system-notes/registry.js';
 import { DOM, $maybe } from './dom-ids.js';
-import { renderSystemSection } from './sidebar.js';
+import { renderSystemSection, renderFullTextResults } from './sidebar.js';
 
 // ── Note list state ──────────────────────────────────────────────────────────
 
@@ -137,5 +137,34 @@ export function handleSearch(query: string): void {
     ui.renderNoteList(userFiltered, _getCurrentId());
     ui.updateNoteCount(_allNotes.length, userFiltered.length);
     renderSystemSection();
+  }
+}
+
+/**
+ * Full-text search: scan all active notes' content for the query.
+ * Called when the user presses Enter in the search box.
+ */
+export async function handleFullTextSearch(query: string): Promise<void> {
+  const q = query.trim();
+  if (!q) return;
+
+  _query = q.toLowerCase();
+
+  try {
+    const results: FullTextResult[] = await notes.fullTextSearch(q);
+    renderFullTextResults(results, _getCurrentId());
+    ui.updateNoteCount(_allNotes.length, results.length);
+
+    // Hide system section during search
+    const sysSection = $maybe(DOM.SYSTEM_NOTES_SECTION);
+    if (sysSection) sysSection.style.display = 'none';
+
+    if (results.length === 0) {
+      ui.setStatus(`No results for "${q}"`, 3000);
+    } else {
+      ui.setStatus(`${results.length} result${results.length !== 1 ? 's' : ''} for "${q}"`);
+    }
+  } catch (err) {
+    ui.toast(`Full-text search failed: ${(err as Error).message}`, true);
   }
 }

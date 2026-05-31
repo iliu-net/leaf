@@ -13,6 +13,7 @@ import {
   dbDeleteNote,
   dbCreateNote,
   dbRenameNote,
+  dbFullTextSearch,
 } from './db.js';
 import { parseFrontmatter } from './frontmatter.js';
 import type { FrontmatterResult } from './frontmatter.js';
@@ -43,11 +44,27 @@ export interface NoteData {
   meta: FrontmatterResult['meta'];  // parsed frontmatter
 }
 
+/** Full-text search result — metadata + content snippet. */
+export interface FullTextResult {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  current: string;
+  snippet: string;
+}
+
 /**
  * @returns Array of note metadata (id, timestamps)
  */
 export async function listNotes(): Promise<NoteMeta[]> {
   return dbListNotes();
+}
+
+/**
+ * Search across all active notes' content for the given query.
+ */
+export async function fullTextSearch(query: string): Promise<FullTextResult[]> {
+  return dbFullTextSearch(query);
 }
 
 /**

@@ -301,6 +301,7 @@ function wireUiEvents(): void {
       }
     },
     onSearch:        q        => notesCtrl.handleSearch(q),
+    onFullTextSearch:q        => { notesCtrl.handleFullTextSearch(q); },
     onSave:          async () => {
       // Force immediate save (Ctrl+S / button) — clear debounce, save with toast.
       if (_autoSaveTimer !== null) {
