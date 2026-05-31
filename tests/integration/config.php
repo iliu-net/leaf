@@ -27,6 +27,7 @@ $spa_config = [
     'markdown' => [
         'html' => false,
         'plugins' => [
+            'abbr',
             'deflist',
             'emoji',
             'footnote',

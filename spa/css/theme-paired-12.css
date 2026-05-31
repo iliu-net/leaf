@@ -545,6 +545,9 @@
 [data-theme="paired-12"] .markdown-body dt { color: var(--text-1); }
 [data-theme="paired-12"] .markdown-body dd { color: var(--text-2); }
 
+/* ── Abbreviations ── */
+[data-theme="paired-12"] .markdown-body abbr { color: var(--text-1); text-decoration-color: var(--text-3); }
+
 /* ── Task lists ── */
 [data-theme="paired-12"] .markdown-body .task-list-item-checkbox {
   border: 2px solid var(--border-hi);

@@ -543,6 +543,9 @@
 [data-theme="magenta"] .markdown-body dt { color: var(--text-1); }
 [data-theme="magenta"] .markdown-body dd { color: var(--text-2); }
 
+/* ── Abbreviations ── */
+[data-theme="magenta"] .markdown-body abbr { color: var(--text-1); text-decoration-color: var(--text-3); }
+
 /* ── Task lists ── */
 [data-theme="magenta"] .markdown-body .task-list-item-checkbox {
   border: 2px solid var(--border-hi);

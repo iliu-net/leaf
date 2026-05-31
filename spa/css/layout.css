@@ -495,6 +495,9 @@ mark.search-highlight {
 .markdown-body dt:first-child { margin-top: 0; }
 .markdown-body dd { margin-left: 1.6em; margin-bottom: .4em; }
 
+/* ── Abbreviations ── */
+.markdown-body abbr { text-decoration: underline dotted; cursor: help; }
+
 /* ── View stats ── */
 .view-rule {
   border: none;
