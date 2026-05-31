@@ -13,10 +13,10 @@ import helpMarkdownMd     from './content/help-markdown.md';
 import helpCodemirrorMd   from './content/help-codemirror.md';
 import helpAutotagMd      from './content/help-autotag.md';
 
-registerSystemNote({ id: '@about',                 content: () => aboutMd,         label: 'About' });
-registerSystemNote({ id: '@about:copyright',        content: () => copyrightMd,     label: 'Copyright' });
-registerSystemNote({ id: '@about:help',             content: () => helpMd,          label: 'Help' });
-registerSystemNote({ id: '@about:help:shortcuts',   content: () => helpShortcutsMd, label: 'Shortcuts' });
-registerSystemNote({ id: '@about:help:markdown',    content: () => helpMarkdownMd,  label: 'Markdown' });
-registerSystemNote({ id: '@about:help:codemirror',  content: () => helpCodemirrorMd, label: 'CodeMirror' });
-registerSystemNote({ id: '@about:help:autotag',     content: () => helpAutotagMd,   label: 'Auto-tagging' });
+registerSystemNote({ id: '@help',                 content: () => helpMd,          label: 'Help' });
+registerSystemNote({ id: '@help:about',            content: () => aboutMd,         label: 'About' });
+registerSystemNote({ id: '@help:copyright',        content: () => copyrightMd,     label: 'Copyright' });
+registerSystemNote({ id: '@help:shortcuts',        content: () => helpShortcutsMd, label: 'Shortcuts' });
+registerSystemNote({ id: '@help:markdown',         content: () => helpMarkdownMd,  label: 'Markdown' });
+registerSystemNote({ id: '@help:codemirror',       content: () => helpCodemirrorMd, label: 'CodeMirror' });
+registerSystemNote({ id: '@help:autotag',          content: () => helpAutotagMd,   label: 'Auto-tagging' });

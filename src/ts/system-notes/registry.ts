@@ -8,7 +8,7 @@
  */
 
 export interface SystemNoteDef {
-  id: string;              // e.g. "@about:help:shortcuts"
+  id: string;              // e.g. "@help:shortcuts"
   label: string;           // display name in sidebar
   icon?: string;           // optional ICONS key
   content: () => string;   // synchronous — returns markdown

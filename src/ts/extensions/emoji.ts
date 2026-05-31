@@ -11,7 +11,7 @@ import { registerSystemNote } from '../system-notes/registry.js';
 import emojiDocs from './emoji-docs.md';
 
 registerSystemNote({
-  id: '@about:markdown:emoji',
+  id: '@help:markdown:emoji',
   label: 'Emoji',
   content: () => emojiDocs,
 });

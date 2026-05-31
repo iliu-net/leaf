@@ -21,7 +21,7 @@ import { registerSystemNote } from '../system-notes/registry.js';
 import highlightDocs from './highlight-docs.md';
 
 registerSystemNote({
-  id: '@about:markdown:highlight',
+  id: '@help:markdown:highlight',
   label: 'Syntax Highlighting',
   content: () => highlightDocs,
 });

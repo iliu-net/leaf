@@ -19,7 +19,7 @@ import { registerSystemNote } from '../system-notes/registry.js';
 import wikilinksDocs from './wikilinks-docs.md';
 
 registerSystemNote({
-  id: '@about:markdown:wikilinks',
+  id: '@help:markdown:wikilinks',
   label: 'WikiLinks',
   content: () => wikilinksDocs,
 });

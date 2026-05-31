@@ -17,7 +17,7 @@ The wikilinks plugin adds `[[page]]` style links between notes.
 ## Notes
 
 - Wikilinks work across all notes in the workspace
-- Links to system notes (`[[@about:help:shortcuts]]`) are supported
+- Links to system notes (`[[@help:shortcuts]]`) are supported
 - Clicking a wikilink navigates to the target note
 - Missing targets are styled with a red dashed underline
 - Targets are resolved at render time — no need to worry about note creation order
@@ -26,5 +26,5 @@ The wikilinks plugin adds `[[page]]` style links between notes.
 
 ```markdown
 See [[projects:alpha]] for the initial spec and
-[[@about:help:markdown|the markdown guide]] for syntax help.
+[[@help:markdown|the markdown guide]] for syntax help.
 ```
