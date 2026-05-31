@@ -77,6 +77,9 @@ importers:
       markdown-it-emoji:
         specifier: ^3.0.0
         version: 3.0.0
+      svgbob-wasm:
+        specifier: ^1.0.0
+        version: 1.0.0
       turndown:
         specifier: ^7.2.4
         version: 7.2.4
@@ -1068,6 +1071,9 @@ packages:
 
   style-mod@4.1.3:
     resolution: {integrity: sha512-i/n8VsZydrugj3Iuzll8+x/00GH2vnYsk1eomD8QiRrSAeW6ItbCQDtfXCeJHd0iwiNagqjQkvpvREEPtW3IoQ==}
+
+  svgbob-wasm@1.0.0:
+    resolution: {integrity: sha512-eVRp2Ubj88pUbDZI5ThD1QqGhSKYjOhuM4Mi16jfwl6NAyx+EVTtEyD+jiKxblvuGNlimsFfsWNMkFVskVdEWw==}
 
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
@@ -2147,6 +2153,8 @@ snapshots:
       js-tokens: 9.0.1
 
   style-mod@4.1.3: {}
+
+  svgbob-wasm@1.0.0: {}
 
   symbol-tree@3.2.4: {}
 
