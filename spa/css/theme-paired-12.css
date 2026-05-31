@@ -525,6 +525,8 @@
 [data-theme="paired-12"] .markdown-body th,
 [data-theme="paired-12"] .markdown-body td { border-color: var(--border); }
 [data-theme="paired-12"] .markdown-body th { background: var(--bg-3); color: var(--text-2); }
+[data-theme="paired-12"] .markdown-body caption { color: var(--text-2); border-bottom: 2px solid var(--border-hi); }
+[data-theme="paired-12"] .markdown-body tbody + tbody { border-top: 2px solid var(--border-hi); }
 [data-theme="paired-12"] .markdown-body hr { border-top-color: var(--border); }
 [data-theme="paired-12"] .markdown-body a { color: var(--accent); }
 [data-theme="paired-12"] .markdown-body a.wikilink { color: var(--accent); }

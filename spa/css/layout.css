@@ -438,6 +438,19 @@ mark.search-highlight {
   border-width: 1px; border-style: solid;
   padding: 6px 10px; text-align: left;
 }
+/* ── MultiMarkdown tables ── */
+.markdown-body caption {
+  caption-side: top;
+  font-weight: 600;
+  font-size: .92em;
+  padding: 6px 10px;
+  text-align: left;
+}
+.markdown-body tbody + tbody::before {
+  content: '';
+  display: table-row;
+  height: .6em;
+}
 .markdown-body hr {
   border: none;
   border-top-width: 1px; border-top-style: solid;

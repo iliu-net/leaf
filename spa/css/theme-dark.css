@@ -520,6 +520,8 @@
 [data-theme="dark"] .markdown-body th,
 [data-theme="dark"] .markdown-body td { border-color: var(--border); }
 [data-theme="dark"] .markdown-body th { background: var(--bg-3); color: var(--text-2); }
+[data-theme="dark"] .markdown-body caption { color: var(--text-2); border-bottom: 2px solid var(--border-hi); }
+[data-theme="dark"] .markdown-body tbody + tbody { border-top: 2px solid var(--border-hi); }
 [data-theme="dark"] .markdown-body hr { border-top-color: var(--border); }
 [data-theme="dark"] .markdown-body a { color: var(--accent); }
 [data-theme="dark"] .markdown-body a.wikilink { color: var(--accent); }

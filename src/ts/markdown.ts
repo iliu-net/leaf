@@ -68,6 +68,7 @@ function getMd(): MarkdownIt {
 const _pluginRegistry: Record<string, () => Promise<(md: MarkdownIt, ...args: any[]) => void>> = {
   emoji:     () => import('./extensions/emoji.js').then(m => m.default),
   highlight: () => import('./extensions/highlight.js').then(m => m.default),
+  multimdtable: () => import('./extensions/multimd-table.js').then(m => m.default),
   svgbob:    () => import('./extensions/svgbob.js').then(m => m.default),
   tasklists: () => import('./extensions/task-lists.js').then(m => m.default),
   toc:       () => import('./extensions/toc.js').then(m => m.default),

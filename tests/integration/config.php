@@ -29,6 +29,7 @@ $spa_config = [
         'plugins' => [
             'emoji',
             'wikilinks',
+            'multimdtable',
             'tasklists',
             'toc',
         ],
