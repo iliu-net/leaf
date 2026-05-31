@@ -539,6 +539,10 @@
 [data-theme="magenta"] .markdown-body .footnote-backref { color: var(--text-3); }
 [data-theme="magenta"] .markdown-body .footnote-backref:hover { color: var(--accent); }
 
+/* ── Definition lists ── */
+[data-theme="magenta"] .markdown-body dt { color: var(--text-1); }
+[data-theme="magenta"] .markdown-body dd { color: var(--text-2); }
+
 /* ── Task lists ── */
 [data-theme="magenta"] .markdown-body .task-list-item-checkbox {
   border: 2px solid var(--border-hi);

@@ -541,6 +541,10 @@
 [data-theme="paired-12"] .markdown-body .footnote-backref { color: var(--text-3); }
 [data-theme="paired-12"] .markdown-body .footnote-backref:hover { color: var(--accent); }
 
+/* ── Definition lists ── */
+[data-theme="paired-12"] .markdown-body dt { color: var(--text-1); }
+[data-theme="paired-12"] .markdown-body dd { color: var(--text-2); }
+
 /* ── Task lists ── */
 [data-theme="paired-12"] .markdown-body .task-list-item-checkbox {
   border: 2px solid var(--border-hi);

@@ -27,6 +27,7 @@ $spa_config = [
     'markdown' => [
         'html' => false,
         'plugins' => [
+            'deflist',
             'emoji',
             'footnote',
             'wikilinks',

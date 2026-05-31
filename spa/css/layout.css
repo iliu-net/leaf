@@ -489,6 +489,12 @@ mark.search-highlight {
 .markdown-body .footnote-ref { font-size: .75em; line-height: 0; position: relative; vertical-align: baseline; top: -.5em; }
 .markdown-body .footnote-backref { text-decoration: none; margin-left: .3em; }
 
+/* ── Definition lists ── */
+.markdown-body dl { margin: 0 0 1.2em; }
+.markdown-body dt { font-weight: 600; margin-top: .8em; }
+.markdown-body dt:first-child { margin-top: 0; }
+.markdown-body dd { margin-left: 1.6em; margin-bottom: .4em; }
+
 /* ── View stats ── */
 .view-rule {
   border: none;
