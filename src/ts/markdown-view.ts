@@ -21,6 +21,7 @@ import {
 import { esc, html } from './utils.js';
 import { hydrate } from './fence-hydrate.js';
 import { dbGetNote } from './db.js';
+import { expandTemplate } from './template.js';
 import { isSystemNote, getSystemNote } from './system-notes/registry.js';
 
 // ── Search highlight state ────────────────────────────────────────────────────
@@ -96,7 +97,13 @@ export function init(): void {
 export async function renderView(content: string, noteData: NoteData): Promise<string> {
   const parseMk = await _ensureMd();
   const fm = parseFrontmatter(content);
-  const body = fm.body;
+  let body = fm.body;
+
+  // Template expansion (before markdown parsing so expanded
+  // text renders as markdown).  Only active when template: true.
+  if (fm.meta['template'] === 'true') {
+    body = await expandTemplate(body, fm.meta, noteData.id);
+  }
 
   const parts: string[] = [];
 
