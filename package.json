@@ -32,6 +32,7 @@
     "highlight.js": "^11.11.1",
     "markdown-it": "^14.2.0",
     "markdown-it-emoji": "^3.0.0",
+    "markdown-it-toc-done-right": "^4.2.0",
     "svgbob-wasm": "^1.0.0",
     "turndown": "^7.2.4",
     "upng-js": "^2.1.0"

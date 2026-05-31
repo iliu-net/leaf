@@ -432,6 +432,20 @@ mark.search-highlight {
 }
 .markdown-body img { max-width: 100%; }
 
+/* ── Table of contents ── */
+.markdown-body .table-of-contents {
+  border: 1px solid var(--border-mid);
+  border-radius: 6px;
+  padding: 16px 24px;
+  margin: 0 0 1.2em;
+  font-size: .95em;
+}
+.markdown-body .table-of-contents ul,
+.markdown-body .table-of-contents ol {
+  margin: 0; padding-left: 1.4em;
+}
+.markdown-body .table-of-contents li { margin-bottom: .2em; }
+
 /* ── View stats ── */
 .view-rule {
   border: none;

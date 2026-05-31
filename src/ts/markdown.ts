@@ -69,6 +69,7 @@ const _pluginRegistry: Record<string, () => Promise<(md: MarkdownIt, ...args: an
   emoji:     () => import('./extensions/emoji.js').then(m => m.default),
   highlight: () => import('./extensions/highlight.js').then(m => m.default),
   svgbob:    () => import('./extensions/svgbob.js').then(m => m.default),
+  toc:       () => import('./extensions/toc.js').then(m => m.default),
   wikilinks: () => import('./extensions/wikilinks.js').then(m => m.default),
 };
 
