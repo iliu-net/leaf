@@ -2,10 +2,12 @@
 
 ## Summary
 
-Add `markdown-it-toc-done-right` to auto-generate a linked table of
-contents from document headings.  The placeholder `[TOC]` (or `[toc]`,
-`[[toc]]`, `${toc}`) on its own line is replaced with a `<nav>` list
-linking to every heading level 1–3 in the markdown body.
+Add `markdown-it-toc-done-right` + `markdown-it-anchor` to auto-generate
+a linked table of contents from document headings.  The placeholder
+`[TOC]` (or `[toc]`, `[[toc]]`, `${toc}`) on its own line is replaced
+with a `<nav>` list linking to every heading level 1–3 in the markdown
+body.  Heading IDs are auto-generated so TOC links actually scroll to
+their targets.
 
 ## Motivation
 
@@ -38,16 +40,19 @@ The plugin is loaded lazily (code-split away from the main bundle) and
 registered as a markdown-it block rule.  It intercepts the placeholder
 line before the heading parser, injects `tocOpen` / `tocBody` /
 `tocClose` tokens, and a core rule builds the heading tree from parsed
-tokens.  Styling uses theme-aware CSS custom properties via
-`layout.css`.
+tokens.  `markdown-it-anchor` adds `id` attributes to headings so TOC
+links have scroll targets.  Both libraries share identical default
+slugify functions — no custom configuration needed.  Styling uses
+theme-aware CSS custom properties via `layout.css`.
 
 ## Files changed
 
 | File | Change |
 |---|---|
-| `package.json` | Added `markdown-it-toc-done-right` |
-| `src/ts/extensions/toc.ts` | Plugin adapter + system note registration |
+| `package.json` | Added `markdown-it-toc-done-right`, `markdown-it-anchor` |
+| `src/ts/extensions/toc.ts` | Plugin adapter — applies anchor + TOC with shared config |
 | `src/ts/extensions/toc-docs.md` | In-app help documentation |
+| `src/ts/extensions/anchor-module.d.ts` | Ambient module declaration for `markdown-it-anchor` |
 | `src/ts/markdown.ts` | Registered `toc` in `_pluginRegistry` |
 | `spa/css/layout.css` | `.table-of-contents` styles |
 | `api/config.php` | Added `'toc'` to default plugins |

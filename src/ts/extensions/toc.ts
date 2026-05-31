@@ -12,6 +12,7 @@
 
 import type MarkdownIt from 'markdown-it';
 import tocPlugin from 'markdown-it-toc-done-right';
+import anchorPlugin from 'markdown-it-anchor';
 import { registerSystemNote } from '../system-notes/registry.js';
 import tocDocs from './toc-docs.md';
 
@@ -22,11 +23,21 @@ registerSystemNote({
 });
 
 const plugin: (md: MarkdownIt, options?: any) => void = (md, opts) => {
-  md.use(tocPlugin, {
+  const merged = {
     containerClass: 'table-of-contents',
     level: [1, 2, 3],
     ...opts,
+  };
+
+  // Add id attributes to headings so TOC links have targets to scroll to.
+  // Both libraries use the same default slugify function, so href and id
+  // values match without any custom configuration.
+  md.use(anchorPlugin, {
+    level: merged.level,
+    permalink: false,
   });
+
+  md.use(tocPlugin, merged);
 };
 
 export default plugin;
