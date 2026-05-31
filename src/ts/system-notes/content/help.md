@@ -11,4 +11,5 @@ Welcome to the Leaf help system.
 - [[@about:help:shortcuts|Keyboard shortcuts]]
 - [[@about:help:markdown|Markdown syntax]]
 - [[@about:help:codemirror|CodeMirror usage]]
+- [[@about:help:autotag|Auto-tagging]]
 - [[@about:markdown|Plugins]]

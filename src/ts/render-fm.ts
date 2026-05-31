@@ -8,6 +8,7 @@
 import type { NoteData } from './notes.js';
 import type { FrontmatterResult } from './frontmatter.js';
 import { RESERVED_KEYS } from './frontmatter.js';
+import { mergeTags } from './autotag.js';
 import { formatTimestamp, relativeTime, esc, computeStats, html } from './utils.js';
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -29,13 +30,12 @@ export function renderFrontmatterTable(fm: FrontmatterResult): string {
   const meta = fm.meta;
   const tableParts: string[] = [];
 
-  // Tags row
-  const userTags = Array.isArray(meta['user-tags']) ? meta['user-tags'] : [];
-  if (userTags.length > 0) {
-    const sorted = [...userTags].sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }),
-    );
-    tableParts.push(html`<tr><td class="fm-key">Tags</td><td class="fm-val">${esc(sorted.join(', '))}</td></tr>`);
+  // Tags row — merge user-tags and auto-tags
+  const userTags: string[] = Array.isArray(meta['user-tags']) ? meta['user-tags'] : [];
+  const autoTags: string[] = Array.isArray(meta['auto-tags']) ? meta['auto-tags'] : [];
+  const mergedTags = mergeTags(userTags, autoTags);
+  if (mergedTags.length > 0) {
+    tableParts.push(html`<tr><td class="fm-key">Tags</td><td class="fm-val">${esc(mergedTags.join(', '))}</td></tr>`);
   }
 
   // Summary
