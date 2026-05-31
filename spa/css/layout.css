@@ -156,6 +156,19 @@ html, body { height: 100%; overflow: hidden; }
   cursor: pointer; user-select: none;
 }
 
+/* ── Tags view ── */
+.tag-count {
+  font-size: 10px; padding: 1px 6px; border-radius: 8px;
+  font-family: var(--font-mono);
+  flex-shrink: 0; margin-left: auto;
+}
+.file-item-tags {
+  font-size: 10px; opacity: 0.45;
+  margin-left: 8px; flex-shrink: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
 /* ── Context menu ── */
 .item-context-menu {
   display: none; position: fixed;

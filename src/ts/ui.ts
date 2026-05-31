@@ -31,8 +31,8 @@ export {
 export {
   renderNoteList, setActiveNote, updateNoteCount,
   setSidebarLoading, toggleSidebar, clearSearch,
-  setMode, getMode, setTrashCount, initResizer,
-  renderSystemSection,
+  setMode, getMode, getView, setTrashCount, initResizer,
+  renderSystemSection, renderTagList,
 } from './sidebar.js';
 
 // ── DOM refs (for bindEvents & status bar) ─────────────────────────────────

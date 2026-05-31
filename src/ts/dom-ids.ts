@@ -57,6 +57,7 @@ export const DOM = {
   BTN_MENU:        'btn-menu',
   MENU_RESET_DB:   'menu-reset-db',
   MENU_FOLDER:     'menu-folder',
+  MENU_TAGS:       'menu-tags',
   MENU_TRASH:      'menu-trash',
   BTN_VIEW_HISTORY: 'btn-view-history',
 

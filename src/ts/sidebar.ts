@@ -15,6 +15,7 @@ import { TreeView, SystemTreeView } from './tree-view.js';
 import type { SystemNoteDef } from './system-notes/registry.js';
 import { listSystemNotes } from './system-notes/registry.js';
 import { TrashView } from './trash-view.js';
+import { TagView, type TagViewItem } from './tag-view.js';
 import { DOM, $, $maybe } from './dom-ids.js';
 import { sidebarWidth } from './local-store.js';
 import { ICONS, createIcon } from './icons.js';
@@ -40,6 +41,7 @@ export interface UIEventHandlers {
   onDismissLogin:  () => void;
   // ── Trash ──
   onToggleTrash:   () => void;
+  onToggleTags:   () => void;
   onTrashPreview:  (id: string, source: 'local' | 'server') => void;
   onTrashRestore:  (id: string, source: 'local' | 'server') => void;
   onTrashPurge:    (id: string, source: 'local' | 'server' | 'both') => void;
@@ -57,7 +59,7 @@ export interface SidebarView<T = NoteMeta> {
 
 // ── State ──────────────────────────────────────────────────────────────────────
 
-type SidebarMode = 'notes' | 'trash';
+type SidebarMode = 'notes' | 'trash' | 'tags';
 let _mode: SidebarMode = 'notes';
 let _currentView: SidebarView<any> | null = null;
 let _trashCount = 0;
@@ -73,6 +75,12 @@ export function setMode(mode: SidebarMode): void {
   _mode = mode;
   _updateMenuChecks();
 
+  // Clear search when switching between modes (shared search input)
+  const si = $maybe(DOM.SEARCH) as HTMLInputElement | null;
+  if (si && si.value.trim()) {
+    si.value = '';
+  }
+
   const sidebarToolbar = $(DOM.SIDEBAR_TOOLBAR);
   const noteFooter     = $(DOM.SIDEBAR_FOOTER);
   const trashToolbar   = $maybe(DOM.TRASH_TOOLBAR);
@@ -86,6 +94,13 @@ export function setMode(mode: SidebarMode): void {
     if (trashFooter)  trashFooter.style.display  = 'flex';
     if (sysSection)   sysSection.style.display   = 'none';
     _currentView = TrashView;
+  } else if (mode === 'tags') {
+    sidebarToolbar.style.display = 'flex';
+    noteFooter.style.display     = '';
+    if (trashToolbar) trashToolbar.style.display = 'none';
+    if (trashFooter)  trashFooter.style.display  = 'none';
+    if (sysSection)   sysSection.style.display   = 'none';
+    _currentView = TagView;
   } else {
     sidebarToolbar.style.display = 'flex';
     noteFooter.style.display     = '';
@@ -207,6 +222,15 @@ export function renderFullTextResults(results: FullTextResult[], currentId: stri
   fileList.appendChild(frag);
 }
 
+/**
+ * Render the tag-view list.
+ * Called by notes-ctrl.ts when switching to tags mode or refreshing tags.
+ */
+export function renderTagList(items: TagViewItem[], currentId: string | null): void {
+  _currentView = TagView;
+  TagView.render(items, currentId);
+}
+
 export function setSidebarLoading(loading: boolean): void {
   const el = $maybe(DOM.SIDEBAR_LOADING);
   if (!el) return;
@@ -229,10 +253,15 @@ export function clearSearch(): void {
 
 function _updateMenuChecks(): void {
   const menuFolder = $maybe(DOM.MENU_FOLDER);
+  const menuTags   = $maybe(DOM.MENU_TAGS);
   const menuTrash  = $maybe(DOM.MENU_TRASH);
   if (menuFolder) {
     const chk = menuFolder.querySelector('.dropdown-check') as HTMLElement | null;
     if (chk) chk.style.visibility = _mode === 'notes' ? 'visible' : 'hidden';
+  }
+  if (menuTags) {
+    const chk = menuTags.querySelector('.dropdown-check') as HTMLElement | null;
+    if (chk) chk.style.visibility = _mode === 'tags' ? 'visible' : 'hidden';
   }
   if (menuTrash) {
     const chk = menuTrash.querySelector('.dropdown-check') as HTMLElement | null;
@@ -290,15 +319,34 @@ export function init(handlers: UIEventHandlers): void {
   // App menu dropdown — view switching
   const headerBrand = $(DOM.HEADER_BRAND);
   const menuFolder  = $maybe(DOM.MENU_FOLDER);
+  const menuTags    = $maybe(DOM.MENU_TAGS);
   const menuTrash   = $maybe(DOM.MENU_TRASH);
 
   menuFolder?.addEventListener('click', () => {
-    if (_mode !== 'notes') handlers.onToggleTrash?.();
+    if (_mode === 'trash') handlers.onToggleTrash?.();
+    else if (_mode === 'tags') handlers.onToggleTags?.();
+    headerBrand.classList.remove('open');
+  });
+
+  menuTags?.addEventListener('click', () => {
+    if (_mode === 'trash') {
+      // Two-step: trash → notes → tags
+      _mode = 'notes';
+      handlers.onToggleTags?.();
+    } else if (_mode !== 'tags') {
+      handlers.onToggleTags?.();
+    }
     headerBrand.classList.remove('open');
   });
 
   menuTrash?.addEventListener('click', () => {
-    if (_mode !== 'trash') handlers.onToggleTrash?.();
+    if (_mode === 'tags') {
+      // Two-step: tags → notes → trash
+      _mode = 'notes';
+      handlers.onToggleTrash?.();
+    } else if (_mode !== 'trash') {
+      handlers.onToggleTrash?.();
+    }
     headerBrand.classList.remove('open');
   });
 }

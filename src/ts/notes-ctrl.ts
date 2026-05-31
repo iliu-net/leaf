@@ -14,7 +14,11 @@ import type { NoteData, NoteMeta, FullTextResult } from './notes.js';
 import { safeName } from './utils.js';
 import { listSystemNotes } from './system-notes/registry.js';
 import { DOM, $maybe } from './dom-ids.js';
-import { renderSystemSection, renderFullTextResults } from './sidebar.js';
+import { renderSystemSection, renderFullTextResults, renderTagList, getMode, getView } from './sidebar.js';
+import { dbGetNote } from './db.js';
+import { parseFrontmatter } from './frontmatter.js';
+import { mergeTags } from './autotag.js';
+import type { TagViewItem } from './tag-view.js';
 import { setSearchHighlight } from './markdown-view.js';
 
 // ── Note list state ──────────────────────────────────────────────────────────
@@ -112,6 +116,13 @@ export async function createNote(): Promise<void> {
 }
 
 export function handleSearch(query: string): void {
+  // In tags mode, delegate filtering to the TagView (client-side filter)
+  if (getMode() === 'tags') {
+    _query = query.toLowerCase().trim();
+    getView()?.setFilter?.(_query);
+    return;
+  }
+
   _query = query.toLowerCase().trim();
   const userFiltered = applyFilter();
 
@@ -169,5 +180,44 @@ export async function handleFullTextSearch(query: string): Promise<void> {
     }
   } catch (err) {
     ui.toast(`Full-text search failed: ${(err as Error).message}`, true);
+  }
+}
+
+// ── Tags mode ──────────────────────────────────────────────────────────────
+
+/**
+ * Load all notes with their merged tags and render the tag view.
+ */
+export async function refreshTagList(): Promise<void> {
+  const allNotes = await notes.listNotes();
+  const items: TagViewItem[] = [];
+
+  for (const meta of allNotes) {
+    const record = await dbGetNote(meta.id);
+    if (!record || !record.content) {
+      items.push({ ...meta, tags: [] });
+      continue;
+    }
+    const fm = parseFrontmatter(record.content);
+    const userTags: string[] = Array.isArray(fm.meta['user-tags']) ? fm.meta['user-tags'] : [];
+    const autoTags: string[] = Array.isArray(fm.meta['auto-tags']) ? fm.meta['auto-tags'] : [];
+    const tags = mergeTags(userTags, autoTags);
+    items.push({ ...meta, tags });
+  }
+
+  renderTagList(items, _getCurrentId());
+  ui.updateNoteCount(allNotes.length, allNotes.length);
+}
+
+/**
+ * Toggle between notes mode and tags mode.
+ */
+export async function handleToggleTags(): Promise<void> {
+  if (getMode() === 'tags') {
+    ui.setMode('notes');
+    await refreshList();
+  } else {
+    ui.setMode('tags');
+    await refreshTagList();
   }
 }

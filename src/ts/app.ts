@@ -361,6 +361,7 @@ function wireUiEvents(): void {
     onSignIn:        ()       => loginCtrl.handleSignIn(),
     onDismissLogin:  ()       => loginCtrl.handleDismissLogin(),
     onToggleTrash:   ()       => trashCtrl.handleToggleTrash(),
+    onToggleTags:   ()       => { notesCtrl.handleToggleTags(); },
     onTrashPreview:  (id, src) => trashCtrl.handleTrashPreview(id, src),
     onTrashRestore:  (id, src) => trashCtrl.handleTrashRestore(id, src),
     onTrashPurge:    (id, src) => trashCtrl.handleTrashPurge(id, src),
