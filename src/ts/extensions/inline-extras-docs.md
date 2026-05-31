@@ -28,14 +28,16 @@ other formatting:
 
 ### Word-boundary rules
 
-The opening delimiter must not be preceded by a word character, and the
-closing delimiter must not be followed by one.  This prevents accidental
-matches:
+For `++`, `==`, and `??`, the opening delimiter must not be preceded by
+a word character, and the closing delimiter must not be followed by one.
+This prevents accidental matches:
 
 - `C++` is not treated as an opening `++` marker (it follows `C`)
 - Trailing question marks like `what??` are not treated as a `??` marker
 - `x==5` in code is not mistaken for `<kbd>`
-- `,,` inside a number like `1,,234` is safe
+
+`^^` and `,,` **skip** the word-boundary guard so that chemical formulas
+(`H,,2,,O`) and math notation (`mc^^2^^`, `x^^n^^`) work naturally.
 
 If you need a literal `++`, `^^`, `,,`, `==`, or `??` that would be
 misinterpreted, put it in a code span: `` `++` ``.
@@ -60,17 +62,6 @@ and all five markers are always active together.
 The five markers cannot be enabled individually.  If you prefer to use
 only some of them, leave the plugin disabled and use raw HTML for the
 ones you need (`<ins>...</ins>`, `<sup>...</sup>`, etc.).
-
-### Word-boundary and chemical formulas
-
-The word-boundary guard means `H,,2,,O` will **not** render as
-`H<sub>2</sub>O` — the `H` before `,,` is a word character.  Add
-a space or use raw HTML for chemical formulas:
-
-```markdown
-H ,,2,, O    ← renders as H <sub>2</sub> O (with spaces)
-H<sub>2</sub>O  ← raw HTML, no spaces needed
-```
 
 ### No empty spans
 

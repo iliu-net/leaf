@@ -9,9 +9,10 @@
  *   ??highlight??   → <mark>highlight</mark>
  *
  * All markers are balanced (same two characters open and close).
- * Opening delimiter must not be preceded by a word character,
- * and closing delimiter must not be followed by a word character
- * (avoids accidental matches like C++ or trailing ?? in questions).
+ *
+ * Word-boundary guards prevent accidental matches (C++, what??, x==5),
+ * except for ^^ and ,, which skip the guard so that chemical formulas
+ * (H,,2,,O) and math notation (mc^^2^^) work naturally.
  *
  * Inner content is parsed for nested markdown (e.g. **bold** inside
  * ^^superscript^^ works).
@@ -40,6 +41,10 @@ const MARKER_MAP: Record<string, string> = {
 };
 
 const MARKERS = Object.keys(MARKER_MAP);
+
+// Markers that skip the word-boundary guard — needed for chemical
+// formulas (H,,2,,O) and math notation (mc^^2^^).
+const SKIP_WORD_GUARD = new Set([',,', '^^']);
 
 // ── Custom text rule ──────────────────────────────────────────────────────
 
@@ -100,20 +105,26 @@ function inlineExtrasRule(state: any, silent: boolean): boolean {
   const src = state.src;
   const pos = state.pos;
 
-  // Word-boundary guard: opening delimiter must not be preceded by a word
-  // character.  Prevents C++ from matching, trailing ?? in "what??", etc.
-  if (pos > 0 && /\w/.test(src[pos - 1])) return false;
-
   for (const marker of MARKERS) {
     if (!src.startsWith(marker, pos)) continue;
+
+    // Word-boundary guard at open — prevents C++, what??, x==5.
+    // Skipped for ^^ and ,, so chemical formulas (H,,2,,O) and
+    // math notation (mc^^2^^) work.
+    if (!SKIP_WORD_GUARD.has(marker)) {
+      if (pos > 0 && /\w/.test(src[pos - 1])) continue;
+    }
+
     // Found an opening marker — scan for the matching close.
     const closePos = src.indexOf(marker, pos + marker.length);
     if (closePos === -1) continue;
 
-    // Word-boundary guard at close: must be followed by non-word or end.
-    if (closePos + marker.length < src.length &&
-        /\w/.test(src[closePos + marker.length])) {
-      continue;
+    // Word-boundary guard at close — same skip set as above.
+    if (!SKIP_WORD_GUARD.has(marker)) {
+      if (closePos + marker.length < src.length &&
+          /\w/.test(src[closePos + marker.length])) {
+        continue;
+      }
     }
 
     // Don't match empty content (e.g. "++++" is literal).

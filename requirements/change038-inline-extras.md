@@ -38,13 +38,16 @@ works:
 
 ### Word-boundary guards
 
-The opening delimiter must not be preceded by a word character, and the
-closing delimiter must not be followed by one.  This prevents accidental
-matches:
+For `++`, `==`, and `??`, the opening delimiter must not be preceded by
+a word character, and the closing delimiter must not be followed by one.
+This prevents accidental matches:
 
 - `C++` is not mistaken for an opening `++` marker
 - Trailing `??` in `what??` is not treated as a highlight marker
 - `x==5` in code-like contexts is not mistaken for `<kbd>`
+
+`^^` and `,,` skip the word-boundary guard so that chemical formulas
+(`H,,2,,O`) and math notation (`mc^^2^^`, `x^^n^^`) work naturally.
 
 ## Architecture
 
@@ -117,7 +120,5 @@ $spa_config['markdown']['plugins'] = [
   is distinct from `mark.search-highlight` used for in-note search
   results.  Search highlights use a separate CSS class and are
   unaffected.
-- **Chemical formulas** — `H,,2,,O` will not render as `H<sub>2</sub>O`
-  because the `H` before `,,` is a word character, triggering the
-  word-boundary guard.  Workaround: write `H ,,2,, O` with spaces, or
-  use raw `H<sub>2</sub>O`.
+- **Chemical formulas** — `H,,2,,O` and `mc^^2^^` work naturally because
+  `,,` and `^^` skip the word-boundary guard.
