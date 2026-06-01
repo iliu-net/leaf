@@ -50,6 +50,8 @@ $spa_config = [
             'wikilinks',
             'multimdtable',
             'tasklists',
+            'mathjax',
+            'mermaid',
             'toc',
         ],
     ],
