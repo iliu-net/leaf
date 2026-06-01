@@ -8,12 +8,12 @@
  *
  * Storage layout:
  *   notes/{id}.json         — live note
- *   notes/{id}.deleted.json — soft-deleted tombstone (never purged)
+ *   notes/{id}.deleted.json — soft-deleted tombstone (delayed purge)
  *   changelog.jsonl         — append-only change log
  *
  * Live note file structure ({id}.json):
  * {
- *   "current":    "2026-05-26:1:alice",
+ *   "current":    "2026-05-26:1:deadbeeef",
  *   "created_at": 1748200000,
  *   "created_by": "alice",
  *   "versions": {
@@ -30,7 +30,7 @@
  * Tombstone file structure ({id}.deleted.json):
  * Same as the live note, plus two extra top-level fields:
  * {
- *   "current":    "2026-05-26:1:alice",
+ *   "current":    "2026-05-26:1:deadbeef",
  *   "created_at": 1748200000,
  *   "created_by": "alice",
  *   "deleted_at": 1748350000,
@@ -46,12 +46,11 @@
  *                           when false, the next save by the original author creates
  *                           a new version instead of overwriting
  *
- * Version key format: "{date}:{counter}:{author}"
+ * Version key format: "{date}:{counter}:{client_id}"
  *   Lexicographic sort == chronological order.
- *   Counter resets per (date, author) pair.
- *   The author in the key is a convenience duplicate of the 'author' field;
- *   the 'author' field is authoritative and the key format may evolve independently
- *   (e.g. to UUIDs).
+ *   Counter resets per (date, client_id) pair.
+ *   Eventhough there is a specific format to the version key, it should nevertheless
+ *   treated as an opaque identifier.
  *
  * Changelog entry:
  * {"rev":N,"file":"id","type":"CREATE|UPDATE|DELETE|RENAME",
@@ -182,10 +181,10 @@ function storage_get_note(string $id): ?array {
  * exist or is deleted.
  *
  * @param string $id  Note identifier
- * @param string $viewer Current viewer for this note
+ * @param int $client_id Current sync client ID of viewer for this note
  * @return array|null  Normalized note array, or null if not found
  */
-function storage_get_note_full(string $id, string $viewer): ?array {
+function storage_get_note_full(string $id, int $client_id): ?array {
     $note = storage_get_note($id);
     if (!$note) return null;
 
@@ -235,7 +234,7 @@ function storage_put_note(string $id, array $data): void {
  * @param string $deleted_by  Username who performed the deletion
  * @return void
  */
-function storage_delete_note(string $id, string $deleted_by = ''): void {
+function storage_delete_note(string $id, string $deleted_by): void {
     $path = note_path($id);
     if (!file_exists($path) || storage_note_deleted($id)) return;
 
@@ -467,47 +466,42 @@ function storage_list_notes(): array {
 /**
  * Compute the version key for an incoming save and whether it overwrites.
  *
- * Overwrite rule: same author AND same UTC date AND the current version's
+ * Overwrite rule: same client_id AND same UTC date AND the current version's
  *                 exclusive flag is still true (nobody else has received it).
- * New version:    everything else — find highest counter for (date, author)
+ * New version:    everything else — find highest counter for (date, client_id)
  *                 in existing keys and increment.
  *
- * The exclusive flag is set to false when a *different* user syncs/receives
+ * The exclusive flag is set to false when a *different* client_id syncs/receives
  * this version.  This prevents overwriting a version that another client
  * may have already seen — the next save creates a new version instead.
  *
  * @param array  $note    Note data array with 'versions' and 'current' keys
- * @param string $author  Username making the write
+ * @param int $client_id  Sync client ID of user making the write
  * @return array{0: string, 1: bool}  [version_key, is_overwrite]
  */
-function storage_resolve_version(array $note, string $author): array {
+function storage_resolve_version(array $note, int $client_id): array {
     $today    = gmdate('Y-m-d');
     $versions = $note['versions'] ?? [];
     $current  = $note['current']  ?? null;
 
     if ($current) {
-        $cur_author = $note['versions'][$current]['author'] ?? '';
-        $cur_date   = gmdate('Y-m-d', $note['versions'][$current]['saved_at'] ?? 0);
-        $exclusive  = $note['versions'][$current]['exclusive'] ?? false;
+      list($cur_date, $cur_seq, $cur_client_id) = explode(':', $current, 3);
+      $cur_client_id = (int)$cur_client_id;
+      $cur_seq = (int) $cur_seq;
+      $exclusive  = $note['versions'][$current]['exclusive'] ?? false;
 
-        if ($cur_author === $author && $cur_date === $today && $exclusive) {
-            return [$current, true];               // overwrite same slot
-        }
+      if ($cur_client_id === $client_id && $cur_date === $today && $exclusive) {
+        return [$current, true];               // overwrite same slot
+      }
     }
 
-    // Find highest counter for (today, author) to build the new key
-    $prefix  = $today . ':';
-    $suffix  = ':' . $author;
-    $max_ctr = 0;
+    // Find first available counter for (today, client_id) to build the new key
+    $i = 0;
+    do {
+        $next_v = implode(':', [$today, $i++, $client_id]);
+    } while (isset($versions[$next_v]));
 
-    foreach (array_keys($versions) as $key) {
-        if (str_starts_with($key, $prefix) && str_ends_with($key, $suffix)) {
-            $parts   = explode(':', $key, 3);
-            $max_ctr = max($max_ctr, (int)($parts[1] ?? 0));
-        }
-    }
-
-    return [$today . ':' . ($max_ctr + 1) . ':' . $author, false];
+    return [$next_v, false];
 }
 
 /**
@@ -518,9 +512,10 @@ function storage_resolve_version(array $note, string $author): array {
  * @param string $id       Note identifier
  * @param string $content  Note content (opaque — not inspected)
  * @param string $author   Username making the write
+ * @param int $client_id   Sync client ID making the write
  * @return string          The version key that was written
  */
-function storage_apply_write(string $id, string $content, string $author): string {
+function storage_apply_write(string $id, string $content, string $author, int $client_id): string {
     $note = storage_get_note($id);
     $is_new = ($note === null);
 
@@ -535,7 +530,7 @@ function storage_apply_write(string $id, string $content, string $author): strin
         $note['created_by'] = $author;
     }
 
-    [$vkey, $overwrite] = storage_resolve_version($note, $author);
+    [$vkey, $overwrite] = storage_resolve_version($note, $client_id);
 
     $prev_vkey = $overwrite
         ? ($note['versions'][$vkey]['prev'] ?? null)
@@ -564,28 +559,25 @@ function storage_apply_write(string $id, string $content, string $author): strin
  * @param string      $id              Note identifier
  * @param string      $content         Note content (opaque)
  * @param string      $author          Username making the write
- * @param string|null $client_version  Version the client is basing this write on
+ * @param int         $client_id       Sync client ID making the write
+ * @param string      $client_version  Version the client is basing this write on
  * @return array|null  [$version, $dirty_bit], or null if version is missing
  */
 function storage_put_note_logged(
-    string $id, string $content, string $author, ?string $client_version
+    string $id, string $content, string $author, int $client_id, string $client_version
 ): ?array {
-    if ($client_version === null || $client_version === '') return null;
-
-    if (storage_note_deleted($id)) {
-        storage_revive_note($id);
-    }
+    if (storage_note_deleted($id)) storage_revive_note($id);
 
     $pre_note = storage_get_note($id);
     $is_new   = $pre_note === null;
 
     if (!$is_new && $pre_note['current'] !== null
         && $pre_note['current'] !== $client_version) {
-        error_log("Conflict on {$id}: client {$client_version}"
+      error_log("Conflict on {$id}: client {$client_version}"
             . " != server {$pre_note['current']}");
     }
 
-    $vkey = storage_apply_write($id, $content, $author);
+    $vkey = storage_apply_write($id, $content, $author, $client_id);
 
     $note      = storage_get_note($id);
     $prev_vkey = $note['versions'][$vkey]['prev'] ?? null;
@@ -673,32 +665,32 @@ function storage_rename_note_logged(
 // ─────────────────────────────────────────────
 
 /**
- * Mark the current version of a note as "seen" by a user who is not its
- * author, setting exclusive to false so the next save by the original
- * author creates a new version instead of overwriting.
+ * Mark the current version of a note as "seen" by a client who is not its
+ * creator's client id, setting exclusive to false so the next save by the original
+ * client creates a new version instead of overwriting.
  *
  * Called during sync response building for every note whose content is
- * being delivered to a client whose username differs from the version
- * author.  Idempotent — safe to call multiple times.
+ * being delivered to a client whose clinet_id differs from the version
+ * author's client_id.  Idempotent — safe to call multiple times.
  *
  * @param string $id      Note identifier
- * @param string $viewer  Username receiving this version
+ * @param int $cliend_id  sync client_id of User receiving this version
  * @return void
  */
-function storage_mark_version_seen(string $id, string $viewer): void {
+function storage_mark_version_seen(string $id, int $client_id): void {
     $note = storage_get_note($id);
     if (!$note) return;
 
     $current_vkey = $note['current'] ?? null;
     if (!$current_vkey) return;
+    if (!$note['versions'][$current_vkey]['exclusive']) return; // No need to check anymore
 
-    $author = $note['versions'][$current_vkey]['author'] ?? '';
+    list(,,$cur_client)  = explode(':', $current_vkey, 3);
+    if (((int)$cur_client) == $client_id) return;
 
-    if ($author !== $viewer) {
-        // Another user is receiving this version → clear exclusivity
-        $note['versions'][$current_vkey]['exclusive'] = false;
-        storage_put_note($id, $note);
-    }
+    // Another user is receiving this version → clear exclusivity
+    $note['versions'][$current_vkey]['exclusive'] = false;
+    storage_put_note($id, $note);
 }
 
 // ─────────────────────────────────────────────

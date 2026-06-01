@@ -26,7 +26,6 @@ shapes, error conventions, and the sync protocol.
    - [Version Key Format](#version-key-format)
    - [Conflict Strategy](#conflict-strategy)
    - [Exclusive Flag](#exclusive-flag)
-   - [Partial Batches](#partial-batches)
 4. [Storage Schema](#storage-schema)
    - [Note File (`{id}.json`)](#note-file-idjson)
    - [Tombstone File (`{id}.deleted.json`)](#tombstone-file-iddeletedjson)
@@ -218,15 +217,15 @@ a single POST.  This is the core of the offline-first sync protocol.
 
 ```json
 {
-  "baseRevision":   12,
   "syncedRevision": 15,
+  "client_id": 71249,
   "changes": [
     {
       "type": 1,
       "key":  "note-id",
       "obj": {
         "content":    "# Hello\n\nWorld",
-        "version":    "2026-05-27:1:alice",
+        "version":    "2026-05-27:1:9394
         "author":     "alice",
         "created_by": "bob",
         "created_at": 1748000000,
@@ -234,16 +233,14 @@ a single POST.  This is the core of the offline-first sync protocol.
       }
     }
   ],
-  "partial": false
 }
 ```
 
 | Field            | Type      | Description                                                        |
 |------------------|-----------|--------------------------------------------------------------------|
-| `baseRevision`   | `number`  | Server revision the client's changes are based on                  |
 | `syncedRevision` | `number`  | Last server revision the client has seen (used for pull)           |
+| `client_id`      | `number`  | Sync Client ID synchronizing with the server                       |
 | `changes`        | `array`   | Local changes to push (may be empty)                               |
-| `partial`        | `boolean` | If `true`, client is sending changes in batches                    |
 
 **`changes` entry fields** (varies by change type, see [Change Types](#change-type-constants)):
 
@@ -267,7 +264,6 @@ server records its own timestamps and author.
     { "type": 1, "key": "note-id", "obj": { "id": "note-id", ... } }
   ],
   "currentRevision": 18,
-  "partial": false
 }
 ```
 
@@ -275,7 +271,6 @@ server records its own timestamps and author.
 |-------------------|-----------|--------------------------------------------------------------------|
 | `changes`         | `array`   | Server changes since `syncedRevision` (or full dump if `syncedRevision=0`) |
 | `currentRevision` | `number`  | Server's current revision after applying incoming changes          |
-| `partial`         | `boolean` | Always `false` — the server sends all changes at once              |
 
 **Change entry shapes in the response:**
 
@@ -287,7 +282,7 @@ server records its own timestamps and author.
   "key":  "welcome",
   "obj": {
     "content":     "# Welcome\n\nThis is the first note.",
-    "version":     "2026-05-27:1:alice",
+    "version":     "2026-05-27:1:3293
     "prev_version": null,
     "author":      "alice",
     "created_by":  "alice",
@@ -300,7 +295,7 @@ server records its own timestamps and author.
 | Field          | Type      | Description                                                    |
 |----------------|-----------|----------------------------------------------------------------|
 | `content`      | `string`  | Opaque note content (server never inspects it)                 |
-| `version`      | `string`  | Version key of this revision (format: `date:counter:author`)   |
+| `version`      | `string`  | Version key of this revision    |
 | `prev_version` | `string`  | Previous version key in the chain, or `null`                   |
 | `author`       | `string`  | Author of *this version* (the one who wrote it)                |
 | `created_by`   | `string`  | Original creator of the note (set once, never overwritten)     |
@@ -451,7 +446,8 @@ Restore a note from the trash back to the live notes.
 ```json
 {
   "action": "restore",
-  "id": "old-note"
+  "id": "old-note",
+  "client_id": 92949
 }
 ```
 
@@ -464,7 +460,7 @@ Restore a note from the trash back to the live notes.
     "content":    "# Old content\n\n...",
     "created_at": 1748000000,
     "created_by": "alice",
-    "current":    "2026-05-25:1:alice"
+    "current":    "2026-05-25:1:39923
   }
 }
 ```
@@ -472,6 +468,7 @@ Restore a note from the trash back to the live notes.
 | Field        | Type      | Description                                         |
 |--------------|-----------|-----------------------------------------------------|
 | `id`         | `string`  | Note identifier                                     |
+| `client_id`  | `int   `  | Client ID of user                                   |
 | `content`    | `string`  | The note's current content                          |
 | `created_at` | `number`  | Unix timestamp of original creation (seconds)       |
 | `created_by` | `string`  | Original creator username                           |
@@ -545,22 +542,22 @@ List all versions of a note (metadata only, no content).
 ```json
 {
   "ok":       true,
-  "current":  "2026-05-27:3:alice",
+  "current":  "2026-05-27:3:3455
   "versions": [
     {
-      "key":      "2026-05-27:3:alice",
+      "key":      "2026-05-27:3:3355
       "author":   "alice",
       "saved_at": 1748350000,
-      "prev":     "2026-05-27:2:alice"
+      "prev":     "2026-05-27:2:3455
     },
     {
-      "key":      "2026-05-27:2:alice",
+      "key":      "2026-05-27:2:3455
       "author":   "alice",
       "saved_at": 1748345000,
-      "prev":     "2026-05-27:1:alice"
+      "prev":     "2026-05-27:1:3455
     },
     {
-      "key":      "2026-05-27:1:alice",
+      "key":      "2026-05-27:1:3455
       "author":   "alice",
       "saved_at": 1748340000,
       "prev":     null
@@ -578,7 +575,7 @@ Each version entry:
 
 | Field      | Type             | Description                                                     |
 |------------|------------------|-----------------------------------------------------------------|
-| `key`      | `string`         | Version key (format: `date:counter:author`)                     |
+| `key`      | `string`         | Version key                      |
 | `author`   | `string`         | Author of this version                                          |
 | `saved_at` | `number`         | Unix timestamp when this version was saved (seconds)             |
 | `prev`     | `string` or `null` | Previous version key in the chain, or `null` for root versions |
@@ -592,7 +589,7 @@ Fetch the opaque content of one or more specific versions.
 {
   "action": "get",
   "id": "my-note",
-  "versions": ["2026-05-27:2:alice", "2026-05-27:1:alice"]
+  "versions": ["2026-05-27:2:3455", "2026-05-27:1:3455"]
 }
 ```
 
@@ -601,8 +598,8 @@ Fetch the opaque content of one or more specific versions.
 {
   "ok":       true,
   "contents": {
-    "2026-05-27:2:alice": "# Version 2 content\n\n...",
-    "2026-05-27:1:alice": "# Version 1 content\n\n..."
+    "2026-05-27:2:3455": "# Version 2 content\n\n...",
+    "2026-05-27:1:3455": "# Version 1 content\n\n..."
   }
 }
 ```
@@ -707,69 +704,49 @@ The 409 branch exists as future-proofing for when log truncation is added.
 
 ### Version Key Format
 
-Version keys follow the pattern:
+Version keys should be considered opaque and internal to the storage.php
+implementation.
+
+For the flat-file storage Version keys follow the pattern:
 
 ```
-{YYYY-MM-DD}:{counter}:{author}
+{YYYY-MM-DD}:{counter}:{client_id}
 ```
 
 Examples:
 ```
-2026-05-27:1:alice
-2026-05-27:2:alice
-2026-05-27:1:bob
+2026-05-27:1:3455
+2026-05-27:2:3455
+2026-05-27:1:3455
 ```
 
 - Lexicographic sort equals chronological order
-- Counter resets per (date, author) pair
-- The author in the key is a convenience duplicate of the `author` field in the
-  version entry; the `author` field is authoritative
+- Counter resets per (date, client_id) pair
 
 ### Conflict Strategy
 
 **Last-write-wins at the version level.**
 
-When a client pushes a change with a `baseRevision` that is behind the server's
-current revision, both versions survive in the version chain:
-
-1. The client's incoming version is written with a `prev` pointer to the
-   competing server version
-2. Both versions are preserved in the note's version history
-3. The client receives the competing version in the sync response and can
-   reconcile locally (future 3-way merge UI)
-4. The conflict is logged via `error_log()`
-
-This ensures no data is ever silently lost.
 
 ### Exclusive Flag
 
 Each version carries an `exclusive` boolean flag.  It controls whether the next
-save by the same author **overwrites** the current version (same key → same
+save by the same client_id **overwrites** the current version (same key → same
 slot), or creates a **new version** (incremented counter).
 
-- `exclusive: true` — This version has only been seen by its author.  Next
-  save by the same author on the same day overwrites it.
-- `exclusive: false` — Another user has received this version via sync.  Next
-  save by the original author creates a new version instead of overwriting.
+- `exclusive: true` — This version has only been seen by its author's client_id.  Next
+  save by the same author's client_id on the same day overwrites it.
+- `exclusive: false` — Another user's client_id has received this version via sync.  Next
+  save by the original author's client_id creates a new version instead of overwriting.
 
 The flag is set to `false` during sync response building (`Step 3` in sync.php):
-for every note whose content is delivered to a client with a different username
-than the version author.
+for every note whose content is delivered to a client with a different client_id
+than the version author's client_id.
 
 This prevents the scenario where Alice saves, Bob syncs and reads Alice's
 content, then Alice saves again — without the exclusive flag, Bob's client would
 think Alice's version no longer exists.  With it, Alice's new save creates a new
 version key and Bob receives both.
-
-### Partial Batches
-
-The client may send `"partial": true` when it has many pending changes (above a
-threshold).  The server accepts and applies each batch normally.  The server
-always responds with `"partial": false` — the partial flag only controls client
-behavior.  The client sends `"partial": false` on its final batch to indicate
-the server should respond.
-
-**(Client-side optimization — the server handles all batches identically.)**
 
 ---
 
@@ -784,11 +761,11 @@ Located at `data/notes/{id}.json`.
 
 ```json
 {
-  "current":    "2026-05-27:1:alice",
+  "current":    "2026-05-27:1:3455",
   "created_at": 1748000000,
   "created_by": "alice",
   "versions": {
-    "2026-05-27:1:alice": {
+    "2026-05-27:1:3455": {
       "author":    "alice",
       "saved_at":  1748000000,
       "content":   "# Hello\n\nWorld",
@@ -819,13 +796,13 @@ A soft-deleted note's complete version history is preserved in the tombstone:
 
 ```json
 {
-  "current":    "2026-05-27:1:alice",
+  "current":    "2026-05-27:1:3455",
   "created_at": 1748000000,
   "created_by": "alice",
   "deleted_at": 1748350000,
   "deleted_by": "alice",
   "versions": {
-    "2026-05-27:1:alice": {
+    "2026-05-27:1:3455": {
       "author":   "alice",
       "saved_at": 1748000000,
       "content":  "# Hello\n\nWorld",
@@ -850,9 +827,9 @@ and the file is moved back to `{id}.json`.
 Located at `data/changelog.jsonl`.  Append-only, one JSON object per line.
 
 ```jsonl
-{"rev":1,"file":"welcome","type":"CREATE","ts":1748000000,"version":"2026-05-27:1:alice","prev_version":null}
-{"rev":2,"file":"welcome","type":"UPDATE","ts":1748001000,"version":"2026-05-27:2:alice","prev_version":"2026-05-27:1:alice"}
-{"rev":3,"file":"welcome","type":"DELETE","ts":1748002000,"version":null,"prev_version":"2026-05-27:2:alice","deleted_by":"alice"}
+{"rev":1,"file":"welcome","type":"CREATE","ts":1748000000,"version":"2026-05-27:1:3455","prev_version":null}
+{"rev":2,"file":"welcome","type":"UPDATE","ts":1748001000,"version":"2026-05-27:2:3455","prev_version":"2026-05-27:1:3455"}
+{"rev":3,"file":"welcome","type":"DELETE","ts":1748002000,"version":null,"prev_version":"2026-05-27:2:3455","deleted_by":"alice"}
 {"rev":4,"file":"old-name","type":"RENAME","ts":1748003000,"renamed_to":"new-name","renamed_by":"alice","version":null,"prev_version":null}
 ```
 
@@ -878,10 +855,10 @@ Monthly JSONL files at `data/audit-YYYY-MM.jsonl`.  One JSON object per line.
 
 ```json
 {"ts":1716163200,"event":"AUTH_LOGIN","user":"alice","ip":"192.168.1.1"}
-{"ts":1716163205,"event":"NOTE_WRITE","user":"alice","note_id":"welcome","version":"2026-05-27:1:alice","ip":"192.168.1.1"}
+{"ts":1716163205,"event":"NOTE_WRITE","user":"alice","note_id":"welcome","version":"2026-05-27:1:3455","ip":"192.168.1.1"}
 {"ts":1716163210,"event":"NOTE_DELETE","user":"alice","note_id":"old-note","ip":"192.168.1.1"}
 {"ts":1716163215,"event":"NOTE_RENAME","user":"alice","note_id":"old-name","renamed_to":"new-name","ip":"192.168.1.1"}
-{"ts":1716163220,"event":"NOTE_READ","user":"bob","note_id":"welcome","version":"2026-05-27:1:alice"}
+{"ts":1716163220,"event":"NOTE_READ","user":"bob","note_id":"welcome","version":"2026-05-27:1:3455"}
 {"ts":1716163225,"event":"NOTE_RESTORE","user":"alice","note_id":"old-note"}
 {"ts":1716163230,"event":"AUTH_LOGOUT","user":"alice"}
 ```

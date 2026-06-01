@@ -55,6 +55,7 @@ switch ($action) {
     // ── restore ──────────────────────────────
     case 'restore':
         $id = (string)($body['id'] ?? '');
+        $client_id = (int)($body['client_id'] ?? 0);
         if ($id === '') {
             fail('Missing "id" parameter');
         }
@@ -80,7 +81,7 @@ switch ($action) {
         ]);
         audit_log('NOTE_RESTORE', ['user' => $author, 'note_id' => $id]);
 
-        $n = storage_get_note_full($id, $author);
+        $n = storage_get_note_full($id, $client_id);
         respond([
             'ok'   => true,
             'note' => [

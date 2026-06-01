@@ -65,7 +65,7 @@ pass
 
 NOAUTH_SYNC=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/api/index.php/sync" \
     -H 'Content-Type: application/json' \
-    -d '{"baseRevision":0,"syncedRevision":0,"changes":[],"partial":false}')
+    -d '{"syncedRevision":0,"client_id":1,"changes":[]}')
 [ "$NOAUTH_SYNC" = "401" ] || fail "sync without auth: expected 401, got $NOAUTH_SYNC"
 pass
 

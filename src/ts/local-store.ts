@@ -121,6 +121,18 @@ export const sidebarWidth = {
   set: (w: number): void => set('leaf:sidebar-width', String(Math.round(w))),
 };
 
+/** Client ID */
+export const clientID = {
+  get: (): number => {
+    const raw = get('leaf:client-id');
+    if (raw !== null) return Number(raw);
+    
+    const id = Math.floor(Math.random() * 0x80000000); // 31 bit unsigned integer
+    set('leaf:client-id', String(id));
+    return id;
+  },
+};
+
 /** Convenience: clear all leaf:* keys (useful for DB reset / testing). */
 export function clearAll(): void {
   const keys: string[] = [];

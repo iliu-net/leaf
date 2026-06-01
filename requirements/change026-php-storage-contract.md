@@ -38,12 +38,12 @@ Consumer endpoints work with normalized flat arrays and typed return values.
 
 ## Contract functions (all in `storage.php`)
 
-### Phase 1 — `storage_get_note_full(string $id, string $viewer): ?array`
+### Phase 1 — `storage_get_note_full(string $id, int $client_id): ?array`
 
 Normalized flat read for sync-protocol consumers.  Hides the internal
-`versions` map.  The `$viewer` parameter carries the authenticated username
-so the storage layer can trigger staging flushes without consumer awareness
-(relevant for the git backend — see `TODO/git-storage.md`).
+`versions` map.  The `$client_id` parameter carries the sync client ID
+so the storage layer can clear the exclusive flag (and trigger staging
+flushes for the git backend) without consumer awareness.
 
 | Key | Source | Fallback |
 |-----|--------|----------|
@@ -55,10 +55,10 @@ so the storage layer can trigger staging flushes without consumer awareness
 | `created_at` | Note-level `created_at` | `0` |
 | `created_by` | Note-level `created_by` | `''` |
 
-### Phase 2 — `storage_put_note_logged(string $id, string $content, string $author, ?string $client_version): ?array`
+### Phase 2 — `storage_put_note_logged(string $id, string $content, string $author, int $client_id, string $client_version): ?array`
 
 CREATE or UPDATE + changelog entry in one call.  Returns `[$version, $dirty]`
-on success, or `null` if the client version is missing.  The `$dirty` boolean
+on success, or `null` if the client version is empty.  The `$dirty` boolean
 is always `false` in the current flat-file backend; the git backend will set
 it to `true` when content is staged to disk but not yet committed.
 Handles tombstone revival, conflict detection (via `error_log`), version
@@ -106,7 +106,7 @@ periodic maintenance behind a single storage contract entry point.
 
 ### `src/php/storage.php` — 877 lines
 
-- Phase 1: `storage_get_note_full($id, $viewer)` — after `storage_get_note()`
+- Phase 1: `storage_get_note_full($id, $client_id)` — after `storage_get_note()`
 - Phase 2: `storage_put_note_logged()` — after `storage_apply_write()`;
   returns `[$vkey, $dirty]` tuple
 - Phase 3: `storage_delete_note_logged()` → `bool`,
@@ -131,14 +131,14 @@ periodic maintenance behind a single storage contract entry point.
   `[$version, $dirty]` tuple for audit logging.  DELETE and RENAME use the
   `bool` return from their respective logged functions.  Removed redundant
   version validation (now inside `storage_put_note_logged()`).
-- **`changelog_entry_to_dexie_change($entry, $viewer)`** — CREATE/UPDATE
+- **`changelog_entry_to_dexie_change($entry, $client_id)`** — CREATE/UPDATE
   branch replaced inline version-map navigation with
-  `storage_get_note_full($key, $viewer)`.  Added `$viewer` parameter for
-  staging-flush support.
+  `storage_get_note_full($key, $client_id)`.  Parameter renamed from
+  `$viewer` to `$client_id` for exclusive-flag management.
 - **Bootstrap path** — Replaced inline note-reading block with
-  `storage_get_note_full($meta['id'], $author)`.
-- **Incremental path** — `changelog_entry_to_dexie_change($entry, $author)`
-  passes the authenticated user.
+  `storage_get_note_full($meta['id'], $client_id)`.
+- **Incremental path** — `changelog_entry_to_dexie_change($entry, $client_id)`
+  passes the sync client ID.
 
 ### `src/php/history.php` — 82 lines
 
@@ -150,7 +150,7 @@ periodic maintenance behind a single storage contract entry point.
 ### `src/php/trash.php` — 139 lines
 
 - `action=restore` — Uses `storage_note_deleted()` for the guard check
-  and `storage_get_note_full($id, $author)` for the response build.
+  and `storage_get_note_full($id, $client_id)` for the response build.
   Still calls `changelog_append()` directly — the only consumer-side
   changelog call remaining; it constructs a semantically unique CREATE entry
   for the revive operation (no internal format knowledge involved).
@@ -165,7 +165,7 @@ periodic maintenance behind a single storage contract entry point.
                               │      storage.php         │
                               │                          │
                               │  storage_get_note_full   │◄── sync.php (read)
-                              │    ($id, $viewer)        │◄── trash.php (restore)
+                              │    ($id, $client_id)     │◄── trash.php (restore)
                               │                          │
                               │  storage_put_note_logged │◄── sync.php (write)
                               │    -> [$version, $dirty] │
@@ -198,13 +198,14 @@ format-specific knowledge.
 
 ## Forward-looking design
 
-The `$viewer` parameter on `storage_get_note_full()` and the
-`[$version, $dirty]` tuple from `storage_put_note_logged()` are designed for
-the git storage backend (see `TODO/git-storage.md`):
+The `$client_id` parameter on `storage_get_note_full()` and
+`storage_put_note_logged()`, and the `[$version, $dirty]` tuple from
+`storage_put_note_logged()` are designed for cross-cutting concerns
+(exclusive-flag management, git staging — see `TODO/git-storage.md`):
 
-- **`$viewer`** enables the storage layer to flush staged `.meta` files
-  when a different author reads a note, without the consumer knowing staging
-  exists.
+- **`$client_id`** enables the storage layer to mark versions as seen by
+  a different client (clearing the exclusive flag) and, for the git backend,
+  flush staged `.meta` files without the consumer knowing staging exists.
 - **`$dirty`** will be `true` when content was written to `.md` but deferred
   from git commit (staging).  The audit log records it as a separate boolean
   field so consumer code never needs to interpret a synthetic version string.

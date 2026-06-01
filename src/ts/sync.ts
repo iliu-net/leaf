@@ -139,9 +139,7 @@ async function push(): Promise<{ sent: number; received: number }> {
   }));
 
   const syncedRevision = getRevision();
-  const data = await syncRequest({
-    baseRevision: syncedRevision, syncedRevision, changes, partial: false,
-  });
+  const data = await syncRequest({ syncedRevision, changes });
 
   for (const entry of pending) await queueMarkSent(entry.seq!);
   const received = await applyServerChanges(data.changes ?? [], data.currentRevision);
@@ -152,9 +150,7 @@ async function push(): Promise<{ sent: number; received: number }> {
 
 async function pull(): Promise<number> {
   const syncedRevision = getRevision();
-  const data = await syncRequest({
-    baseRevision: syncedRevision, syncedRevision, changes: [], partial: false,
-  });
+  const data = await syncRequest({ syncedRevision, changes: [] });
   return await applyServerChanges(data.changes ?? [], data.currentRevision);
 }
 

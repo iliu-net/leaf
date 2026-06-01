@@ -10,7 +10,6 @@
  *
  *   Request body:
  *   {
- *     "baseRevision":   12,      // revision client's changes are based on
  *     "syncedRevision": 15,      // last revision client has seen from server
  *     "changes": [               // local changes to apply (may be empty)
  *       {
@@ -27,19 +26,17 @@
  *         }
  *       }
  *     ],
- *     "partial": false           // true if client is sending changes in batches
  *   }
  *
  *   Response body:
  *   {
  *     "changes":         [...],  // server changes since syncedRevision
  *     "currentRevision": 18,     // server's current revision after applying changes
- *     "partial":         false   // always false — we send all changes at once
  *   }
  *
  * Conflict strategy: last-write-wins at the version level.
  *   The server always accepts incoming changes. If a competing change has
- *   already been written (baseRevision < server current), both survive as
+ *   already been written, both survive as
  *   separate version history entries linked by the prev pointer chain.
  *   The client receives the competing version in the response and reconciles
  *   locally. Old versions are preserved for future 3-way merge UI.
@@ -48,10 +45,6 @@
  *   obj.content is stored and returned as-is. sync.php never reads it.
  *   This makes E2EE a pure client-side addition with no server changes.
  *
- * Dexie change type constants:
- *   const DEXIE_CREATE = 1;
- *   const DEXIE_UPDATE = 2;
- *   const DEXIE_DELETE = 3;
  */
 
 require_once __DIR__ . '/storage.php';
@@ -109,8 +102,9 @@ function safe_id(string $raw): string {
  *
  * @param array  $change  Change object with keys: type, key, obj
  * @param string $author  Authenticated username applying the change
+ * @param int $client_id sync client ID of current user
  */
-function apply_client_change(array $change, string $author) {
+function apply_client_change(array $change, string $author, int $client_id) {
     $type = (int)($change['type'] ?? 0);
     $key  = safe_id((string)($change['key'] ?? ''));
     $obj  = $change['obj'] ?? null;   // null for DELETE
@@ -120,8 +114,8 @@ function apply_client_change(array $change, string $author) {
     // ── CREATE or UPDATE ──────────────────────
     if ($type === DEXIE_CREATE || $type === DEXIE_UPDATE) {
         $vkey = storage_put_note_logged(
-            $key, (string)($obj['content'] ?? ''), $author,
-            $obj['version'] ?? null
+            $key, (string)($obj['content'] ?? ''), $author, $client_id,
+            $obj['version'] ?? ''
         );
         if ($vkey) {
 	    list($version, $dirty) = $vkey;
@@ -167,10 +161,10 @@ function apply_client_change(array $change, string $author) {
  * where a note was deleted between the changelog write and this read).
  *
  * @param array $entry  Changelog entry with keys: file, type, version, prev_version, renamed_to
- * @param string $viewer current user
+ * @param int $client_id sync client ID of current user
  * @return array{type: int, key: string, obj: array|null}|null  Change object for response
  */
-function changelog_entry_to_dexie_change(array $entry, string $viewer): ?array {
+function changelog_entry_to_dexie_change(array $entry, int $client_id): ?array {
     $key  = $entry['file'] ?? '';
     $type = $entry['type'] ?? '';
 
@@ -203,7 +197,7 @@ function changelog_entry_to_dexie_change(array $entry, string $viewer): ?array {
     }
 
     // CREATE or UPDATE — need to return current content
-    $n = storage_get_note_full($key, $viewer);
+    $n = storage_get_note_full($key, $client_id);
     if (!$n) return null;   // deleted between changelog write and now — skip
 
     $dexie_type = ($type === 'CREATE') ? DEXIE_CREATE : DEXIE_UPDATE;
@@ -230,19 +224,13 @@ function changelog_entry_to_dexie_change(array $entry, string $viewer): ?array {
 $body = json_decode(file_get_contents('php://input'), true);
 if (!is_array($body)) fail('Invalid JSON body');
 
-$base_revision   = (int)($body['baseRevision']   ?? 0);
 $synced_revision = (int)($body['syncedRevision'] ?? 0);
 $client_changes  = $body['changes'] ?? [];
-$partial         = (bool)($body['partial'] ?? false);
-
-// The client may send partial batches (partial=true) when the number
-// of pending changes exceeds a threshold. We apply each batch but
-// only respond after partial=false. For simplicity we accept all
-// batches and always respond — the client handles sequencing.
+$client_id      = (int)($body['client_id'] ?? 0);
 
 // ── Step 1: Apply client changes ─────────────
 foreach ($client_changes as $change) {
-    apply_client_change($change, $author);
+    apply_client_change($change, $author, $client_id);
 }
 
 // ── Step 2: Return server changes since syncedRevision ──
@@ -265,7 +253,7 @@ if ($synced_revision === 0) {
 
     // Live notes → CREATE changes
     foreach (storage_list_notes() as $meta) {
-        $n = storage_get_note_full($meta['id'], $author);
+        $n = storage_get_note_full($meta['id'], $client_id);
         if (!$n) continue;
 
         $server_changes[] = [
@@ -316,7 +304,7 @@ if ($synced_revision === 0) {
         if ($key === '' || isset($seen_keys[$key])) continue;
         $seen_keys[$key] = true;
 
-        $dexie_change = changelog_entry_to_dexie_change($entry, $author);
+        $dexie_change = changelog_entry_to_dexie_change($entry, $client_id);
         if ($dexie_change !== null) {
             $server_changes[] = $dexie_change;
         }
@@ -348,12 +336,11 @@ foreach ($server_changes as $change) {
     }
 
     if ($note_id) {
-        storage_mark_version_seen($note_id, $author);
+        storage_mark_version_seen($note_id, $client_id);
     }
 }
 
 respond([
     'changes'         => $server_changes,
     'currentRevision' => $current_revision,
-    'partial'         => false,
 ]);

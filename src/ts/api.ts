@@ -12,6 +12,7 @@
 
 import { authFetch } from './auth.js';
 import { apiUrl } from './config.js';
+import { clientID } from './local-store.js';
 
 // ── URL helpers ──────────────────────────────────────────────────────────────
 
@@ -22,14 +23,12 @@ const HISTORY_URL = apiUrl('history');
 // ── Sync types ───────────────────────────────────────────────────────────────
 
 export interface SyncRequestBody {
-  baseRevision: number | null;
   syncedRevision: number | null;
   changes: {
     type: number;
     key: string;
     obj: Record<string, unknown> | null;
   }[];
-  partial: boolean;
 }
 
 export interface SyncResponseBody {
@@ -49,7 +48,7 @@ export interface SyncResponseChange {
 export interface SyncResponseObj {
   // CREATE / UPDATE (type 1, 2)
   content?: string | null;
-  version: string | null;           // null for DELETE, RENAME
+  version?: string | null;          // absent for DELETE, present for CREATE/UPDATE/RENAME
   prev_version?: string | null;
   author?: string | null;
   created_by?: string | null;
@@ -70,7 +69,7 @@ export async function syncRequest(body: SyncRequestBody): Promise<SyncResponseBo
   const res = await authFetch(SYNC_URL, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
+    body:    JSON.stringify({ ...body, client_id: clientID.get() }),
   });
 
   // 401 after retry means auth has failed — authFetch already fired
@@ -133,7 +132,7 @@ export async function fetchTrashRestore(id: string): Promise<TrashRestoreRespons
   const res = await authFetch(TRASH_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'restore', id }),
+    body: JSON.stringify({ action: 'restore', id, client_id: clientID.get() }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json() as TrashRestoreResponse & { error?: string };
