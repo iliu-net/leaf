@@ -36,6 +36,8 @@ export function init(onSave: () => void): void {
       if (!editor.getCurrentNoteId()) return;
 
       if (active === 'view' || active === 'meta') {
+        // System notes don't allow CODE/RAW tabs — bail out
+        if (editor.isCurrentNoteSystem()) return;
         // → CODE (if CM available) or RAW
         editor.switchEditorTab(editor.isCmAvailable() ? 'code' : 'raw');
       } else {

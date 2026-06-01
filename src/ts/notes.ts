@@ -140,6 +140,13 @@ export async function loadNote(id: string): Promise<NoteData> {
  * Save content to IndexedDB and queue an UPDATE for the server.
  */
 export async function saveNote(id: string, content: string): Promise<{ ok: boolean }> {
+  // Guard: system notes should never be saved — the UI should prevent this,
+  // but a defensive check here catches any edge case (e.g. stale shortcuts).
+  if (isSystemNote(id)) {
+    console.warn(`saveNote: refusing to save system note "${id}" — aborted.`);
+    return { ok: false };
+  }
+
   // Apply auto-tagging before the content comparison so that auto-tag
   // changes (including removals triggered by !*) are not lost.
   content = await applyAutotags(id, content);

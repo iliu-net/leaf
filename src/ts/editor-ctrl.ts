@@ -192,6 +192,11 @@ export function getCurrentNoteId(): string | null {
   return _currentNoteId;
 }
 
+/** Whether the currently open note is a system note (CODE/RAW tabs unavailable). */
+export function isCurrentNoteSystem(): boolean {
+  return _currentNoteId != null && isSystemNote(_currentNoteId);
+}
+
 /** Get the currently active tab name. */
 export function getActiveTab(): string {
   return _activeTab;
