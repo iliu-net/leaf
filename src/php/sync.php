@@ -67,8 +67,8 @@ $author = require_auth();   // exits with 401 if token missing/invalid
 $purgeFile = DATA_ROOT . 'last_purge.txt';
 $lastPurge = file_exists($purgeFile) ? (int)file_get_contents($purgeFile) : 0;
 if (time() - $lastPurge > 86400) {
-    storage_housekeeping('sync');
-    audit_purge('sync');
+    storage()->housekeeping('sync');
+    audit()->purge('sync');
     file_put_contents($purgeFile, (string)time());
 }
 
@@ -113,7 +113,7 @@ function apply_client_change(array $change, string $author, int $client_id) {
 
     // ── CREATE or UPDATE ──────────────────────
     if ($type === DEXIE_CREATE || $type === DEXIE_UPDATE) {
-        $vkey = storage_put_note_logged(
+        $vkey = storage()->putNoteLogged(
             $key, (string)($obj['content'] ?? ''), $author, $client_id,
             $obj['version'] ?? ''
         );
@@ -124,16 +124,16 @@ function apply_client_change(array $change, string $author, int $client_id) {
                 'version' => $version,
 	    ];
 	    if ($dirty) { $audit['dirty'] = true; }
-            audit_log('NOTE_WRITE', $audit);
+            audit()->log('NOTE_WRITE', $audit);
         }
         return;
     }
 
     // ── DELETE ────────────────────────────────
     if ($type === DEXIE_DELETE) {
-        $ret = storage_delete_note_logged($key, $author);
+        $ret = storage()->deleteNoteLogged($key, $author);
         if ($ret) {
-            audit_log('NOTE_DELETE', ['user' => $author, 'note_id' => $key]);
+            audit()->log('NOTE_DELETE', ['user' => $author, 'note_id' => $key]);
         }
         return;
     }
@@ -141,9 +141,9 @@ function apply_client_change(array $change, string $author, int $client_id) {
     // ── RENAME ────────────────────────────────
     if ($type === DEXIE_RENAME) {
         $new_id = safe_id($obj['renamed_to'] ?? '');
-        $ret = storage_rename_note_logged($key, $new_id, $author);
+        $ret = storage()->renameNoteLogged($key, $new_id, $author);
         if ($ret) {
-            audit_log('NOTE_RENAME', ['user' => $author, 'note_id' => $key, 'renamed_to' => $new_id]);
+            audit()->log('NOTE_RENAME', ['user' => $author, 'note_id' => $key, 'renamed_to' => $new_id]);
         }
         return;
     }
@@ -197,7 +197,7 @@ function changelog_entry_to_dexie_change(array $entry, int $client_id): ?array {
     }
 
     // CREATE or UPDATE — need to return current content
-    $n = storage_get_note_full($key, $client_id);
+    $n = storage()->getNoteFull($key, $client_id);
     if (!$n) return null;   // deleted between changelog write and now — skip
 
     $dexie_type = ($type === 'CREATE') ? DEXIE_CREATE : DEXIE_UPDATE;
@@ -245,15 +245,15 @@ foreach ($client_changes as $change) {
 //   syncedRevision >= earliest_rev  →  Incremental: walk changelog entries since
 //                             the client's last sync and deduplicate by key.
 
-$current_revision = changelog_current_rev();
+$current_revision = storage()->changelogCurrentRev();
 $server_changes   = [];
 
 if ($synced_revision === 0) {
     // ── Bootstrap: build from filesystem ────────
 
     // Live notes → CREATE changes
-    foreach (storage_list_notes() as $meta) {
-        $n = storage_get_note_full($meta['id'], $client_id);
+    foreach (storage()->listNotes() as $meta) {
+        $n = storage()->getNoteFull($meta['id'], $client_id);
         if (!$n) continue;
 
         $server_changes[] = [
@@ -272,7 +272,7 @@ if ($synced_revision === 0) {
     }
 
     // Tombstones → DELETE changes
-    foreach (storage_list_deleted_notes() as $tombstone) {
+    foreach (storage()->listDeletedNotes() as $tombstone) {
         $server_changes[] = [
             'type' => DEXIE_DELETE,
             'key'  => $tombstone['id'],
@@ -284,7 +284,7 @@ if ($synced_revision === 0) {
     }
 
 } else {
-    $earliest_rev = changelog_earliest_rev();
+    $earliest_rev = storage()->changelogEarliestRev();
 
     if ($synced_revision < $earliest_rev) {
         http_response_code(409);
@@ -295,7 +295,7 @@ if ($synced_revision === 0) {
 
     // ── Incremental: use changelog ──────────────
 
-    $changelog_entries = changelog_since($synced_revision);
+    $changelog_entries = storage()->changelogSince($synced_revision);
     $seen_keys = [];
 
     // Process in reverse so we keep only the most recent state per key
@@ -328,7 +328,7 @@ foreach ($server_changes as $change) {
     // Log every note whose content is delivered to the client (CREATE/UPDATE)
     // RENAME does not deliver content, so it is excluded from NOTE_READ.
     if ($change['type'] === DEXIE_CREATE || $change['type'] === DEXIE_UPDATE) {
-        audit_log('NOTE_READ', [
+        audit()->log('NOTE_READ', [
             'user'    => $author,
             'note_id' => $note_id,
             'version' => $change['obj']['version'] ?? null,
@@ -336,7 +336,7 @@ foreach ($server_changes as $change) {
     }
 
     if ($note_id) {
-        storage_mark_version_seen($note_id, $client_id);
+        storage()->markVersionSeen($note_id, $client_id);
     }
 }
 

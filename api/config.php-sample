@@ -8,8 +8,7 @@
  * and is symlinked from a shared build.
  *
  * To move files outside the web root (recommended for production):
- *   define('NOTES_DIR',           '/home/user/private/notes/');
- *   define('CHANGELOG_FILE',      '/home/user/private/changelog.jsonl');
+ *   define('DATA_ROOT',           '/home/user/private/');
  *   define('HTPASSWD_FILE',       '/home/user/private/users.htpasswd');
  *   define('REFRESH_TOKENS_FILE', '/home/user/private/refresh_tokens.json');
  *
@@ -18,11 +17,10 @@
  * Never commit the real secret to version control.
  */
 
-// ── Storage paths ─────────────────────────────────────────────────────────
+// ── Paths ──────────────────────────────────────────────────────────────────
 
-define('DATA_ROOT', dirname(__DIR__).'/data/');
-define('NOTES_DIR', DATA_ROOT .'notes/');
-define('CHANGELOG_FILE',DATA_ROOT .'changelog.jsonl');
+define('LEAF_PHP_DIR', dirname(__DIR__) . '/src/php/');
+define('DATA_ROOT',    dirname(__DIR__) . '/data/');
 
 // ── Auth paths ────────────────────────────────────────────────────────────
 
@@ -41,11 +39,24 @@ define('REFRESH_EXPIRY', 30 * 24 * 3600);   // refresh token lifetime: 30 days
 // Tombstone files older than this are permanently removed during daily purge.
 define('DELETED_NOTE_TTL_DAYS', 30);
 
+
+// ── Storage backend ──────────────────────────────────────────────────────
+// Swap this line to switch to a different backend (e.g. MySqlStorage).
+require_once LEAF_PHP_DIR . 'storage.php';
+require_once LEAF_PHP_DIR . 'storage/FlatFileStorage.php';
+storage_set(new FlatFileStorage(DATA_ROOT, DELETED_NOTE_TTL_DAYS));
+
 // ── Audit log ───────────────────────────────────────────────────────────────
 // Monthly audit files older than this are removed during daily purge.
 define('AUDIT_RETENTION_DAYS', 90);
 // Set to false to omit IP addresses from audit log entries.
 define('AUDIT_LOG_IPS',       true);
+
+// ── Audit backend ──────────────────────────────────────────────────────────
+// Swap this line to switch to a different backend.
+require_once LEAF_PHP_DIR . 'audit.php';
+require_once LEAF_PHP_DIR . 'audit/FlatFileAudit.php';
+audit_set(new FlatFileAudit(DATA_ROOT, AUDIT_LOG_IPS, AUDIT_RETENTION_DAYS));
 
 // ── Cookie path ─────────────────────────────────────────────────────────
 // Scopes the refresh_token cookie to this instance so multiple instances

@@ -27,4 +27,23 @@ $phpDir = __DIR__ . '/../../src/php';
 
 @require_once $phpDir . '/jwt.php';
 @require_once $phpDir . '/storage.php';
+@require_once $phpDir . '/storage/FlatFileStorage.php';
 @require_once $phpDir . '/users.php';
+
+// ── Wire storage backend ───────────────────────────────────────────────
+
+$GLOBALS['testStorage'] = new FlatFileStorage(DATA_ROOT, DELETED_NOTE_TTL_DAYS);
+storage_set($GLOBALS['testStorage']);
+
+/**
+ * Invoke a private/protected method on the concrete FlatFileStorage
+ * instance.  Used by unit tests that exercise internal building blocks
+ * (resolveVersion, applyWrite, putNote, etc.).
+ */
+function storage_invoke(string $method, mixed ...$args): mixed
+{
+    $s = $GLOBALS['testStorage'] ?? null;
+    if (!$s) throw new \RuntimeException('$testStorage not set in $GLOBALS');
+    $ref = new ReflectionMethod($s, $method);
+    return $ref->invoke($s, ...$args);
+}

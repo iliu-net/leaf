@@ -13,7 +13,7 @@ test-js: ## Run JavaScript unit tests (vitest)
 
 test-phpunit: ## Run PHPUnit unit tests
 	# Do a basic syntax check first
-	rc=0 ; for i in src/php/*.php ; do php -l $$i || rc=1 ; done ; exit $$rc
+	rc=0 ; 	for i in $$(find src/php -type f -name "*.php") ; do php -l $$i || rc=1 ; done ; exit $$rc
 	composer install
 	vendor/bin/phpunit -c tests/php/phpunit.xml
 

@@ -18,8 +18,23 @@ define('JWT_SECRET',          'integration_test_secret_0123456789abcdef012345678
 define('JWT_EXPIRY',          900);
 define('REFRESH_EXPIRY',      86400);
 define('DELETED_NOTE_TTL_DAYS', 30);
+
+// ── Shared code path ──────────────────────────────────────────────────────
+define('LEAF_PHP_DIR', dirname(__DIR__) . '/src/php/');
+
+// ── Storage backend ──────────────────────────────────────────────────────
+require_once LEAF_PHP_DIR . 'storage.php';
+require_once LEAF_PHP_DIR . 'storage/FlatFileStorage.php';
+storage_set(new FlatFileStorage(DATA_ROOT, DELETED_NOTE_TTL_DAYS));
+
 define('AUDIT_RETENTION_DAYS', 90);
 define('AUDIT_LOG_IPS',       false);
+
+// ── Audit backend ──────────────────────────────────────────────────────────
+require_once LEAF_PHP_DIR . 'audit.php';
+require_once LEAF_PHP_DIR . 'audit/FlatFileAudit.php';
+audit_set(new FlatFileAudit(DATA_ROOT, AUDIT_LOG_IPS, AUDIT_RETENTION_DAYS));
+
 // Cookie path — scoped to "/" for the test server (it serves from root)
 define('COOKIE_PATH', '/');
 // ── SPA client config ─────────────────────────────────────────────────────

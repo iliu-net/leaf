@@ -49,7 +49,7 @@ switch ($action) {
     case 'list':
         respond([
             'ok'   => true,
-            'data' => storage_list_deleted_notes(),
+            'data' => storage()->listDeletedNotes(),
         ]);
 
     // ── restore ──────────────────────────────
@@ -59,19 +59,19 @@ switch ($action) {
         if ($id === '') {
             fail('Missing "id" parameter');
         }
-        if (!storage_note_deleted($id)) {
+        if (!storage()->noteDeleted($id)) {
             fail('Note is not deleted or tombstone not found', 404);
         }
-        storage_revive_note($id);
-        $note = storage_get_note($id);
+        storage()->reviveNote($id);
+        $note = storage()->getNote($id);
         if (!$note) {
             // Should not happen after revive, but be defensive
             fail('Failed to restore note', 500);
         }
 
         // Append changelog entry so other clients sync the revived note
-        $rev = changelog_next_rev();
-        changelog_append([
+        $rev = storage()->changelogNextRev();
+        storage()->changelogAppend([
             'rev'          => $rev,
             'file'         => $id,
             'type'         => 'CREATE',
@@ -79,9 +79,9 @@ switch ($action) {
             'version'      => $note['current'] ?? null,
             'prev_version' => null,
         ]);
-        audit_log('NOTE_RESTORE', ['user' => $author, 'note_id' => $id]);
+        audit()->log('NOTE_RESTORE', ['user' => $author, 'note_id' => $id]);
 
-        $n = storage_get_note_full($id, $client_id);
+        $n = storage()->getNoteFull($id, $client_id);
         respond([
             'ok'   => true,
             'note' => [
@@ -99,7 +99,7 @@ switch ($action) {
         if ($id === '') {
             fail('Missing "id" parameter');
         }
-        $tombstone = storage_get_tombstone($id);
+        $tombstone = storage()->getTombstone($id);
         if (!$tombstone) {
             fail('Tombstone not found', 404);
         }
@@ -121,17 +121,17 @@ switch ($action) {
         if ($id === '') {
             fail('Missing "id" parameter');
         }
-        if (!storage_note_deleted($id)) {
+        if (!storage()->noteDeleted($id)) {
             fail('Tombstone not found', 404);
         }
-        storage_hard_delete_note($id);
+        storage()->hardDeleteNote($id);
         respond(['ok' => true]);
 
     // ── empty ────────────────────────────────
     case 'empty':
-        $deleted = storage_list_deleted_notes();
+        $deleted = storage()->listDeletedNotes();
         foreach ($deleted as $entry) {
-            storage_hard_delete_note($entry['id']);
+            storage()->hardDeleteNote($entry['id']);
         }
         respond(['ok' => true]);
 

@@ -134,14 +134,14 @@ if ($action === 'login') {
 
     $valid = validate_user($username, $password);
     if (!$valid) {
-        audit_log('AUTH_LOGIN_FAIL', ['user' => $username]);
+        audit()->log('AUTH_LOGIN_FAIL', ['user' => $username]);
         // Small random delay with microsecond granularity to blunt
         // timing-based user enumeration without hogging a worker.
         usleep(random_int(1_000_000, 3_000_000));
         respond(['error' => 'Invalid username or password'], 401);
     }
 
-    audit_log('AUTH_LOGIN', ['user' => $valid]);
+    audit()->log('AUTH_LOGIN', ['user' => $valid]);
 
     // Issue access token
     $access = issue_access_token($valid);
@@ -187,7 +187,7 @@ if ($action === 'refresh') {
 
     // Issue new access token
     $access = issue_access_token($username);
-    audit_log('AUTH_REFRESH', ['user' => $username]);
+    audit()->log('AUTH_REFRESH', ['user' => $username]);
     respond(['ok' => true, ...$access]);
 }
 
@@ -200,7 +200,7 @@ if ($action === 'logout') {
         $tokens = load_refresh_tokens();
         $username = $tokens[$refresh_token]['user'] ?? null;
         if ($username !== null) {
-            audit_log('AUTH_LOGOUT', ['user' => $username]);
+            audit()->log('AUTH_LOGOUT', ['user' => $username]);
         }
         unset($tokens[$refresh_token]);
         save_refresh_tokens($tokens);

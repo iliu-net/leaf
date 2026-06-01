@@ -42,13 +42,13 @@ if ($id === '') fail('Missing note id');
 // ── action=list ───────────────────────────────────────────────────────────────
 
 if ($action === 'list') {
-    $note = storage_get_note($id);
+    $note = storage()->getNote($id);
     if (!$note) {
         // Note doesn't exist or is deleted — return empty list
         respond(['ok' => true, 'current' => null, 'versions' => []]);
     }
 
-    $result = storage_get_version_list($id);
+    $result = storage()->getVersionList($id);
 
     respond([
         'ok'       => true,
@@ -63,12 +63,12 @@ if ($action === 'get') {
     $requested_versions = $body['versions'] ?? [];
     if (!is_array($requested_versions)) fail('versions must be an array');
 
-    $note = storage_get_note($id);
+    $note = storage()->getNote($id);
     if (!$note) fail('Note not found', 404);
 
     $contents = [];
     foreach ($requested_versions as $vkey) {
-        $contents[$vkey] = storage_get_version_content($id, $vkey);
+        $contents[$vkey] = storage()->getVersionContent($id, $vkey);
     }
 
     respond([

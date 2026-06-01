@@ -28,29 +28,29 @@ class StorageTest extends TestCase
 
     public function testNoteDoesNotExistInitially(): void
     {
-        $this->assertFalse(storage_note_exists('nonexistent'));
-        $this->assertFalse(storage_note_deleted('nonexistent'));
+        $this->assertFalse(storage_invoke('noteExists','nonexistent'));
+        $this->assertFalse(storage()->noteDeleted('nonexistent'));
     }
 
     public function testNoteExistsAfterPut(): void
     {
-        storage_put_note('foo', ['current' => null, 'created_at' => time(), 'versions' => []]);
-        $this->assertTrue(storage_note_exists('foo'));
-        $this->assertFalse(storage_note_deleted('foo'));
+        storage_invoke('putNote','foo', ['current' => null, 'created_at' => time(), 'versions' => []]);
+        $this->assertTrue(storage_invoke('noteExists','foo'));
+        $this->assertFalse(storage()->noteDeleted('foo'));
     }
 
     public function testNoteIsDeletedAfterDelete(): void
     {
-        storage_put_note('foo', ['current' => null, 'created_at' => time(), 'versions' => []]);
-        storage_delete_note('foo', 'testuser');
-        $this->assertFalse(storage_note_exists('foo'));
-        $this->assertTrue(storage_note_deleted('foo'));
+        storage_invoke('putNote','foo', ['current' => null, 'created_at' => time(), 'versions' => []]);
+        storage_invoke('deleteNote','foo', 'testuser');
+        $this->assertFalse(storage_invoke('noteExists','foo'));
+        $this->assertTrue(storage()->noteDeleted('foo'));
     }
 
     public function testDeleteIsIdempotent(): void
     {
-        storage_delete_note('nonexistent', 'testuser');
-        $this->assertFalse(storage_note_deleted('nonexistent'));
+        storage_invoke('deleteNote','nonexistent', 'testuser');
+        $this->assertFalse(storage()->noteDeleted('nonexistent'));
     }
 
     // ── storage_get_note ───────────────────────────────────────────────────
@@ -58,30 +58,30 @@ class StorageTest extends TestCase
     public function testGetNoteReturnsData(): void
     {
         $data = ['current' => null, 'created_at' => 1000, 'versions' => []];
-        storage_put_note('foo', $data);
-        $this->assertSame($data, storage_get_note('foo'));
+        storage_invoke('putNote','foo', $data);
+        $this->assertSame($data, storage()->getNote('foo'));
     }
 
     public function testGetNoteReturnsNullForDeleted(): void
     {
-        storage_put_note('foo', ['current' => null, 'created_at' => time(), 'versions' => []]);
-        storage_delete_note('foo', 'testuser');
-        $this->assertNull(storage_get_note('foo'));
+        storage_invoke('putNote','foo', ['current' => null, 'created_at' => time(), 'versions' => []]);
+        storage_invoke('deleteNote','foo', 'testuser');
+        $this->assertNull(storage()->getNote('foo'));
     }
 
     // ── storage_list_notes ─────────────────────────────────────────────────
 
     public function testListNotesReturnsEmptyInitially(): void
     {
-        $this->assertSame([], storage_list_notes());
+        $this->assertSame([], storage()->listNotes());
     }
 
     public function testListNotesIncludesOnlyLiveNotes(): void
     {
-        storage_put_note('a', ['current' => null, 'created_at' => 1, 'versions' => []]);
-        storage_put_note('b', ['current' => null, 'created_at' => 2, 'versions' => []]);
-        storage_delete_note('b', 'testuser');
-        $list = storage_list_notes();
+        storage_invoke('putNote','a', ['current' => null, 'created_at' => 1, 'versions' => []]);
+        storage_invoke('putNote','b', ['current' => null, 'created_at' => 2, 'versions' => []]);
+        storage_invoke('deleteNote','b', 'testuser');
+        $list = storage()->listNotes();
         $this->assertCount(1, $list);
         $this->assertSame('a', $list[0]['id']);
     }
@@ -91,7 +91,7 @@ class StorageTest extends TestCase
     public function testResolveVersionFirstWrite(): void
     {
         $note = ['current' => null, 'created_at' => time(), 'versions' => []];
-        [$vkey, $overwrite] = storage_resolve_version($note, 1);
+        [$vkey, $overwrite] = storage_invoke('resolveVersion',$note, 1);
         $this->assertStringStartsWith(gmdate('Y-m-d') . ':0:1', $vkey);
         $this->assertFalse($overwrite);
     }
@@ -104,7 +104,7 @@ class StorageTest extends TestCase
             'created_at' => time(),
             'versions'   => ["$today:0:1" => ['author' => 'alice', 'saved_at' => time(), 'content' => '', 'prev' => null, 'exclusive' => true]],
         ];
-        [$vkey, $overwrite] = storage_resolve_version($note, 1);
+        [$vkey, $overwrite] = storage_invoke('resolveVersion',$note, 1);
         // Same date + same client_id + exclusive → overwrite same key
         $this->assertSame("$today:0:1", $vkey);
         $this->assertTrue($overwrite);
@@ -118,7 +118,7 @@ class StorageTest extends TestCase
             'created_at' => time(),
             'versions'   => ["$today:0:1" => ['saved_at' => time(), 'content' => '', 'prev' => null]],
         ];
-        [$vkey, $overwrite] = storage_resolve_version($note, 2);
+        [$vkey, $overwrite] = storage_invoke('resolveVersion',$note, 2);
         $this->assertSame("$today:0:2", $vkey);
         $this->assertFalse($overwrite);
     }
@@ -127,8 +127,8 @@ class StorageTest extends TestCase
 
     public function testApplyWriteCreatesNote(): void
     {
-        $vkey = storage_apply_write('new-note', 'hello world', 'alice', 1);
-        $note = storage_get_note('new-note');
+        $vkey = storage_invoke('applyWrite','new-note', 'hello world', 'alice', 1);
+        $note = storage()->getNote('new-note');
         $this->assertNotNull($note);
         $this->assertSame($vkey, $note['current']);
         $this->assertSame('hello world', $note['versions'][$vkey]['content']);
@@ -136,9 +136,9 @@ class StorageTest extends TestCase
 
     public function testApplyWriteOverwritesSameClientSameDay(): void
     {
-        storage_apply_write('note', 'v1', 'alice', 1);
-        $vkey2 = storage_apply_write('note', 'v2', 'alice', 1);
-        $note  = storage_get_note('note');
+        storage_invoke('applyWrite','note', 'v1', 'alice', 1);
+        $vkey2 = storage_invoke('applyWrite','note', 'v2', 'alice', 1);
+        $note  = storage()->getNote('note');
         $this->assertSame($vkey2, $note['current']);
         $this->assertCount(1, $note['versions'], 'Same client+day should overwrite');
     }
@@ -147,49 +147,49 @@ class StorageTest extends TestCase
 
     public function testRenameNote(): void
     {
-        storage_apply_write('old-name', 'content', 'alice', 1);
-        $this->assertTrue(storage_rename_note('old-name', 'new-name'));
-        $this->assertFalse(storage_note_exists('old-name'));
-        $this->assertTrue(storage_note_exists('new-name'));
-        $note = storage_get_note('new-name');
+        storage_invoke('applyWrite','old-name', 'content', 'alice', 1);
+        $this->assertTrue(storage_invoke('renameNote','old-name', 'new-name'));
+        $this->assertFalse(storage_invoke('noteExists','old-name'));
+        $this->assertTrue(storage_invoke('noteExists','new-name'));
+        $note = storage()->getNote('new-name');
         $this->assertNotNull($note);
         $this->assertSame('content', $note['versions'][$note['current']]['content']);
     }
 
     public function testRenameNonexistentFails(): void
     {
-        $this->assertFalse(storage_rename_note('nonexistent', 'new-name'));
+        $this->assertFalse(storage_invoke('renameNote','nonexistent', 'new-name'));
     }
 
     public function testRenameToExistingFails(): void
     {
-        storage_apply_write('source', 'content', 'alice', 1);
-        storage_apply_write('target', 'other', 'alice', 1);
-        $this->assertFalse(storage_rename_note('source', 'target'));
+        storage_invoke('applyWrite','source', 'content', 'alice', 1);
+        storage_invoke('applyWrite','target', 'other', 'alice', 1);
+        $this->assertFalse(storage_invoke('renameNote','source', 'target'));
     }
 
     public function testRenameDeletedFails(): void
     {
-        storage_apply_write('source', 'content', 'alice', 1);
-        storage_delete_note('source', 'testuser');
-        $this->assertFalse(storage_rename_note('source', 'new-name'));
+        storage_invoke('applyWrite','source', 'content', 'alice', 1);
+        storage_invoke('deleteNote','source', 'testuser');
+        $this->assertFalse(storage_invoke('renameNote','source', 'new-name'));
     }
 
     public function testRenameToDeletedFails(): void
     {
-        storage_apply_write('source', 'content', 'alice', 1);
-        storage_apply_write('target', 'other', 'alice', 1);
-        storage_delete_note('target', 'testuser');
-        $this->assertFalse(storage_rename_note('source', 'target'));
+        storage_invoke('applyWrite','source', 'content', 'alice', 1);
+        storage_invoke('applyWrite','target', 'other', 'alice', 1);
+        storage_invoke('deleteNote','target', 'testuser');
+        $this->assertFalse(storage_invoke('renameNote','source', 'target'));
     }
 
     public function testRenamePreservesHistory(): void
     {
-        storage_apply_write('note', 'v1', 'alice', 1);
-        storage_apply_write('note', 'v2', 'bob', 2);
-        storage_apply_write('note', 'v3', 'charlie', 3);
-        $this->assertTrue(storage_rename_note('note', 'renamed'));
-        $note = storage_get_note('renamed');
+        storage_invoke('applyWrite','note', 'v1', 'alice', 1);
+        storage_invoke('applyWrite','note', 'v2', 'bob', 2);
+        storage_invoke('applyWrite','note', 'v3', 'charlie', 3);
+        $this->assertTrue(storage_invoke('renameNote','note', 'renamed'));
+        $note = storage()->getNote('renamed');
         $this->assertNotNull($note);
         $this->assertCount(3, $note['versions']);
         $this->assertSame('v3', $note['versions'][$note['current']]['content']);
@@ -199,39 +199,39 @@ class StorageTest extends TestCase
 
     public function testReviveRemovesTombstone(): void
     {
-        storage_apply_write('foo', 'content', 'alice', 1);
-        storage_delete_note('foo', 'testuser');
-        $this->assertTrue(storage_note_deleted('foo'));
-        storage_revive_note('foo');
-        $this->assertFalse(storage_note_deleted('foo'));
+        storage_invoke('applyWrite','foo', 'content', 'alice', 1);
+        storage_invoke('deleteNote','foo', 'testuser');
+        $this->assertTrue(storage()->noteDeleted('foo'));
+        storage()->reviveNote('foo');
+        $this->assertFalse(storage()->noteDeleted('foo'));
     }
 
     public function testReviveIdempotentOnLiveNote(): void
     {
-        storage_apply_write('foo', 'content', 'alice', 1);
-        storage_revive_note('foo');  // no tombstone — should no-op
-        $this->assertTrue(storage_note_exists('foo'));
+        storage_invoke('applyWrite','foo', 'content', 'alice', 1);
+        storage()->reviveNote('foo');  // no tombstone — should no-op
+        $this->assertTrue(storage_invoke('noteExists','foo'));
     }
 
     public function testReviveIdempotentOnNonexistent(): void
     {
-        storage_revive_note('nonexistent');  // no tombstone — should no-op
-        $this->assertFalse(storage_note_exists('nonexistent'));
+        storage()->reviveNote('nonexistent');  // no tombstone — should no-op
+        $this->assertFalse(storage_invoke('noteExists','nonexistent'));
     }
 
     public function testCreateAfterReviveWorks(): void
     {
         // Create, delete, revive, then create again
-        storage_apply_write('foo', 'original', 'alice', 1);
-        storage_delete_note('foo', 'testuser');
-        $this->assertNull(storage_get_note('foo'));
+        storage_invoke('applyWrite','foo', 'original', 'alice', 1);
+        storage_invoke('deleteNote','foo', 'testuser');
+        $this->assertNull(storage()->getNote('foo'));
 
-        storage_revive_note('foo');
-        $this->assertFalse(storage_note_deleted('foo'));
+        storage()->reviveNote('foo');
+        $this->assertFalse(storage()->noteDeleted('foo'));
 
         // Now a fresh write should succeed
-        storage_apply_write('foo', 'new content', 'bob', 2);
-        $note = storage_get_note('foo');
+        storage_invoke('applyWrite','foo', 'new content', 'bob', 2);
+        $note = storage()->getNote('foo');
         $this->assertNotNull($note);
         $this->assertSame('new content', $note['versions'][$note['current']]['content']);
     }
@@ -240,12 +240,12 @@ class StorageTest extends TestCase
 
     public function testDeleteEmbedsDeletedAt(): void
     {
-        storage_apply_write('foo', 'content', 'alice', 1);
+        storage_invoke('applyWrite','foo', 'content', 'alice', 1);
         $before = time();
-        storage_delete_note('foo', 'testuser');
+        storage_invoke('deleteNote','foo', 'testuser');
         $after = time();
 
-        $tombstone = json_decode(file_get_contents(deleted_path('foo')), true);
+        $tombstone = json_decode(file_get_contents(NOTES_DIR . 'foo.deleted.json'), true);
         $this->assertIsArray($tombstone);
         $this->assertArrayHasKey('deleted_at', $tombstone);
         $this->assertGreaterThanOrEqual($before, $tombstone['deleted_at']);
@@ -255,12 +255,12 @@ class StorageTest extends TestCase
     public function testReviveRestoresFullContent(): void
     {
         // Create with two versions
-        storage_apply_write('note', 'v1', 'alice', 1);
-        storage_apply_write('note', 'v2', 'bob', 2);
-        storage_delete_note('note', 'testuser');
+        storage_invoke('applyWrite','note', 'v1', 'alice', 1);
+        storage_invoke('applyWrite','note', 'v2', 'bob', 2);
+        storage_invoke('deleteNote','note', 'testuser');
 
-        storage_revive_note('note');
-        $note = storage_get_note('note');
+        storage()->reviveNote('note');
+        $note = storage()->getNote('note');
         $this->assertNotNull($note);
         $this->assertCount(2, $note['versions']);
         $this->assertSame('v2', $note['versions'][$note['current']]['content']);
@@ -268,29 +268,29 @@ class StorageTest extends TestCase
 
     public function testHardDeleteNote(): void
     {
-        storage_apply_write('foo', 'content', 'alice', 1);
-        storage_delete_note('foo', 'testuser');
-        $this->assertTrue(storage_note_deleted('foo'));
+        storage_invoke('applyWrite','foo', 'content', 'alice', 1);
+        storage_invoke('deleteNote','foo', 'testuser');
+        $this->assertTrue(storage()->noteDeleted('foo'));
 
-        storage_hard_delete_note('foo');
-        $this->assertFalse(storage_note_deleted('foo'));
-        $this->assertFalse(file_exists(deleted_path('foo')));
+        storage()->hardDeleteNote('foo');
+        $this->assertFalse(storage()->noteDeleted('foo'));
+        $this->assertFalse(file_exists(NOTES_DIR . 'foo.deleted.json'));
     }
 
     public function testHardDeleteNoteIdempotent(): void
     {
-        storage_hard_delete_note('nonexistent');
-        $this->assertFalse(storage_note_deleted('nonexistent'));
+        storage()->hardDeleteNote('nonexistent');
+        $this->assertFalse(storage()->noteDeleted('nonexistent'));
     }
 
     public function testListDeletedNotes(): void
     {
-        storage_apply_write('a', 'content', 'alice', 1);
-        storage_apply_write('b', 'content', 'alice', 1);
-        storage_delete_note('a', 'testuser');
-        storage_delete_note('b', 'testuser');
+        storage_invoke('applyWrite','a', 'content', 'alice', 1);
+        storage_invoke('applyWrite','b', 'content', 'alice', 1);
+        storage_invoke('deleteNote','a', 'testuser');
+        storage_invoke('deleteNote','b', 'testuser');
 
-        $list = storage_list_deleted_notes();
+        $list = storage()->listDeletedNotes();
         $this->assertCount(2, $list);
         // Sorted by id
         $this->assertSame('a', $list[0]['id']);
@@ -301,67 +301,67 @@ class StorageTest extends TestCase
 
     public function testListDeletedNotesExcludesLiveNotes(): void
     {
-        storage_apply_write('live', 'content', 'alice', 1);
-        storage_apply_write('dead', 'content', 'alice', 1);
-        storage_delete_note('dead', 'testuser');
+        storage_invoke('applyWrite','live', 'content', 'alice', 1);
+        storage_invoke('applyWrite','dead', 'content', 'alice', 1);
+        storage_invoke('deleteNote','dead', 'testuser');
 
-        $list = storage_list_deleted_notes();
+        $list = storage()->listDeletedNotes();
         $this->assertCount(1, $list);
         $this->assertSame('dead', $list[0]['id']);
     }
 
     public function testPurgeDeletedNotes(): void
     {
-        storage_apply_write('old', 'content', 'alice', 1);
-        storage_delete_note('old', 'testuser');
+        storage_invoke('applyWrite','old', 'content', 'alice', 1);
+        storage_invoke('deleteNote','old', 'testuser');
 
         // Manually set deleted_at far in the past
-        $path = deleted_path('old');
+        $path = NOTES_DIR . 'old.deleted.json';
         $data = json_decode(file_get_contents($path), true);
         $data['deleted_at'] = time() - (DELETED_NOTE_TTL_DAYS + 1) * 86400;
         file_put_contents($path, json_encode($data));
 
-        $removed = storage_purge_deleted_notes();
+        $removed = storage_invoke('purgeDeletedNotes',);
         $this->assertSame(1, $removed);
-        $this->assertFalse(storage_note_deleted('old'));
+        $this->assertFalse(storage()->noteDeleted('old'));
     }
 
     public function testPurgeDeletedNotesSkipsRecent(): void
     {
-        storage_apply_write('recent', 'content', 'alice', 1);
-        storage_delete_note('recent', 'testuser');
+        storage_invoke('applyWrite','recent', 'content', 'alice', 1);
+        storage_invoke('deleteNote','recent', 'testuser');
 
         // deleted_at is now (within TTL)
-        $removed = storage_purge_deleted_notes();
+        $removed = storage_invoke('purgeDeletedNotes',);
         $this->assertSame(0, $removed);
-        $this->assertTrue(storage_note_deleted('recent'));
+        $this->assertTrue(storage()->noteDeleted('recent'));
     }
 
     public function testPurgeDeletedNotesSkipsLegacyTombstone(): void
     {
-        storage_apply_write('legacy', 'content', 'alice', 1);
-        storage_delete_note('legacy', 'testuser');
+        storage_invoke('applyWrite','legacy', 'content', 'alice', 1);
+        storage_invoke('deleteNote','legacy', 'testuser');
 
         // Remove deleted_at to simulate a legacy tombstone
-        $path = deleted_path('legacy');
+        $path = NOTES_DIR . 'legacy.deleted.json';
         $data = json_decode(file_get_contents($path), true);
         unset($data['deleted_at']);
         file_put_contents($path, json_encode($data));
 
-        $removed = storage_purge_deleted_notes();
+        $removed = storage_invoke('purgeDeletedNotes',);
         $this->assertSame(0, $removed, 'Legacy tombstones without deleted_at must not be purged');
-        $this->assertTrue(storage_note_deleted('legacy'));
+        $this->assertTrue(storage()->noteDeleted('legacy'));
     }
 
     // ── Changelog ──────────────────────────────────────────────────────────
 
     public function testChangelogAppendAndQuery(): void
     {
-        changelog_append(['rev' => 1, 'file' => 'a', 'type' => 'CREATE', 'ts' => 100, 'version' => null, 'prev_version' => null]);
-        changelog_append(['rev' => 2, 'file' => 'a', 'type' => 'UPDATE', 'ts' => 200, 'version' => 'v2', 'prev_version' => null]);
-        changelog_append(['rev' => 3, 'file' => 'b', 'type' => 'CREATE', 'ts' => 300, 'version' => null, 'prev_version' => null]);
+        storage()->changelogAppend(['rev' => 1, 'file' => 'a', 'type' => 'CREATE', 'ts' => 100, 'version' => null, 'prev_version' => null]);
+        storage()->changelogAppend(['rev' => 2, 'file' => 'a', 'type' => 'UPDATE', 'ts' => 200, 'version' => 'v2', 'prev_version' => null]);
+        storage()->changelogAppend(['rev' => 3, 'file' => 'b', 'type' => 'CREATE', 'ts' => 300, 'version' => null, 'prev_version' => null]);
 
-        $entries = changelog_since(1);
+        $entries = storage()->changelogSince(1);
         $this->assertCount(2, $entries);
         $this->assertSame(2, $entries[0]['rev']);
         $this->assertSame(3, $entries[1]['rev']);
@@ -369,17 +369,17 @@ class StorageTest extends TestCase
 
     public function testChangelogCurrentRev(): void
     {
-        $this->assertSame(0, changelog_current_rev());
-        changelog_append(['rev' => 5, 'file' => 'a', 'type' => 'CREATE', 'ts' => 100, 'version' => null, 'prev_version' => null]);
-        $this->assertSame(5, changelog_current_rev());
+        $this->assertSame(0, storage()->changelogCurrentRev());
+        storage()->changelogAppend(['rev' => 5, 'file' => 'a', 'type' => 'CREATE', 'ts' => 100, 'version' => null, 'prev_version' => null]);
+        $this->assertSame(5, storage()->changelogCurrentRev());
     }
 
     public function testNextRev(): void
     {
-        $this->assertSame(1, changelog_next_rev());
-        changelog_append(['rev' => 1, 'file' => 'a', 'type' => 'CREATE', 'ts' => 100, 'version' => null, 'prev_version' => null]);
-        $this->assertSame(2, changelog_next_rev());
-        changelog_append(['rev' => 2, 'file' => 'a', 'type' => 'UPDATE', 'ts' => 200, 'version' => null, 'prev_version' => null]);
-        $this->assertSame(3, changelog_next_rev());
+        $this->assertSame(1, storage()->changelogNextRev());
+        storage()->changelogAppend(['rev' => 1, 'file' => 'a', 'type' => 'CREATE', 'ts' => 100, 'version' => null, 'prev_version' => null]);
+        $this->assertSame(2, storage()->changelogNextRev());
+        storage()->changelogAppend(['rev' => 2, 'file' => 'a', 'type' => 'UPDATE', 'ts' => 200, 'version' => null, 'prev_version' => null]);
+        $this->assertSame(3, storage()->changelogNextRev());
     }
 }

@@ -49,19 +49,19 @@ $route = $parts[0] ?? '';
 
 switch ($route) {
     case 'auth':
-        require $sharedDir . 'auth.php';
+        require LEAF_PHP_DIR . 'auth.php';
         break;
     case 'sync':
-        require $sharedDir . 'sync.php';
+        require LEAF_PHP_DIR . 'sync.php';
         break;
     case 'trash':
-        require $sharedDir . 'trash.php';
+        require LEAF_PHP_DIR . 'trash.php';
         break;
     case 'history':
-        require $sharedDir . 'history.php';
+        require LEAF_PHP_DIR . 'history.php';
         break;
     case 'spa-config':
-        require $sharedDir . 'spa-config.php';
+        require LEAF_PHP_DIR . 'spa-config.php';
         break;
     default:
         http_response_code(404);

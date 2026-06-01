@@ -49,29 +49,29 @@ class StorageContractTest extends TestCase
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // storage_get_note_full($id, $viewer) ── Change 026 Phase 1
+    // storage()->getNoteFull($id, $viewer) ── Change 026 Phase 1
     // ═══════════════════════════════════════════════════════════════
 
     #[Test]
     public function getNoteFull_returnsNullForNonexistentNote(): void
     {
-        $this->assertNull(storage_get_note_full('no-such-note', 1));
+        $this->assertNull(storage()->getNoteFull('no-such-note', 1));
     }
 
     #[Test]
     public function getNoteFull_returnsNullForDeletedNote(): void
     {
-        storage_put_note_logged('doomed', 'hello', 'alice', 1, 'local');
-        storage_delete_note_logged('doomed', 'alice');
+        storage()->putNoteLogged('doomed', 'hello', 'alice', 1, 'local');
+        storage()->deleteNoteLogged('doomed', 'alice');
 
-        $this->assertNull(storage_get_note_full('doomed', 1));
+        $this->assertNull(storage()->getNoteFull('doomed', 1));
     }
 
     #[Test]
     public function getNoteFull_returnsNormalizedFlatShape(): void
     {
-        [$version] = storage_put_note_logged('flat', 'hello world', 'alice', 1, 'local');
-        $note = storage_get_note_full('flat', 1);
+        [$version] = storage()->putNoteLogged('flat', 'hello world', 'alice', 1, 'local');
+        $note = storage()->getNoteFull('flat', 1);
 
         $this->assertIsArray($note);
         $this->assertArrayHasKey('content',    $note);
@@ -94,10 +94,10 @@ class StorageContractTest extends TestCase
     #[Test]
     public function getNoteFull_prevLinksToPreviousVersion(): void
     {
-        [$v1] = storage_put_note_logged('link', 'first', 'alice', 1, 'local');
-        [$v2] = storage_put_note_logged('link', 'second', 'bob', 2, $v1);
+        [$v1] = storage()->putNoteLogged('link', 'first', 'alice', 1, 'local');
+        [$v2] = storage()->putNoteLogged('link', 'second', 'bob', 2, $v1);
 
-        $note = storage_get_note_full('link', 1);
+        $note = storage()->getNoteFull('link', 1);
         $this->assertSame('second', $note['content']);
         $this->assertSame($v2,      $note['version']);
         $this->assertSame($v1,      $note['prev']);
@@ -108,11 +108,11 @@ class StorageContractTest extends TestCase
     #[Test]
     public function getNoteFull_returnsLatestVersion(): void
     {
-        [$v1] = storage_put_note_logged('latest', 'v1', 'alice', 1, 'local');
-        [$v2] = storage_put_note_logged('latest', 'v2', 'bob', 2, $v1);
-        storage_put_note_logged('latest', 'v3', 'charlie', 3, $v2);
+        [$v1] = storage()->putNoteLogged('latest', 'v1', 'alice', 1, 'local');
+        [$v2] = storage()->putNoteLogged('latest', 'v2', 'bob', 2, $v1);
+        storage()->putNoteLogged('latest', 'v3', 'charlie', 3, $v2);
 
-        $note = storage_get_note_full('latest', 1);
+        $note = storage()->getNoteFull('latest', 1);
         $this->assertSame('v3', $note['content']);
         $this->assertSame('charlie', $note['author']);
     }
@@ -122,12 +122,12 @@ class StorageContractTest extends TestCase
     #[Test]
     public function getNoteFull_viewerParameterAcceptedForAllIdentities(): void
     {
-        storage_put_note_logged('note', 'secret', 'alice', 1, 'local');
+        storage()->putNoteLogged('note', 'secret', 'alice', 1, 'local');
 
-        $asAlice   = storage_get_note_full('note', 1);
-        $asBob     = storage_get_note_full('note', 2);
-        $asEmpty   = storage_get_note_full('note', 0);
-        $asUnknown = storage_get_note_full('note', 999);
+        $asAlice   = storage()->getNoteFull('note', 1);
+        $asBob     = storage()->getNoteFull('note', 2);
+        $asEmpty   = storage()->getNoteFull('note', 0);
+        $asUnknown = storage()->getNoteFull('note', 999);
 
         $this->assertIsArray($asAlice);
         $this->assertIsArray($asBob);
@@ -143,23 +143,23 @@ class StorageContractTest extends TestCase
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // storage_put_note_logged($id, $content, $author, $client_version)
+    // storage()->putNoteLogged($id, $content, $author, $client_version)
     // ── Change 026 Phase 2
     // ═══════════════════════════════════════════════════════════════
 
     #[Test]
     public function putNoteLogged_createsNoteAndReturnsVersion(): void
     {
-        [$version, $dirty] = storage_put_note_logged(
+        [$version, $dirty] = storage()->putNoteLogged(
             'new-note', 'hello', 'alice', 1, 'local'
         );
 
         $this->assertIsString($version);
         $this->assertNotEmpty($version);
         $this->assertIsBool($dirty);
-        $this->assertTrue(storage_note_exists('new-note'));
+        $this->assertTrue(storage_invoke('noteExists','new-note'));
 
-        $note = storage_get_note_full('new-note', 1);
+        $note = storage()->getNoteFull('new-note', 1);
         $this->assertSame('hello', $note['content']);
         $this->assertSame('alice', $note['created_by']);
         $this->assertSame('alice', $note['author']);
@@ -168,14 +168,14 @@ class StorageContractTest extends TestCase
     #[Test]
     public function putNoteLogged_updatesExistingNote(): void
     {
-        [$v1] = storage_put_note_logged('note', 'v1', 'alice', 1, 'local');
-        [$v2, $dirty] = storage_put_note_logged('note', 'v2', 'alice', 1, $v1);
+        [$v1] = storage()->putNoteLogged('note', 'v1', 'alice', 1, 'local');
+        [$v2, $dirty] = storage()->putNoteLogged('note', 'v2', 'alice', 1, $v1);
 
         $this->assertIsString($v2);
         $this->assertNotEmpty($v2);
         $this->assertFalse($dirty);
 
-        $note = storage_get_note_full('note', 1);
+        $note = storage()->getNoteFull('note', 1);
         $this->assertSame('v2',    $note['content']);
         $this->assertSame('alice', $note['created_by'],
             'created_by must survive updates');
@@ -185,29 +185,29 @@ class StorageContractTest extends TestCase
     public function putNoteLogged_acceptsEmptyClientVersion(): void
     {
         // Empty client_version is accepted — creates a new note (previously returned null)
-        [$version, $dirty] = storage_put_note_logged('note', 'content', 'alice', 1, '');
+        [$version, $dirty] = storage()->putNoteLogged('note', 'content', 'alice', 1, '');
         $this->assertIsString($version);
         $this->assertNotEmpty($version);
         $this->assertIsBool($dirty);
-        $this->assertTrue(storage_note_exists('note'));
+        $this->assertTrue(storage_invoke('noteExists','note'));
 
-        $note = storage_get_note_full('note', 1);
+        $note = storage()->getNoteFull('note', 1);
         $this->assertSame('content', $note['content']);
     }
 
     #[Test]
     public function putNoteLogged_revivesDeletedTombstone(): void
     {
-        [$v1] = storage_put_note_logged('note', 'original', 'alice', 1, 'local');
-        storage_delete_note_logged('note', 'alice');
+        [$v1] = storage()->putNoteLogged('note', 'original', 'alice', 1, 'local');
+        storage()->deleteNoteLogged('note', 'alice');
 
-        $this->assertNull(storage_get_note_full('note', 1),
+        $this->assertNull(storage()->getNoteFull('note', 1),
             'Note should be inaccessible after delete');
-        $this->assertNotNull(storage_get_tombstone('note'),
+        $this->assertNotNull(storage()->getTombstone('note'),
             'Tombstone must exist after delete');
 
         // A new write on the same ID revives the note
-        [$version, $dirty] = storage_put_note_logged(
+        [$version, $dirty] = storage()->putNoteLogged(
             'note', 'revived', 'alice', 1, $v1
         );
 
@@ -215,10 +215,10 @@ class StorageContractTest extends TestCase
         $this->assertNotEmpty($version);
         $this->assertFalse($dirty);
 
-        $note = storage_get_note_full('note', 1);
+        $note = storage()->getNoteFull('note', 1);
         $this->assertSame('revived', $note['content']);
-        $this->assertFalse(storage_note_deleted('note'));
-        $this->assertNull(storage_get_tombstone('note'),
+        $this->assertFalse(storage()->noteDeleted('note'));
+        $this->assertNull(storage()->getTombstone('note'),
             'Tombstone must be gone after revive');
     }
 
@@ -226,10 +226,10 @@ class StorageContractTest extends TestCase
     public function putNoteLogged_detectsConflictsAndStillWrites(): void
     {
         // Alice creates v1
-        [$v1] = storage_put_note_logged('note', 'alice-v1', 'alice', 1, 'local');
+        [$v1] = storage()->putNoteLogged('note', 'alice-v1', 'alice', 1, 'local');
 
         // Bob writes with a stale version → conflict logged, write wins
-        [$v2, $dirty] = storage_put_note_logged(
+        [$v2, $dirty] = storage()->putNoteLogged(
             'note', 'bob-v1', 'bob', 2, 'wrong-version'
         );
 
@@ -238,25 +238,25 @@ class StorageContractTest extends TestCase
         $this->assertFalse($dirty);
 
         // Last-write-wins: Bob's content is current
-        $note = storage_get_note_full('note', 1);
+        $note = storage()->getNoteFull('note', 1);
         $this->assertSame('bob-v1', $note['content']);
     }
 
     #[Test]
     public function putNoteLogged_differentAuthorCreatesNewVersion(): void
     {
-        [$v1] = storage_put_note_logged('note', 'alice-v1', 'alice', 1, 'local');
-        [$v2] = storage_put_note_logged('note', 'bob-v1', 'bob', 2, $v1);
+        [$v1] = storage()->putNoteLogged('note', 'alice-v1', 'alice', 1, 'local');
+        [$v2] = storage()->putNoteLogged('note', 'bob-v1', 'bob', 2, $v1);
 
         $this->assertNotSame($v1, $v2,
             'Different author must create a new version key');
 
-        $versions = storage_get_version_list('note');
+        $versions = storage()->getVersionList('note');
         $this->assertCount(2, $versions);
 
         // Both versions still retrievable
-        $this->assertSame('alice-v1', storage_get_version_content('note', $v1));
-        $this->assertSame('bob-v1',   storage_get_version_content('note', $v2));
+        $this->assertSame('alice-v1', storage()->getVersionContent('note', $v1));
+        $this->assertSame('bob-v1',   storage()->getVersionContent('note', $v2));
     }
 
     // ── $dirty flag (git-backend readiness) ────────────────────────
@@ -264,7 +264,7 @@ class StorageContractTest extends TestCase
     #[Test]
     public function putNoteLogged_dirtyFlagIsBooleanOnCreate(): void
     {
-        [$version, $dirty] = storage_put_note_logged(
+        [$version, $dirty] = storage()->putNoteLogged(
             'note', 'content', 'alice', 1, 'local'
         );
         $this->assertIsBool($dirty);
@@ -276,72 +276,72 @@ class StorageContractTest extends TestCase
     #[Test]
     public function putNoteLogged_dirtyFlagIsBooleanOnUpdate(): void
     {
-        [$v1] = storage_put_note_logged('note', 'v1', 'alice', 1, 'local');
-        [$v2, $dirty] = storage_put_note_logged('note', 'v2', 'alice', 1, $v1);
+        [$v1] = storage()->putNoteLogged('note', 'v1', 'alice', 1, 'local');
+        [$v2, $dirty] = storage()->putNoteLogged('note', 'v2', 'alice', 1, $v1);
         $this->assertIsBool($dirty);
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // storage_delete_note_logged($id, $author) ── Change 026 Phase 3
+    // storage()->deleteNoteLogged($id, $author) ── Change 026 Phase 3
     // ═══════════════════════════════════════════════════════════════
 
     #[Test]
     public function deleteNoteLogged_softDeletesLiveNote(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        $result = storage_delete_note_logged('note', 'alice');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        $result = storage()->deleteNoteLogged('note', 'alice');
 
         $this->assertTrue($result);
-        $this->assertFalse(storage_note_exists('note'));
-        $this->assertTrue(storage_note_deleted('note'));
-        $this->assertNull(storage_get_note_full('note', 1));
+        $this->assertFalse(storage_invoke('noteExists','note'));
+        $this->assertTrue(storage()->noteDeleted('note'));
+        $this->assertNull(storage()->getNoteFull('note', 1));
     }
 
     #[Test]
     public function deleteNoteLogged_failsOnAlreadyDeleted(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        storage_delete_note_logged('note', 'alice');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        storage()->deleteNoteLogged('note', 'alice');
 
-        $this->assertFalse(storage_delete_note_logged('note', 'alice'));
+        $this->assertFalse(storage()->deleteNoteLogged('note', 'alice'));
     }
 
     #[Test]
     public function deleteNoteLogged_failsOnNonexistent(): void
     {
         $this->assertFalse(
-            storage_delete_note_logged('no-such-note', 'alice')
+            storage()->deleteNoteLogged('no-such-note', 'alice')
         );
     }
 
     #[Test]
     public function deleteNoteLogged_producesChangelogEntry(): void
     {
-        $before = changelog_current_rev();
+        $before = storage()->changelogCurrentRev();
 
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        storage_delete_note_logged('note', 'alice');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        storage()->deleteNoteLogged('note', 'alice');
 
-        $after = changelog_current_rev();
+        $after = storage()->changelogCurrentRev();
         // CREATE + DELETE = 2 new entries
         $this->assertSame($before + 2, $after);
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // storage_rename_note_logged($old, $new, $author) ── Phase 3
+    // storage()->renameNoteLogged($old, $new, $author) ── Phase 3
     // ═══════════════════════════════════════════════════════════════
 
     #[Test]
     public function renameNoteLogged_movesNote(): void
     {
-        storage_put_note_logged('old', 'content', 'alice', 1, 'local');
-        $result = storage_rename_note_logged('old', 'new', 'alice');
+        storage()->putNoteLogged('old', 'content', 'alice', 1, 'local');
+        $result = storage()->renameNoteLogged('old', 'new', 'alice');
 
         $this->assertTrue($result);
-        $this->assertFalse(storage_note_exists('old'));
-        $this->assertTrue(storage_note_exists('new'));
+        $this->assertFalse(storage_invoke('noteExists','old'));
+        $this->assertTrue(storage_invoke('noteExists','new'));
 
-        $note = storage_get_note_full('new', 1);
+        $note = storage()->getNoteFull('new', 1);
         $this->assertSame('content', $note['content']);
         $this->assertSame('alice',   $note['created_by']);
     }
@@ -349,25 +349,25 @@ class StorageContractTest extends TestCase
     #[Test]
     public function renameNoteLogged_preservesFullVersionHistory(): void
     {
-        [$v1] = storage_put_note_logged('note', 'v1', 'alice', 1, 'local');
-        [$v2] = storage_put_note_logged('note', 'v2', 'bob', 2, $v1);
-        [$v3] = storage_put_note_logged('note', 'v3', 'charlie', 3, $v2);
+        [$v1] = storage()->putNoteLogged('note', 'v1', 'alice', 1, 'local');
+        [$v2] = storage()->putNoteLogged('note', 'v2', 'bob', 2, $v1);
+        [$v3] = storage()->putNoteLogged('note', 'v3', 'charlie', 3, $v2);
 
         $this->assertTrue(
-            storage_rename_note_logged('note', 'renamed', 'alice')
+            storage()->renameNoteLogged('note', 'renamed', 'alice')
         );
 
-        $versions = storage_get_version_list('renamed');
+        $versions = storage()->getVersionList('renamed');
         $this->assertCount(3, $versions,
             'Rename must preserve all version history');
 
-        $note = storage_get_note_full('renamed', 1);
+        $note = storage()->getNoteFull('renamed', 1);
         $this->assertSame('v3', $note['content']);
 
         // Content for each version still accessible by key
         foreach ($versions as $v) {
             $this->assertNotNull(
-                storage_get_version_content('renamed', $v['key'])
+                storage()->getVersionContent('renamed', $v['key'])
             );
         }
     }
@@ -376,80 +376,80 @@ class StorageContractTest extends TestCase
     public function renameNoteLogged_failsOnNonexistentSource(): void
     {
         $this->assertFalse(
-            storage_rename_note_logged('no-such', 'new', 'alice')
+            storage()->renameNoteLogged('no-such', 'new', 'alice')
         );
     }
 
     #[Test]
     public function renameNoteLogged_failsOnOccupiedTarget(): void
     {
-        storage_put_note_logged('source', 'src-content', 'alice', 1, 'local');
-        storage_put_note_logged('target', 'tgt-content', 'alice', 1, 'local');
+        storage()->putNoteLogged('source', 'src-content', 'alice', 1, 'local');
+        storage()->putNoteLogged('target', 'tgt-content', 'alice', 1, 'local');
 
         $this->assertFalse(
-            storage_rename_note_logged('source', 'target', 'alice')
+            storage()->renameNoteLogged('source', 'target', 'alice')
         );
 
         // Source remains intact after failed rename
-        $this->assertTrue(storage_note_exists('source'));
+        $this->assertTrue(storage_invoke('noteExists','source'));
         $this->assertSame(
             'src-content',
-            storage_get_note_full('source', 1)['content']
+            storage()->getNoteFull('source', 1)['content']
         );
     }
 
     #[Test]
     public function renameNoteLogged_failsOnEmptyNewId(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
         $this->assertFalse(
-            storage_rename_note_logged('note', '', 'alice')
+            storage()->renameNoteLogged('note', '', 'alice')
         );
-        $this->assertTrue(storage_note_exists('note'));
+        $this->assertTrue(storage_invoke('noteExists','note'));
     }
 
     #[Test]
     public function renameNoteLogged_producesChangelogEntry(): void
     {
-        $before = changelog_current_rev();
+        $before = storage()->changelogCurrentRev();
 
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        storage_rename_note_logged('note', 'moved', 'alice');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        storage()->renameNoteLogged('note', 'moved', 'alice');
 
-        $after = changelog_current_rev();
+        $after = storage()->changelogCurrentRev();
         // CREATE + RENAME = 2 new entries
         $this->assertSame($before + 2, $after);
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // storage_get_version_list($id) ── Change 026 Phase 4
+    // storage()->getVersionList($id) ── Change 026 Phase 4
     // ═══════════════════════════════════════════════════════════════
 
     #[Test]
     public function getVersionList_returnsEmptyForNonexistent(): void
     {
-        $this->assertSame([], storage_get_version_list('no-such-note'));
+        $this->assertSame([], storage()->getVersionList('no-such-note'));
     }
 
     #[Test]
     public function getVersionList_returnsEmptyForDeleted(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        storage_delete_note_logged('note', 'alice');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        storage()->deleteNoteLogged('note', 'alice');
 
-        $this->assertSame([], storage_get_version_list('note'));
+        $this->assertSame([], storage()->getVersionList('note'));
     }
 
     #[Test]
     public function getVersionList_returnsAllVersionsNewestFirst(): void
     {
-        [$v1] = storage_put_note_logged('note', 'v1', 'alice', 1, 'local');
+        [$v1] = storage()->putNoteLogged('note', 'v1', 'alice', 1, 'local');
         sleep(1);  // guarantee distinct saved_at (second granularity)
-        [$v2] = storage_put_note_logged('note', 'v2', 'bob', 2, $v1);
+        [$v2] = storage()->putNoteLogged('note', 'v2', 'bob', 2, $v1);
         sleep(1);
-        [$v3] = storage_put_note_logged('note', 'v3', 'charlie', 3, $v2);
+        [$v3] = storage()->putNoteLogged('note', 'v3', 'charlie', 3, $v2);
 
-        $list = storage_get_version_list('note');
+        $list = storage()->getVersionList('note');
         $this->assertCount(3, $list);
 
         // Newest first — saved_at timestamps are 2 s apart
@@ -461,9 +461,9 @@ class StorageContractTest extends TestCase
     #[Test]
     public function getVersionList_eachEntryHasRequiredKeys(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
 
-        $list = storage_get_version_list('note');
+        $list = storage()->getVersionList('note');
         $this->assertCount(1, $list);
 
         $entry = $list[0];
@@ -479,7 +479,7 @@ class StorageContractTest extends TestCase
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // storage_get_version_content($id, $vkey) ── Phase 4
+    // storage()->getVersionContent($id, $vkey) ── Phase 4
     // ═══════════════════════════════════════════════════════════════
 
     #[Test]
@@ -487,26 +487,26 @@ class StorageContractTest extends TestCase
     {
         // Use different authors to guarantee distinct version keys
         // (same-author same-day override would keep the same key)
-        [$v1] = storage_put_note_logged('note', 'version-one', 'alice', 1, 'local');
-        [$v2] = storage_put_note_logged('note', 'version-two', 'bob', 2, $v1);
+        [$v1] = storage()->putNoteLogged('note', 'version-one', 'alice', 1, 'local');
+        [$v2] = storage()->putNoteLogged('note', 'version-two', 'bob', 2, $v1);
 
         $this->assertSame(
             'version-one',
-            storage_get_version_content('note', $v1)
+            storage()->getVersionContent('note', $v1)
         );
         $this->assertSame(
             'version-two',
-            storage_get_version_content('note', $v2)
+            storage()->getVersionContent('note', $v2)
         );
     }
 
     #[Test]
     public function getVersionContent_returnsNullForUnknownKey(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
 
         $this->assertNull(
-            storage_get_version_content('note', 'nonexistent-key')
+            storage()->getVersionContent('note', 'nonexistent-key')
         );
     }
 
@@ -514,59 +514,59 @@ class StorageContractTest extends TestCase
     public function getVersionContent_returnsNullForNonexistentNote(): void
     {
         $this->assertNull(
-            storage_get_version_content('no-such-note', 'any-key')
+            storage()->getVersionContent('no-such-note', 'any-key')
         );
     }
 
     #[Test]
     public function getVersionContent_returnsNullForDeletedNote(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        $vkey = storage_get_note_full('note', 1)['version'];
-        storage_delete_note_logged('note', 'alice');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        $vkey = storage()->getNoteFull('note', 1)['version'];
+        storage()->deleteNoteLogged('note', 'alice');
 
         $this->assertNull(
-            storage_get_version_content('note', $vkey)
+            storage()->getVersionContent('note', $vkey)
         );
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // storage_get_tombstone($id) ── Change 026 Phase 5
+    // storage()->getTombstone($id) ── Change 026 Phase 5
     // ═══════════════════════════════════════════════════════════════
 
     #[Test]
     public function getTombstone_returnsNullForLiveNote(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        $this->assertNull(storage_get_tombstone('note'));
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        $this->assertNull(storage()->getTombstone('note'));
     }
 
     #[Test]
     public function getTombstone_returnsNullForNonexistent(): void
     {
-        $this->assertNull(storage_get_tombstone('no-such-note'));
+        $this->assertNull(storage()->getTombstone('no-such-note'));
     }
 
     #[Test]
     public function getTombstone_returnsNullAfterTombstoneIsRevived(): void
     {
-        [$v1] = storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        storage_delete_note_logged('note', 'alice');
-        $this->assertNotNull(storage_get_tombstone('note'));
+        [$v1] = storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        storage()->deleteNoteLogged('note', 'alice');
+        $this->assertNotNull(storage()->getTombstone('note'));
 
         // Revive via a new write
-        storage_put_note_logged('note', 'revived', 'bob', 2, $v1);
-        $this->assertNull(storage_get_tombstone('note'),
+        storage()->putNoteLogged('note', 'revived', 'bob', 2, $v1);
+        $this->assertNull(storage()->getTombstone('note'),
             'Tombstone must be gone after revive');
     }
 
     #[Test]
     public function getTombstone_returnsFullMetadata(): void
     {
-        storage_put_note_logged('note', 'precious content', 'creator', 1, 'local');
-        storage_delete_note_logged('note', 'destroyer');
+        storage()->putNoteLogged('note', 'precious content', 'creator', 1, 'local');
+        storage()->deleteNoteLogged('note', 'destroyer');
 
-        $tombstone = storage_get_tombstone('note');
+        $tombstone = storage()->getTombstone('note');
         $this->assertIsArray($tombstone);
 
         // Required fields per contract
@@ -588,10 +588,10 @@ class StorageContractTest extends TestCase
     #[Test]
     public function getTombstone_preservesDeletedByCorrectly(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        storage_delete_note_logged('note', 'charlie');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        storage()->deleteNoteLogged('note', 'charlie');
 
-        $tombstone = storage_get_tombstone('note');
+        $tombstone = storage()->getTombstone('note');
         $this->assertSame('charlie', $tombstone['deleted_by'],
             'deleted_by must reflect who performed the deletion');
         $this->assertSame('alice', $tombstone['created_by'],
@@ -599,43 +599,43 @@ class StorageContractTest extends TestCase
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // storage_housekeeping($entry) ── Change 026 maintenance hook
+    // storage()->housekeeping($entry) ── Change 026 maintenance hook
     // ═══════════════════════════════════════════════════════════════
 
     #[Test]
     public function housekeeping_syncEntryReturnsInt(): void
     {
-        $result = storage_housekeeping('sync');
+        $result = storage()->housekeeping('sync');
         $this->assertIsInt($result);
     }
 
     #[Test]
     public function housekeeping_unknownEntryReturnsZero(): void
     {
-        $result = storage_housekeeping('unknown-entry');
+        $result = storage()->housekeeping('unknown-entry');
         $this->assertSame(0, $result);
     }
 
     #[Test]
     public function housekeeping_unknownEntryDoesNotPurge(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        storage_delete_note_logged('note', 'alice');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        storage()->deleteNoteLogged('note', 'alice');
 
-        storage_housekeeping('unknown-entry');
+        storage()->housekeeping('unknown-entry');
 
-        $this->assertNotNull(storage_get_tombstone('note'),
+        $this->assertNotNull(storage()->getTombstone('note'),
             'Tombstone must survive unknown entry point');
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // storage_e2ee_support() ── backend capability flag
+    // storage()->e2eeSupport() ── backend capability flag
     // ═══════════════════════════════════════════════════════════════
 
     #[Test]
     public function e2eeSupport_returnsBoolean(): void
     {
-        $result = storage_e2ee_support();
+        $result = storage()->e2eeSupport();
         $this->assertIsBool($result);
 
         // Flat-file backend supports E2EE (content is opaque blobs).
@@ -651,21 +651,21 @@ class StorageContractTest extends TestCase
     public function fullLifecycle_createReadUpdateDeleteTombstone(): void
     {
         // ── CREATE ──────────────────────────────────────
-        [$v1, $d1] = storage_put_note_logged(
+        [$v1, $d1] = storage()->putNoteLogged(
             'lifecycle', 'step-1', 'alice', 1, 'local'
         );
         $this->assertNotEmpty($v1);
         $this->assertFalse($d1);
 
         // ── READ ────────────────────────────────────────
-        $note = storage_get_note_full('lifecycle', 1);
+        $note = storage()->getNoteFull('lifecycle', 1);
         $this->assertSame('step-1', $note['content']);
         $this->assertSame($v1,      $note['version']);
         $this->assertNull($note['prev']);
         $this->assertSame('alice',  $note['created_by']);
 
         // ── UPDATE (different author → guaranteed new key) ──
-        [$v2, $d2] = storage_put_note_logged(
+        [$v2, $d2] = storage()->putNoteLogged(
             'lifecycle', 'step-2', 'bob', 2, $v1
         );
         $this->assertNotEmpty($v2);
@@ -673,13 +673,13 @@ class StorageContractTest extends TestCase
             'Different author must produce new version key');
         $this->assertFalse($d2);
 
-        $note = storage_get_note_full('lifecycle', 1);
+        $note = storage()->getNoteFull('lifecycle', 1);
         $this->assertSame('step-2', $note['content']);
         $this->assertSame('alice',  $note['created_by'],
             'created_by must survive updates');
 
         // ── UPDATE (third author) ───────────────────────
-        [$v3, $d3] = storage_put_note_logged(
+        [$v3, $d3] = storage()->putNoteLogged(
             'lifecycle', 'step-3', 'charlie', 3, $v2
         );
         $this->assertNotEmpty($v3);
@@ -688,29 +688,29 @@ class StorageContractTest extends TestCase
         $this->assertFalse($d3);
 
         // ── VERSION HISTORY ─────────────────────────────
-        $versions = storage_get_version_list('lifecycle');
+        $versions = storage()->getVersionList('lifecycle');
         $this->assertGreaterThanOrEqual(3, count($versions),
             'At least 3 versions from 3 distinct authors');
 
         // ── VERSION CONTENT ─────────────────────────────
         // Bob's v2 content retrievable
         $this->assertSame('step-2',
-            storage_get_version_content('lifecycle', $v2));
+            storage()->getVersionContent('lifecycle', $v2));
         // Charlie's v3 is current
         $this->assertSame('step-3',
-            storage_get_version_content('lifecycle', $v3));
+            storage()->getVersionContent('lifecycle', $v3));
 
         // ── DELETE ──────────────────────────────────────
         $this->assertTrue(
-            storage_delete_note_logged('lifecycle', 'dave')
+            storage()->deleteNoteLogged('lifecycle', 'dave')
         );
         $this->assertNull(
-            storage_get_note_full('lifecycle', 1)
+            storage()->getNoteFull('lifecycle', 1)
         );
-        $this->assertTrue(storage_note_deleted('lifecycle'));
+        $this->assertTrue(storage()->noteDeleted('lifecycle'));
 
         // ── TOMBSTONE ───────────────────────────────────
-        $tomb = storage_get_tombstone('lifecycle');
+        $tomb = storage()->getTombstone('lifecycle');
         $this->assertIsArray($tomb);
         $this->assertSame('step-3', $tomb['content']);
         $this->assertSame('dave',   $tomb['deleted_by']);
@@ -718,15 +718,15 @@ class StorageContractTest extends TestCase
         $this->assertGreaterThan(0, $tomb['deleted_at']);
 
         // ── REVIVE via new write ────────────────────────
-        [$v4, $d4] = storage_put_note_logged(
+        [$v4, $d4] = storage()->putNoteLogged(
             'lifecycle', 'reborn', 'alice', 1, $v3
         );
         $this->assertNotEmpty($v4);
         $this->assertFalse($d4);
 
-        $note = storage_get_note_full('lifecycle', 1);
+        $note = storage()->getNoteFull('lifecycle', 1);
         $this->assertSame('reborn', $note['content']);
-        $this->assertNull(storage_get_tombstone('lifecycle'));
+        $this->assertNull(storage()->getTombstone('lifecycle'));
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -742,20 +742,20 @@ class StorageContractTest extends TestCase
     #[Test]
     public function versionImmutability_contentStableUnderKey(): void
     {
-        [$v1] = storage_put_note_logged('note', 'original', 'alice', 1, 'local');
+        [$v1] = storage()->putNoteLogged('note', 'original', 'alice', 1, 'local');
 
         // Write same author again (may overwrite in flat-file, but
         // in git it would be a new commit with a different SHA)
-        storage_put_note_logged('note', 'updated', 'alice', 1, $v1);
+        storage()->putNoteLogged('note', 'updated', 'alice', 1, $v1);
 
         // In the flat-file backend, v1 content may be overwritten if
         // the exclusive flag was still set.  In the git backend, v1
         // content would still be 'original'.  Both are valid contract
         // behaviours — the key invariant is that if a key IS still in
         // the version list, its content matches what was stored.
-        $versions = storage_get_version_list('note');
+        $versions = storage()->getVersionList('note');
         foreach ($versions as $v) {
-            $content = storage_get_version_content('note', $v['key']);
+            $content = storage()->getVersionContent('note', $v['key']);
             if ($content !== null) {
                 $this->assertIsString($content);
                 $this->assertNotEmpty($content);
@@ -771,15 +771,15 @@ class StorageContractTest extends TestCase
     #[Test]
     public function changelogTrail_everyOperationProducesEntry(): void
     {
-        $before = changelog_current_rev();
+        $before = storage()->changelogCurrentRev();
 
         // Four distinct operations, each with correct client_version
-        [$v1] = storage_put_note_logged('a', 'create', 'alice', 1, 'local');    // 1
-        [$v2] = storage_put_note_logged('a', 'update', 'bob', 2, $v1);         // 2
-        storage_rename_note_logged('a', 'b', 'alice');                        // 3
-        storage_delete_note_logged('b', 'alice');                               // 4
+        [$v1] = storage()->putNoteLogged('a', 'create', 'alice', 1, 'local');    // 1
+        [$v2] = storage()->putNoteLogged('a', 'update', 'bob', 2, $v1);         // 2
+        storage()->renameNoteLogged('a', 'b', 'alice');                        // 3
+        storage()->deleteNoteLogged('b', 'alice');                               // 4
 
-        $after = changelog_current_rev();
+        $after = storage()->changelogCurrentRev();
         $this->assertSame($before + 4, $after,
             'Each logged operation must produce a changelog entry');
     }
@@ -795,12 +795,12 @@ class StorageContractTest extends TestCase
         // This tests the incremental sync path: given a known
         // revision, changelog_since must return only later entries.
 
-        storage_put_note_logged('x', 'v1', 'alice', 1, 'local');
-        $after_create = changelog_current_rev();
+        storage()->putNoteLogged('x', 'v1', 'alice', 1, 'local');
+        $after_create = storage()->changelogCurrentRev();
 
-        storage_put_note_logged('y', 'v1', 'bob', 2, 'local');
+        storage()->putNoteLogged('y', 'v1', 'bob', 2, 'local');
 
-        $since = changelog_since($after_create);
+        $since = storage()->changelogSince($after_create);
         // 'y' CREATE should be the only new entry
         $this->assertCount(1, $since);
         $this->assertSame('y', $since[0]['file']);
@@ -815,12 +815,12 @@ class StorageContractTest extends TestCase
     #[Test]
     public function createdBy_survivesAllMutations(): void
     {
-        [$v1] = storage_put_note_logged('note', 'original', 'creator', 1, 'local');
-        [$v2] = storage_put_note_logged('note', 'update1',  'editor1', 2, $v1);
-        [$v3] = storage_put_note_logged('note', 'update2',  'editor2', 3, $v2);
-        storage_rename_note_logged('note', 'moved', 'renamer');
+        [$v1] = storage()->putNoteLogged('note', 'original', 'creator', 1, 'local');
+        [$v2] = storage()->putNoteLogged('note', 'update1',  'editor1', 2, $v1);
+        [$v3] = storage()->putNoteLogged('note', 'update2',  'editor2', 3, $v2);
+        storage()->renameNoteLogged('note', 'moved', 'renamer');
 
-        $note = storage_get_note_full('moved', 1);
+        $note = storage()->getNoteFull('moved', 1);
         $this->assertSame('creator', $note['created_by'],
             'created_by must survive updates and renames');
         // author should reflect the latest writer
@@ -835,29 +835,29 @@ class StorageContractTest extends TestCase
     #[Test]
     public function concurrentWriters_bothWritesSucceed(): void
     {
-        [$v1] = storage_put_note_logged(
+        [$v1] = storage()->putNoteLogged(
             'shared', 'Alice writes first', 'alice', 1, 'local'
         );
 
         // Bob writes based on v1
-        [$v2] = storage_put_note_logged(
+        [$v2] = storage()->putNoteLogged(
             'shared', 'Bob writes second', 'bob', 2, $v1
         );
 
         // Alice writes again based on v1 (missing Bob's v2)
-        [$v3] = storage_put_note_logged(
+        [$v3] = storage()->putNoteLogged(
             'shared', 'Alice writes third', 'alice', 1, $v1
         );
 
         // All writes succeed; last write wins
-        $note = storage_get_note_full('shared', 1);
+        $note = storage()->getNoteFull('shared', 1);
         $this->assertNotNull($note);
 
         // History preserves all content
-        $versions = storage_get_version_list('shared');
+        $versions = storage()->getVersionList('shared');
         $contents = [];
         foreach ($versions as $v) {
-            $c = storage_get_version_content('shared', $v['key']);
+            $c = storage()->getVersionContent('shared', $v['key']);
             if ($c !== null) {
                 $contents[] = $c;
             }
@@ -875,16 +875,16 @@ class StorageContractTest extends TestCase
     #[Test]
     public function viewerParameter_acceptedOnAllRelevantFunctions(): void
     {
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
 
         // storage_get_note_full with various viewers
-        $this->assertNotNull(storage_get_note_full('note', 1));
-        $this->assertNotNull(storage_get_note_full('note', 2));
-        $this->assertNotNull(storage_get_note_full('note', 0));
-        $this->assertNotNull(storage_get_note_full('note', 999));
+        $this->assertNotNull(storage()->getNoteFull('note', 1));
+        $this->assertNotNull(storage()->getNoteFull('note', 2));
+        $this->assertNotNull(storage()->getNoteFull('note', 0));
+        $this->assertNotNull(storage()->getNoteFull('note', 999));
 
         // Also works for the author of the note
-        $note = storage_get_note_full('note', 1);
+        $note = storage()->getNoteFull('note', 1);
         $this->assertSame('content', $note['content']);
     }
 
@@ -892,17 +892,17 @@ class StorageContractTest extends TestCase
      * git-storage concern: `.deleted` markers are NOT committed to
      * git — they are server-side operational state carrying
      * deleted_at/deleted_by metadata.  The tombstone contract must
-     * expose this metadata through storage_get_tombstone().
+     * expose this metadata through storage()->getTombstone().
      */
     #[Test]
     public function tombstoneMetadata_exposesDeletedAtAndDeletedBy(): void
     {
         $before = time();
-        storage_put_note_logged('note', 'content', 'alice', 1, 'local');
-        storage_delete_note_logged('note', 'bob');
+        storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
+        storage()->deleteNoteLogged('note', 'bob');
         $after = time();
 
-        $tomb = storage_get_tombstone('note');
+        $tomb = storage()->getTombstone('note');
         $this->assertIsArray($tomb);
 
         // deleted_at must be between before and after
@@ -926,11 +926,11 @@ class StorageContractTest extends TestCase
     public function housekeeping_isDesignatedMaintenanceHook(): void
     {
         // The function exists and accepts the 'sync' entry point
-        $result = storage_housekeeping('sync');
+        $result = storage()->housekeeping('sync');
         $this->assertIsInt($result);
 
         // Should be callable with the empty string as an entry
-        $r2 = storage_housekeeping('');
+        $r2 = storage()->housekeeping('');
         $this->assertIsInt($r2);
     }
 
@@ -942,11 +942,11 @@ class StorageContractTest extends TestCase
     // .meta staging or git commits, but the consumer-visible
     // behaviours (version immutability after sharing, overwrite
     // debouncing, flush-trigger semantics) are exercised through the
-    // contract using storage_mark_version_seen() to simulate sync
+    // contract using storage()->markVersionSeen() to simulate sync
     // delivery — the same mechanism sync.php uses in production.
     //
     // In the git backend these tests will pass without
-    // storage_mark_version_seen() because commits are immutable
+    // storage()->markVersionSeen() because commits are immutable
     // and staging flushes happen automatically on viewer mismatch.
     // ═══════════════════════════════════════════════════════════════
 
@@ -967,33 +967,33 @@ class StorageContractTest extends TestCase
     public function gitScenario_immutability_sharedVersionNeverOverwritten(): void
     {
         // Alice saves v1
-        [$v1] = storage_put_note_logged(
+        [$v1] = storage()->putNoteLogged(
             'note', 'Alice version 1', 'alice', 1, 'local'
         );
 
         // Bob syncs → receives v1 (server marks version as delivered)
-        $bob_view = storage_get_note_full('note', 2);
+        $bob_view = storage()->getNoteFull('note', 2);
         $this->assertSame('Alice version 1', $bob_view['content']);
         $this->assertSame($v1, $bob_view['version']);
-        storage_mark_version_seen('note', 2);
+        storage()->markVersionSeen('note', 2);
 
         // Alice saves again → must NOT overwrite v1
-        [$v2] = storage_put_note_logged(
+        [$v2] = storage()->putNoteLogged(
             'note', 'Alice version 2', 'alice', 1, $v1
         );
         $this->assertNotSame($v1, $v2,
             'After Bob receives v1, Alice must get a new version key');
 
         // Both versions retrievable
-        $aliceContentV1 = storage_get_version_content('note', $v1);
-        $aliceContentV2 = storage_get_version_content('note', $v2);
+        $aliceContentV1 = storage()->getVersionContent('note', $v1);
+        $aliceContentV2 = storage()->getVersionContent('note', $v2);
         $this->assertNotNull($aliceContentV1, 'v1 must survive after v2 created');
         $this->assertNotNull($aliceContentV2);
 
         // Bob syncs again → receives v2; v1 also still there
-        $bob_view2 = storage_get_note_full('note', 2);
+        $bob_view2 = storage()->getNoteFull('note', 2);
         $this->assertSame('Alice version 2', $bob_view2['content']);
-        $versions = storage_get_version_list('note');
+        $versions = storage()->getVersionList('note');
         $this->assertGreaterThanOrEqual(2, count($versions));
     }
 
@@ -1010,24 +1010,24 @@ class StorageContractTest extends TestCase
     #[Test]
     public function gitScenario_stagingBuffer_sameAuthorRapidSavesDebounce(): void
     {
-        [$v5] = storage_put_note_logged(
+        [$v5] = storage()->putNoteLogged(
             'note', 'rapid save 5', 'alice', 1, 'local'
         );
 
         // Alice writes again immediately (same author, same day)
-        [$v6] = storage_put_note_logged(
+        [$v6] = storage()->putNoteLogged(
             'note', 'rapid save 6', 'alice', 1, $v5
         );
 
         // Flat-file: v5 overwritten by v6 (same key, exclusive=true).
         // Git: .md overwritten, no new commit, $dirty was false→true.
-        $note = storage_get_note_full('note', 1);
+        $note = storage()->getNoteFull('note', 1);
         $this->assertSame('rapid save 6', $note['content']);
         $this->assertSame('alice', $note['author']);
 
         // Version count should be minimal (1 in flat-file if overwrite;
         // 1 in git because no commit was created for v6 yet).
-        $versions = storage_get_version_list('note');
+        $versions = storage()->getVersionList('note');
         $this->assertLessThanOrEqual(1, count($versions),
             'Rapid same-author same-day saves should not create extra versions');
     }
@@ -1036,7 +1036,7 @@ class StorageContractTest extends TestCase
      * git-storage § "Read-Side Trigger"
      *
      * Alice stages content (.meta exists).  Bob calls
-     * storage_get_note_full('note', 2).  Server sees viewer≠author,
+     * storage()->getNoteFull('note', 2).  Server sees viewer≠author,
      * flushes the stage (commits + unlinks .meta), then returns
      * the committed content to Bob.
      *
@@ -1048,34 +1048,34 @@ class StorageContractTest extends TestCase
     public function gitScenario_stagingFlushOnRead_differentViewerTriggersFlush(): void
     {
         // Alice writes (creates note; in git: stages .meta)
-        [$v1] = storage_put_note_logged(
+        [$v1] = storage()->putNoteLogged(
             'note', 'Alice staged content', 'alice', 1, 'local'
         );
         $this->assertNotEmpty($v1);
 
         // Alice re-reads her own content (viewer=author → no flush in git)
-        $alice_view = storage_get_note_full('note', 1);
+        $alice_view = storage()->getNoteFull('note', 1);
         $this->assertSame('Alice staged content', $alice_view['content']);
 
         // Bob reads (viewer≠author → triggers flush in git)
         // In flat-file: Bob's read via sync.php would call
         // storage_mark_version_seen, which we simulate here.
-        $bob_view = storage_get_note_full('note', 2);
+        $bob_view = storage()->getNoteFull('note', 2);
         $this->assertSame('Alice staged content', $bob_view['content']);
         $this->assertSame($v1, $bob_view['version'],
             'Bob sees the committed version, never a staged-only key');
 
         // After Bob's read, Alice's next write should create a new
         // version (exclusive→false in flat-file; new commit in git)
-        storage_mark_version_seen('note', 2);
-        [$v2] = storage_put_note_logged(
+        storage()->markVersionSeen('note', 2);
+        [$v2] = storage()->putNoteLogged(
             'note', 'Alice update after Bob read', 'alice', 1, $v1
         );
         $this->assertNotSame($v1, $v2,
             'After different viewer reads, next write must be a new version');
 
         // Bob reads again → receives v2
-        $bob_view2 = storage_get_note_full('note', 2);
+        $bob_view2 = storage()->getNoteFull('note', 2);
         $this->assertSame('Alice update after Bob read', $bob_view2['content']);
     }
 
@@ -1094,7 +1094,7 @@ class StorageContractTest extends TestCase
     public function gitScenario_stagingFlushOnWrite_differentAuthorTriggersFlush(): void
     {
         // Alice writes (stages content)
-        [$v_alice] = storage_put_note_logged(
+        [$v_alice] = storage()->putNoteLogged(
             'note', 'Alice writes first', 'alice', 1, 'local'
         );
 
@@ -1102,20 +1102,20 @@ class StorageContractTest extends TestCase
         // Now Bob writes to the same note.
         // In git: this triggers flush of Alice's stage, then stages Bob's.
         // In flat-file: Bob gets a different key regardless.
-        [$v_bob] = storage_put_note_logged(
+        [$v_bob] = storage()->putNoteLogged(
             'note', 'Bob overwrites', 'bob', 2, $v_alice
         );
         $this->assertNotSame($v_alice, $v_bob,
             'Different author must create new version key');
 
         // Both versions in history
-        $versions = storage_get_version_list('note');
+        $versions = storage()->getVersionList('note');
         $keys = array_column($versions, 'key');
         $this->assertContains($v_alice, $keys, 'Alice version preserved');
         $this->assertContains($v_bob,   $keys, 'Bob version present');
 
         // Bob's content is current
-        $note = storage_get_note_full('note', 2);
+        $note = storage()->getNoteFull('note', 2);
         $this->assertSame('Bob overwrites', $note['content']);
     }
 
@@ -1133,7 +1133,7 @@ class StorageContractTest extends TestCase
     public function gitScenario_stagingFlushBeforeDelete(): void
     {
         // Alice writes (stages)
-        storage_put_note_logged(
+        storage()->putNoteLogged(
             'note', 'Alice staged before delete', 'alice', 1, 'local'
         );
 
@@ -1142,12 +1142,12 @@ class StorageContractTest extends TestCase
         // In git: flush Alice's stage → commit → then git rm + commit.
         // In flat-file: delete works directly.
         $this->assertTrue(
-            storage_delete_note_logged('note', 'bob'),
+            storage()->deleteNoteLogged('note', 'bob'),
             'Delete must succeed even with staged content present'
         );
 
         // Tombstone reflects Alice's content
-        $tomb = storage_get_tombstone('note');
+        $tomb = storage()->getTombstone('note');
         $this->assertNotNull($tomb);
         $this->assertSame('Alice staged before delete', $tomb['content']);
         $this->assertSame('bob', $tomb['deleted_by']);
@@ -1167,26 +1167,26 @@ class StorageContractTest extends TestCase
     public function gitScenario_stagingFlushBeforeRename(): void
     {
         // Alice writes (stages) — two versions to verify history preserved
-        [$v1] = storage_put_note_logged('note', 'Alice v1', 'alice', 1, 'local');
-        [$v2] = storage_put_note_logged('note', 'Alice v2', 'bob', 2, $v1);
+        [$v1] = storage()->putNoteLogged('note', 'Alice v1', 'alice', 1, 'local');
+        [$v2] = storage()->putNoteLogged('note', 'Alice v2', 'bob', 2, $v1);
 
         // Bob renames
         $this->assertTrue(
-            storage_rename_note_logged('note', 'renamed-note', 'bob'),
+            storage()->renameNoteLogged('note', 'renamed-note', 'bob'),
             'Rename must succeed even with staged content present'
         );
 
         // Content accessible under new name
-        $note = storage_get_note_full('renamed-note', 2);
+        $note = storage()->getNoteFull('renamed-note', 2);
         $this->assertNotNull($note);
         $this->assertSame('Alice v2', $note['content']);
         $this->assertSame('alice', $note['created_by']);
 
         // Old name gone
-        $this->assertFalse(storage_note_exists('note'));
+        $this->assertFalse(storage_invoke('noteExists','note'));
 
         // Version history preserved
-        $versions = storage_get_version_list('renamed-note');
+        $versions = storage()->getVersionList('renamed-note');
         $this->assertGreaterThanOrEqual(2, count($versions));
     }
 
@@ -1205,13 +1205,13 @@ class StorageContractTest extends TestCase
     public function gitScenario_bootstrap_allStagedContentFlushed(): void
     {
         // Multiple authors write to multiple notes
-        storage_put_note_logged('note-a', 'Alice note', 'alice', 1, 'local');
-        storage_put_note_logged('note-b', 'Bob note', 'bob', 2, 'local');
-        storage_put_note_logged('note-c', 'Charlie note', 'charlie', 3, 'local');
+        storage()->putNoteLogged('note-a', 'Alice note', 'alice', 1, 'local');
+        storage()->putNoteLogged('note-b', 'Bob note', 'bob', 2, 'local');
+        storage()->putNoteLogged('note-c', 'Charlie note', 'charlie', 3, 'local');
 
         // Simulate bootstrap: all notes should be readable by anyone
         foreach (['note-a', 'note-b', 'note-c'] as $id) {
-            $note = storage_get_note_full($id, 4);
+            $note = storage()->getNoteFull($id, 4);
             $this->assertNotNull($note, "Bootstrap must expose note {$id}");
             $this->assertNotEmpty($note['version'],
                 "Bootstrap must assign a version key to {$id}");
@@ -1220,7 +1220,7 @@ class StorageContractTest extends TestCase
         }
 
         // All notes appear in list
-        $list = storage_list_notes();
+        $list = storage()->listNotes();
         $ids = array_column($list, 'id');
         $this->assertContains('note-a', $ids);
         $this->assertContains('note-b', $ids);
@@ -1232,29 +1232,29 @@ class StorageContractTest extends TestCase
      *
      * The changelog IS committed to git but always one entry behind
      * the working-tree version.  The working-tree changelog.jsonl has
-     * the full truth.  changelog_since() reads from the working tree,
+     * the full truth.  storage()->changelogSince() reads from the working tree,
      * so it always returns the complete set of entries.
      *
-     * Contract: changelog_since() returns all entries after a given
+     * Contract: storage()->changelogSince() returns all entries after a given
      * revision, including the "trailing" (uncommitted) entry.
      */
     #[Test]
     public function gitScenario_changelogTrailingEntry_workingTreeHasFullTruth(): void
     {
-        $before = changelog_current_rev();
+        $before = storage()->changelogCurrentRev();
 
         // Op 1: Alice creates note X → commit abc → changelog entry
         // rev:N appended (dirty — not yet in any git commit)
-        storage_put_note_logged('x', 'content', 'alice', 1, 'local');
-        $rev_after_op1 = changelog_current_rev();
+        storage()->putNoteLogged('x', 'content', 'alice', 1, 'local');
+        $rev_after_op1 = storage()->changelogCurrentRev();
         $this->assertSame($before + 1, $rev_after_op1,
             'Op 1 must produce a changelog entry');
 
         // Op 2: Bob creates note Y → git add changelog.jsonl (picks up
         // rev from op 1) + notes/Y.md → commit def.  Then changelog
         // entry for rev:N+1 appended (dirty again).
-        storage_put_note_logged('y', 'content', 'bob', 2, 'local');
-        $rev_after_op2 = changelog_current_rev();
+        storage()->putNoteLogged('y', 'content', 'bob', 2, 'local');
+        $rev_after_op2 = storage()->changelogCurrentRev();
         $this->assertSame($before + 2, $rev_after_op2,
             'Op 2 must produce a changelog entry');
 
@@ -1262,7 +1262,7 @@ class StorageContractTest extends TestCase
         // (in git: op1 entry is now committed inside op2's commit,
         //  op2 entry is in working tree but uncommitted.  Both are
         //  visible because we read from the working tree, not HEAD.)
-        $entries = changelog_since($before);
+        $entries = storage()->changelogSince($before);
         $this->assertCount(2, $entries,
             'changelog_since must return all entries including the trailing one');
         $files = array_column($entries, 'file');
@@ -1288,24 +1288,24 @@ class StorageContractTest extends TestCase
     public function gitScenario_dateChange_triggerFlushesOldStage(): void
     {
         // Alice writes today
-        [$v_today] = storage_put_note_logged(
+        [$v_today] = storage()->putNoteLogged(
             'note', 'content today', 'alice', 1, 'local'
         );
 
         // Simulate date change: rewrite the version key to use yesterday's
         // date.  storage_resolve_version now extracts the date from the key,
         // so we must change the key, not just saved_at.
-        $note = storage_get_note('note');
+        $note = storage()->getNote('note');
         $yesterday = gmdate('Y-m-d', time() - 86400);
         $old_key = $v_today;
         $new_key = preg_replace('/^\d{4}-\d{2}-\d{2}/', $yesterday, $v_today);
         $note['versions'][$new_key] = $note['versions'][$old_key];
         unset($note['versions'][$old_key]);
         $note['current'] = $new_key;
-        storage_put_note('note', $note);
+        storage_invoke('putNote','note', $note);
 
         // Alice writes again today — key date differs → new version
-        [$v_tomorrow] = storage_put_note_logged(
+        [$v_tomorrow] = storage()->putNoteLogged(
             'note', 'content tomorrow', 'alice', 1, $new_key
         );
 
@@ -1314,19 +1314,19 @@ class StorageContractTest extends TestCase
             'Date change must create a new version, not overwrite');
 
         // Both versions exist
-        $versions = storage_get_version_list('note');
+        $versions = storage()->getVersionList('note');
         $this->assertGreaterThanOrEqual(2, count($versions));
     }
 
     /**
      * git-storage § "Housekeeping / Staging TTL"
      *
-     * storage_housekeeping() is the designated hook for flushing
+     * storage()->housekeeping() is the designated hook for flushing
      * stale .meta files.  The flat-file backend uses it to expire
      * deleted notes past the TTL, but the hook signature is the
      * same contract entry point that git will use.
      *
-     * Contract: storage_housekeeping('sync') must process expired
+     * Contract: storage()->housekeeping('sync') must process expired
      * tombstones (flat-file) and will process stale .meta files (git).
      * The return value is an integer count of items processed.
      */
@@ -1334,8 +1334,8 @@ class StorageContractTest extends TestCase
     public function gitScenario_housekeeping_staleStagingFlush(): void
     {
         // Create and delete a note, then backdate the tombstone
-        storage_put_note_logged('old', 'stale content', 'alice', 1, 'local');
-        storage_delete_note_logged('old', 'alice');
+        storage()->putNoteLogged('old', 'stale content', 'alice', 1, 'local');
+        storage()->deleteNoteLogged('old', 'alice');
 
         // Backdate the tombstone to expire it
         $path = NOTES_DIR . 'old.deleted.json';
@@ -1344,25 +1344,25 @@ class StorageContractTest extends TestCase
         file_put_contents($path, json_encode($data));
 
         // housekeeping flushes expired entries
-        $removed = storage_housekeeping('sync');
+        $removed = storage()->housekeeping('sync');
         $this->assertSame(1, $removed,
             'Housekeeping must process expired items');
-        $this->assertNull(storage_get_tombstone('old'),
+        $this->assertNull(storage()->getTombstone('old'),
             'Expired tombstone must be gone after housekeeping');
 
         // A recent tombstone survives
-        storage_put_note_logged('recent', 'fresh content', 'bob', 2, 'local');
-        storage_delete_note_logged('recent', 'bob');
-        $removed2 = storage_housekeeping('sync');
+        storage()->putNoteLogged('recent', 'fresh content', 'bob', 2, 'local');
+        storage()->deleteNoteLogged('recent', 'bob');
+        $removed2 = storage()->housekeeping('sync');
         $this->assertSame(0, $removed2,
             'Recent tombstone must survive housekeeping');
-        $this->assertNotNull(storage_get_tombstone('recent'));
+        $this->assertNotNull(storage()->getTombstone('recent'));
     }
 
     /**
      * git-storage § "Conflict Detection"
      *
-     * Conflict detection lives inside storage_put_note_logged()
+     * Conflict detection lives inside storage()->putNoteLogged()
      * (behind the contract — consumers don't see it).  Compares the
      * client's version SHA against the latest git commit.
      *
@@ -1376,35 +1376,35 @@ class StorageContractTest extends TestCase
     public function gitScenario_conflictDetection_threeWritersInterleaving(): void
     {
         // Alice creates
-        [$v_a1] = storage_put_note_logged(
+        [$v_a1] = storage()->putNoteLogged(
             'shared', 'Alice creates', 'alice', 1, 'local'
         );
 
         // Bob writes based on Alice's version
-        [$v_b1] = storage_put_note_logged(
+        [$v_b1] = storage()->putNoteLogged(
             'shared', 'Bob adds', 'bob', 2, $v_a1
         );
 
         // Charlie writes based on Bob's version
-        [$v_c1] = storage_put_note_logged(
+        [$v_c1] = storage()->putNoteLogged(
             'shared', 'Charlie edits', 'charlie', 3, $v_b1
         );
 
         // Alice writes again, based on her OLD version (stale — misses
         // Bob and Charlie).  Conflict logged, write still wins.
-        [$v_a2] = storage_put_note_logged(
+        [$v_a2] = storage()->putNoteLogged(
             'shared', 'Alice overwrites everything', 'alice', 1, $v_a1
         );
 
         // Last write wins
-        $note = storage_get_note_full('shared', 4);
+        $note = storage()->getNoteFull('shared', 4);
         $this->assertSame('Alice overwrites everything', $note['content']);
         $this->assertSame('alice', $note['author']);
 
         // All versions retrievable
         $all_content = [];
-        foreach (storage_get_version_list('shared') as $v) {
-            $c = storage_get_version_content('shared', $v['key']);
+        foreach (storage()->getVersionList('shared') as $v) {
+            $c = storage()->getVersionContent('shared', $v['key']);
             if ($c !== null) $all_content[] = $c;
         }
         $this->assertContains('Alice creates', $all_content);
@@ -1417,8 +1417,8 @@ class StorageContractTest extends TestCase
      * git-storage § "Sync Protocol Changes" — bootstrap path
      *
      * When syncedRevision===0, storage_flush_all_stages() flushes
-     * ALL .meta files, then storage_list_notes() +
-     * storage_get_note_full() build CREATE changes.
+     * ALL .meta files, then storage()->listNotes() +
+     * storage()->getNoteFull() build CREATE changes.
      *
      * Contract: after a simulated bootstrap, all live notes are
      * fully readable with proper version keys and content.
@@ -1427,18 +1427,18 @@ class StorageContractTest extends TestCase
     public function gitScenario_bootstrap_buildsFullSnapshot(): void
     {
         // Create several notes with multiple versions
-        storage_put_note_logged('a', 'a-v1', 'alice', 1, 'local');
-        [$v_b1] = storage_put_note_logged('b', 'b-v1', 'bob', 2, 'local');
-        storage_put_note_logged('b', 'b-v2', 'charlie', 3, $v_b1);
+        storage()->putNoteLogged('a', 'a-v1', 'alice', 1, 'local');
+        [$v_b1] = storage()->putNoteLogged('b', 'b-v1', 'bob', 2, 'local');
+        storage()->putNoteLogged('b', 'b-v2', 'charlie', 3, $v_b1);
 
         // Simulate bootstrap: list all notes, read each one fully
-        $all = storage_list_notes();
+        $all = storage()->listNotes();
         $ids = array_column($all, 'id');
         $this->assertContains('a', $ids);
         $this->assertContains('b', $ids);
 
         foreach ($all as $meta) {
-            $note = storage_get_note_full($meta['id'], 4);
+            $note = storage()->getNoteFull($meta['id'], 4);
             $this->assertNotNull($note, "Bootstrap: note {$meta['id']} readable");
             $this->assertNotEmpty($note['content'], "Bootstrap: content present");
             $this->assertNotEmpty($note['version'], "Bootstrap: version present");
@@ -1448,8 +1448,8 @@ class StorageContractTest extends TestCase
         }
 
         // Deleted notes appear as tombstones with DELETE changes
-        storage_delete_note_logged('a', 'alice');
-        $tombstones = storage_list_deleted_notes();
+        storage()->deleteNoteLogged('a', 'alice');
+        $tombstones = storage()->listDeletedNotes();
         $this->assertGreaterThanOrEqual(1, count($tombstones),
             'Bootstrap: deleted notes must appear in tombstone list');
     }
@@ -1468,12 +1468,12 @@ class StorageContractTest extends TestCase
     public function gitScenario_historyEndpoint_versionKeysAreOpaque(): void
     {
         // Multiple writes across different authors
-        [$v1] = storage_put_note_logged('note', 'initial', 'alice', 1, 'local');
-        [$v2] = storage_put_note_logged('note', 'bob-edit', 'bob', 2, $v1);
-        storage_put_note_logged('note', 'charlie-edit', 'charlie', 3, $v2);
+        [$v1] = storage()->putNoteLogged('note', 'initial', 'alice', 1, 'local');
+        [$v2] = storage()->putNoteLogged('note', 'bob-edit', 'bob', 2, $v1);
+        storage()->putNoteLogged('note', 'charlie-edit', 'charlie', 3, $v2);
 
         // Version list: each entry has the required shape
-        $versions = storage_get_version_list('note');
+        $versions = storage()->getVersionList('note');
         $this->assertNotEmpty($versions);
         foreach ($versions as $v) {
             $this->assertIsString($v['key'],
@@ -1484,7 +1484,7 @@ class StorageContractTest extends TestCase
             $this->assertTrue($v['prev'] === null || is_string($v['prev']));
 
             // Content retrievable by key
-            $content = storage_get_version_content('note', $v['key']);
+            $content = storage()->getVersionContent('note', $v['key']);
             $this->assertIsString($content);
             $this->assertNotEmpty($content);
         }
