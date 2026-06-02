@@ -313,6 +313,25 @@ html, body { height: 100%; overflow: hidden; }
 .tab-btn.active { border-bottom-width: 2px; border-bottom-style: solid; }
 .tab-panel { flex: 1; display: none; overflow: hidden; }
 .tab-panel.active { display: flex; }
+
+/* Mobile tab dropdown — hidden until #current-file is tapped on mobile */
+.mobile-tab-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 140px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--border-mid);
+  background: var(--bg-2);
+  padding: 4px 0;
+  z-index: 100;
+}
+#header-center.tab-dropdown-open .mobile-tab-dropdown {
+  display: block;
+}
 #tab-raw.active  { flex-direction: column; }
 #tab-meta.active { flex-direction: column; overflow-y: auto; }
 #tab-code.active { flex-direction: column; }
@@ -518,18 +537,146 @@ kbd { border-width: 1px; border-style: solid; padding: 1px 5px; }
 * { scrollbar-width: thin; }
 
 /* ── Responsive ── */
-@media (max-width: 600px) {
-  :root { --sidebar-w: 100vw; }
-  #main { flex-direction: column; }
-  #sidebar {
-    width: 100% !important; min-width: 0; max-width: none;
-    max-height: 40vh; border-right: none;
-    border-bottom-width: 1px; border-bottom-style: solid;
+
+/*
+ * Mobile / tablet: ≤ 768 px
+ *
+ * Changes from desktop:
+ *   • Sidebar becomes a slide-over drawer from the left with a backdrop
+ *   • Tab buttons are replaced by a <select> dropdown
+ *   • Content padding tightens to conserve horizontal space
+ *   • Modals and dialogs use viewport-relative widths
+ */
+
+@media (max-width: 768px) {
+
+  /* ── Sizing token ──────────────────────────────────────────────────── */
+  :root {
+    --sidebar-w: 280px;
   }
-  #sidebar-resizer { display: none !important; }
-  #header-brand    { width: auto !important; }
-  #note-area  { padding: 16px; }
-  #meta-panel { padding: 16px; }
+
+  /* ── Header ────────────────────────────────────────────────────────── */
+  #header {
+    padding: 0;
+  }
+  #header-brand {
+    width: auto !important;
+    border-right: none !important;
+    padding: 0 10px;
+  }
+
+  /* ── Sidebar — slide-over drawer ───────────────────────────────────── */
+  #sidebar {
+    position: fixed;
+    top: var(--header-h);
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-w) !important;
+    min-width: 0;
+    max-width: 85vw;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: none;
+    border-right-width: 1px;
+    border-right-style: solid;
+  }
+  #app.sidebar-open #sidebar {
+    transform: translateX(0);
+  }
+
+  /* Override desktop collapse so mobile toggle is independent */
+  #app.sidebar-collapsed #sidebar {
+    display: flex;
+  }
+
+  /* Resizer not available on mobile */
+  #sidebar-resizer {
+    display: none !important;
+  }
+
+  /* ── Sidebar backdrop ──────────────────────────────────────────────── */
+  #sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 59;
+  }
+  #app.sidebar-open #sidebar-backdrop {
+    display: block;
+  }
+
+  /* ── Editor tabs → header dropdown ─────────────────────────────────── */
+  #editor-tabs {
+    display: none !important;
+  }
+  /* Make header-center the dropdown anchor */
+  #header-center {
+    position: relative;
+  }
+  /* Show a ▾ hint on the note name to indicate it's tappable */
+  #current-file::after {
+    content: ' ▾';
+    font-size: 0.75em;
+    opacity: 0.6;
+  }
+  #current-file {
+    cursor: pointer;
+  }
+
+  /* ── Content padding ───────────────────────────────────────────────── */
+  #note-area {
+    padding: 16px;
+  }
+  #meta-panel {
+    padding: 16px;
+  }
+  .view-header {
+    padding: 16px 16px 0;
+  }
+  .view-content {
+    padding: 12px 16px 24px;
+  }
+  .code-title-input {
+    padding: 16px 16px 12px;
+  }
+
+  /* ── Modals — full-page on mobile ──────────────────────────────────── */
+  #login-card,
+  #modal,
+  .history-card,
+  .img-editor-card {
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    max-height: none;
+    border: none;
+    border-radius: 0;
+    padding: 24px 16px;
+  }
+  /* Login card gets a bit more breathing room */
+  #login-card {
+    padding: 32px 20px;
+  }
+  /* History — let the card scroll internally */
+  .history-card {
+    height: 100vh;
+    max-height: 100vh;
+  }
+  /* Image editor — constrain canvas to mobile width */
+  .img-editor-card {
+    width: 100vw;
+    gap: 12px;
+  }
+  .img-editor-preview canvas {
+    max-width: calc(100vw - 48px);
+  }
+
+  /* ── Header center ─────────────────────────────────────────────────── */
+  #header-center {
+    padding: 0 8px;
+  }
 }
 
 /* ── Login screen ── */

@@ -93,6 +93,8 @@ export const DOM = {
   // ── Editor area ─────────────────────────────────────────────────────────
   NOTE_AREA:    'note-area',
   EDITOR_TABS:  'editor-tabs',
+  HEADER_CENTER:       'header-center',
+  MOBILE_TAB_DROPDOWN: 'mobile-tab-dropdown',
   TAB_BTN_VIEW: 'tab-btn-view',
   TAB_BTN_CODE: 'tab-btn-code',
   TAB_BTN_RAW:  'tab-btn-raw',

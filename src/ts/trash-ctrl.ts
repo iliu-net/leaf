@@ -164,12 +164,19 @@ export async function refreshTrashList(): Promise<void> {
   sidebar.setTrashCount(entries.length);
 }
 
+let _lastNoteId: string | null = null;
+
 export async function handleToggleTrash(): Promise<void> {
   if (sidebar.getMode() === 'trash') {
+    // Leaving trash → restore folder view and last-selected note
     sidebar.setMode('notes');
     trashView.hideTrashPreview();
-    await refreshList();
+    await refreshList(_lastNoteId);
+    _lastNoteId = null;
   } else {
+    // Entering trash → hide editor, remember current note for return
+    _lastNoteId = ui.getCurrentNoteId();
+    ui.hideEditor();
     sidebar.setMode('trash');
     await refreshTrashList();
   }

@@ -80,6 +80,34 @@ export function initPanels(onDirty: () => void): void {
   $maybe(DOM.TAB_BTN_RAW)?.addEventListener('click',  () => switchTab('raw'));
   $maybe(DOM.TAB_BTN_META)?.addEventListener('click', () => switchTab('meta'));
 
+  // ── Mobile tab dropdown (tapped via #current-file on mobile) ─────────
+  const headerCenter = $maybe(DOM.HEADER_CENTER);
+  const mobileDropdown = $maybe(DOM.MOBILE_TAB_DROPDOWN);
+  const currentFileEl = $maybe(DOM.CURRENT_FILE);
+
+  if (headerCenter && mobileDropdown && currentFileEl) {
+    // Tap current-file → toggle dropdown
+    currentFileEl.addEventListener('click', (e: MouseEvent) => {
+      e.stopPropagation();
+      headerCenter.classList.toggle('tab-dropdown-open');
+    });
+
+    // Click outside closes
+    document.addEventListener('click', (e: MouseEvent) => {
+      if (!e.composedPath().includes(headerCenter!)) {
+        headerCenter!.classList.remove('tab-dropdown-open');
+      }
+    });
+
+    // Dropdown items → switch tab
+    mobileDropdown.addEventListener('click', (e: MouseEvent) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-tab]');
+      if (!btn || !btn.dataset.tab) return;
+      switchTab(btn.dataset.tab);
+      headerCenter.classList.remove('tab-dropdown-open');
+    });
+  }
+
   // ── CodeMirror — lazy load; fall back to raw textarea on failure ─────
   loadCodeMirror();
 }
@@ -254,6 +282,7 @@ async function switchTab(tab: string): Promise<void> {
     // (keyboard shortcut or mouse click → grab focus on entry).
     panel.focus?.();
     _updateTabButtons();
+    _syncMobileTabSelect();
   }
 }
 
@@ -331,5 +360,28 @@ function updateTabButtonVisibility(isSystem: boolean): void {
     if (btnCode) btnCode.style.display = _cmAvailable ? '' : 'none';
     if (btnRaw)  btnRaw.style.display  = _cmAvailable ? 'none' : '';
   }
+
+  // Sync mobile dropdown items too
+  const dd = $maybe(DOM.MOBILE_TAB_DROPDOWN);
+  if (!dd) return;
+  const codeBtn = dd.querySelector<HTMLButtonElement>('[data-tab="code"]');
+  const rawBtn  = dd.querySelector<HTMLButtonElement>('[data-tab="raw"]');
+  if (isSystem) {
+    if (codeBtn) codeBtn.style.display = 'none';
+    if (rawBtn)  rawBtn.style.display  = 'none';
+  } else {
+    if (codeBtn) codeBtn.style.display = _cmAvailable ? '' : 'none';
+    if (rawBtn)  rawBtn.style.display  = _cmAvailable ? 'none' : '';
+  }
+}
+
+/** Sync the mobile dropdown checkmarks to the active tab. */
+function _syncMobileTabSelect(): void {
+  const dd = $maybe(DOM.MOBILE_TAB_DROPDOWN);
+  if (!dd) return;
+  dd.querySelectorAll<HTMLElement>('.dropdown-check').forEach(chk => {
+    const btn = chk.closest<HTMLButtonElement>('[data-tab]');
+    chk.style.visibility = btn?.dataset.tab === _activeTab ? 'visible' : 'hidden';
+  });
 }
 

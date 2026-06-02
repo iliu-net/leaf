@@ -237,8 +237,16 @@ export function setSidebarLoading(loading: boolean): void {
   el.style.display = loading ? 'flex' : 'none';
 }
 
+/** Toggle sidebar visibility — collapsed on desktop, slide-over on mobile. */
 export function toggleSidebar(): void {
-  $(DOM.APP).classList.toggle('sidebar-collapsed');
+  const app = $(DOM.APP);
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+
+  if (isMobile) {
+    app.classList.toggle('sidebar-open');
+  } else {
+    app.classList.toggle('sidebar-collapsed');
+  }
 }
 
 export function clearSearch(): void {
@@ -250,6 +258,17 @@ export function clearSearch(): void {
 }
 
 // ── Menu checkmarks ────────────────────────────────────────────────────────────
+
+/** Close the mobile sidebar only when a note/trash-item was actually opened. */
+function _closeMobileSidebarIfNoteOpened(e: MouseEvent): void {
+  const target = e.target as HTMLElement;
+  // Don't close on tree toggles, branch-only rows, or context-menu buttons
+  if (target.closest('.tree-toggle, .tree-branch-only, .file-item-more')) return;
+  // Close only when a note or trash item was actually clicked
+  if (!target.closest('.file-item') && !target.closest('.trash-row')) return;
+  const app = $(DOM.APP);
+  app.classList.remove('sidebar-open');
+}
 
 function _updateMenuChecks(): void {
   const menuFolder = $maybe(DOM.MENU_FOLDER);
@@ -275,14 +294,40 @@ function _updateMenuChecks(): void {
  * Wire all sidebar DOM events. Called once by ui.bindEvents().
  */
 export function init(handlers: UIEventHandlers): void {
+  // ── Sidebar backdrop for mobile slide-over ────────────────────────────
+  // Created once; shown/hidden via CSS when .sidebar-open is toggled.
+  let backdrop = document.getElementById('sidebar-backdrop');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.id = 'sidebar-backdrop';
+    document.getElementById(DOM.APP)!.appendChild(backdrop);
+  }
+  backdrop.addEventListener('click', () => {
+    const app = $(DOM.APP);
+    app.classList.remove('sidebar-open');
+  });
+
+  // ── Escape key closes mobile sidebar ──────────────────────────────────
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      const app = $(DOM.APP);
+      if (app.classList.contains('sidebar-open')) {
+        e.preventDefault();
+        app.classList.remove('sidebar-open');
+      }
+    }
+  });
+
   // File list — event delegation to the active sidebar view
   $(DOM.FILE_LIST).addEventListener('click', e => {
     _currentView?.handleClick(e, handlers);
+    _closeMobileSidebarIfNoteOpened(e);
   });
 
   // System notes — click delegation to SystemTreeView
   $maybe(DOM.SYSTEM_NOTES_LIST)?.addEventListener('click', e => {
     SystemTreeView.handleClick(e, handlers);
+    _closeMobileSidebarIfNoteOpened(e);
   });
 
   // Notes search

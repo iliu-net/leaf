@@ -48,7 +48,10 @@ export async function refreshList(selectId: string | null = null): Promise<void>
   try {
     _allNotes = await notes.listNotes();
     const filtered = applyFilter();
-    ui.renderNoteList(filtered, _getCurrentId());
+    // Use selectId for highlight/expand if the editor has been cleared
+    // (e.g. returning from trash).  Falls back to current editor state.
+    const highlightId = selectId || _getCurrentId();
+    ui.renderNoteList(filtered, highlightId);
     ui.updateNoteCount(_allNotes.length, filtered.length);
     renderSystemSection();
     if (selectId) await openNote(selectId);
