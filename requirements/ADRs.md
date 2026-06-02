@@ -37,19 +37,34 @@ non-POSIX filesystems.
 ### Others
 
 * Manage dependancies with composer
-* PHP + FlatFiles or MySQL (due to shared hosting limitations)
-* note contents kept opaque -> End to End Encryption
+* PHP with Storage backends using:
+  * Flat Files
+  * MySQL
+  * Flat Files + Git
+  * Matches potential shared hosting limitations (PHP and MySQL hosting)
+* note contents kept opaque to support End to End Encryption.
+  * Not for Git based backend.
 * REST API end-points
   * Authentication using JWT with plugable user+password
   * user+password using imap (ddeboer/imap or webklex/php-imap)
   * Conflicts: take the newest, but conflicting version is added as previous version
-* Alternative: Using Python with Fusion Passenger
+* ~~Alternative:~~ Using Python with Fusion Passenger
   * Passenger benefits if the worker pools stick around.  However in shared hosting
     most likely the worker will get kill during idle timeout.  Furthermore Python would
     use more memory and would have a longer cold startup time.
-* phase out the diff storage.  The savings are minimal because for this use case
-  and does not justify the added complexity.  Also, would be interesting to add
-  note content encryption which would break diff storage.
+* phase out the diff storage.
+  * This an spiritual upgrade to an older [Wiki](https://github.com/iliu-net/NacoWiki/)
+    implementation.  That implementation used diff storage.  It would
+    only store the current version, and previous versions would be diff
+    patches.  To restore a previous version, you would take the
+    current version and apply diff patches until you reached the vesion
+    you wanted. \
+    For this application, we are dropping that idea:
+    * The storage savings are minimal or this use case and does not
+      justify the added complexity.
+    * Also made restoring previous versions easily breakable.
+    * Needs the content to be readable so will not allow end-to-end
+      encryption.
 
 ## Front end
 

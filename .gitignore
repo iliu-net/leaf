@@ -8,5 +8,13 @@ spa/build-meta.json
 spa/files-cache.json
 *.bak
 
+# PHP Documentor
+phpDocumentor.phar
+
+# Generated documentation
+docs/api
+docs/spa
+docs/.phpdoc-cache
+
 # Some test directories...
 demo

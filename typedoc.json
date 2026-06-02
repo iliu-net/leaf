@@ -1,0 +1,39 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "Leaf Notes — SPA API Documentation",
+  "entryPoints": ["src/ts"],
+  "entryPointStrategy": "expand",
+  "tsconfig": "src/tsconfig.json",
+  "out": "docs/spa",
+
+  "includeVersion": true,
+  "readme": "none",
+
+  "visibilityFilters": {
+    "protected": true,
+    "private": true,
+    "inherited": true,
+    "external": false
+  },
+
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true,
+    "includeFolders": true
+  },
+
+  "categorizeByGroup": true,
+
+  "exclude": [
+    "**/node_modules/**"
+  ],
+
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": false
+  },
+
+  "searchInComments": true,
+  "searchInDocuments": true
+}

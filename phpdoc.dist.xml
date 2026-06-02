@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpdocumentor
+    configVersion="3"
+    xmlns="https://www.phpdoc.org"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="https://www.phpdoc.org https://raw.githubusercontent.com/phpDocumentor/phpDocumentor/master/data/xsd/phpdoc.xsd"
+>
+    <title>Leaf Notes — API Documentation</title>
+
+    <paths>
+        <output>docs/api</output>
+        <cache>docs/.phpdoc-cache</cache>
+    </paths>
+
+    <version number="latest">
+        <api>
+            <source dsn=".">
+                <path>src</path>
+            </source>
+
+            <!-- Default package name for everything under src/ -->
+            <default-package-name>Leaf</default-package-name>
+
+            <!--
+                Markers: standard annotations for work-in-progress / todo items.
+                These will be collected and shown in the generated reports.
+            -->
+            <markers>
+                <marker>TODO</marker>
+                <marker>FIXME</marker>
+                <marker>HACK</marker>
+            </markers>
+
+            <!--
+                Visibility: show everything.
+                Remove the "private" line to slim output.
+            -->
+            <visibility>public</visibility>
+            <visibility>protected</visibility>
+            <visibility>private</visibility>
+
+            <!-- Only include files with these extensions. -->
+            <extensions>
+                <extension>php</extension>
+            </extensions>
+
+            <!--
+                Ignore Composer vendor directories, tests, and build artifacts
+                so they don't pollute the generated docs.
+            -->
+            <ignore hidden="true" symlinks="true">
+                <path>vendor/**/*</path>
+                <path>tests/**/*</path>
+                <path>node_modules/**/*</path>
+                <path>spa/**/*</path>
+                <path>api/**/*</path>
+                <path>demo/**/*</path>
+            </ignore>
+        </api>
+    </version>
+
+    <template name="default" />
+</phpdocumentor>

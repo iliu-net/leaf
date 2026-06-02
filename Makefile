@@ -1,6 +1,7 @@
 .PHONY: help test test-js test-phpunit test-integration \
-				test-integration-auth test-integration-sync clean t\
-				ypecheck build-spa build serve
+				test-integration-auth test-integration-sync clean \
+				typecheck build-spa build serve \
+				docs docs-php docs-spa docs-clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' Makefile | sort | \
@@ -35,3 +36,21 @@ build: build-spa ## Build everything (alias for build-spa)
 
 serve: ## Run test web server
 	php -S localhost:9000
+
+PHPDOC_VERSION := v3.10.0
+PHPDOC := phpDocumentor.phar
+
+$(PHPDOC): ## Download the phpDocumentor PHAR (one-time)
+	curl -sSLo $@ https://github.com/phpDocumentor/phpDocumentor/releases/download/$(PHPDOC_VERSION)/$@
+	chmod +x $@
+
+docs: docs-php docs-spa ## Generate all API documentation
+
+docs-php: $(PHPDOC) ## Generate PHP API docs (phpDocumentor)
+	./$(PHPDOC) -c phpdoc.dist.xml
+
+docs-spa: ## Generate SPA API docs (TypeDoc)
+	pnpm exec typedoc
+
+docs-clean: ## Remove all generated documentation and the PHAR binary
+	rm -rf docs/api docs/spa docs/.phpdoc-cache $(PHPDOC)
