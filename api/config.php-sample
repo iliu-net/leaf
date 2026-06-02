@@ -80,6 +80,7 @@ $spa_config = [
                              // ['inline-extras'] for ++ins++, ^^sup^^, ,,sub,,, ==kbd==, ??mark??;
                              // ['mermaid'] for Mermaid diagrams (flowchart, sequence, ER, gantt, etc.);
                              // ['mathjax'] for MathJax rendering (TeX/LaTeX and AsciiMath);
+	                             // ['spreadsheet'] for CSV spreadsheet with formula evaluation;
                              // ['multimdtable'] for colspan/rowspan/captions;
                              // ['highlight', ['common','hcl']] for popular + extras;
                              // ['highlight', ['js','py']] for explicit list only

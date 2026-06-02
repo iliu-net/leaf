@@ -75,6 +75,7 @@ const _pluginRegistry: Record<string, () => Promise<(md: MarkdownIt, ...args: an
   mathjax:   () => import('./extensions/mathjax.js').then(m => m.default),
   mermaid:   () => import('./extensions/mermaid.js').then(m => m.default),
   multimdtable: () => import('./extensions/multimd-table.js').then(m => m.default),
+  spreadsheet: () => import('./extensions/spreadsheet.js').then(m => m.default),
   svgbob:    () => import('./extensions/svgbob.js').then(m => m.default),
   tasklists: () => import('./extensions/task-lists.js').then(m => m.default),
   toc:       () => import('./extensions/toc.js').then(m => m.default),

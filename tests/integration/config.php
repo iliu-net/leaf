@@ -52,6 +52,7 @@ $spa_config = [
             'tasklists',
             'mathjax',
             'mermaid',
+            'spreadsheet',
             'toc',
         ],
     ],
