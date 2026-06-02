@@ -68,7 +68,7 @@ registerFenceRenderer([], (tokens, idx) => {
   const escaped = tokens[idx].content; // already HTML-escaped by markdown-it
   return (
     `<pre><code class="language-${lang}"`
-    + ` data-lang="highlight" data-source="${encoded}">`
+    + ` data-lang="highlight" data-highlight-lang="${lang}" data-source="${encoded}">`
     + escaped
     + `</code></pre>`
   );
@@ -129,9 +129,55 @@ registerHydrator('highlight', async () => {
     }
   }
 
+  // Alias map: fence language tag → highlight.js language name.
+  // These cover common shorthands that differ from highlight.js's naming.
+  const LANG_ALIAS: Record<string, string> = {
+    sh:        'bash',
+    shell:     'bash',
+    mkd:       'markdown',
+    text:      'plaintext',
+    txt:       'plaintext',
+    terraform: 'hcl',
+    tf:        'hcl',
+    vbs:       'vbscript',
+    js:        'javascript',
+    ts:        'typescript',
+    py:        'python',
+    rb:        'ruby',
+    rs:        'rust',
+    yml:       'yaml',
+    svg:       'xml',   // highlight.js uses xml grammar for SVG
+  };
+
   // Return the render function
-  return async (source: string) => {
-    const autoLang = source.trim() ? _langs : _langs;
+  return async (source: string, el: HTMLElement) => {
+    // Resolve the explicit language from the fence tag (e.g. ```python)
+    const fenceLang = (el.dataset.highlightLang || '').trim();
+    const resolved = LANG_ALIAS[fenceLang] || fenceLang;
+
+    // If we have an explicit language that is registered (or can be
+    // registered on-the-fly), use it directly — this avoids the
+    // auto-detection mis-classifying code (e.g. python detected as
+    // javascript because of // comments, or text detected as bash).
+    if (resolved && !hljs.default.getLanguage(resolved)) {
+      // Try to load the language on demand if we have a loader for it
+      const loader = langModules[resolved];
+      if (loader) {
+        try {
+          const mod = await loader();
+          hljs.default.registerLanguage(resolved, mod.default);
+        } catch {
+          // ignore — fall through to auto-detect
+        }
+      }
+    }
+
+    if (resolved && hljs.default.getLanguage(resolved)) {
+      const result = hljs.default.highlight(source, { language: resolved });
+      return result.value;
+    }
+
+    // Fall back to auto-detection for untagged blocks or unknown languages
     const result = _langs.length > 0
       ? hljs.default.highlightAuto(source, _langs)
       : hljs.default.highlightAuto(source);

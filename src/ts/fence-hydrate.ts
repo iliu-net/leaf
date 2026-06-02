@@ -11,7 +11,7 @@
 
 // ── Hydrator registry ──────────────────────────────────────────────────────
 
-type HydrateFn = (source: string) => Promise<string>;
+type HydrateFn = (source: string, el: HTMLElement) => Promise<string>;
 
 const _hydrators: Record<string, () => Promise<HydrateFn>> = {};
 
@@ -63,7 +63,7 @@ export async function hydrate(root: Element): Promise<void> {
           const raw = el.dataset.source;
           if (!raw) continue;
           const source = decodeURIComponent(escape(atob(raw)));
-          el.innerHTML = await renderFn(source);
+          el.innerHTML = await renderFn(source, el);
           el.classList.add('hljs'); // mark as rendered
         } catch (err) {
           console.warn(`[hydrate] failed to render ${lang} block:`, err);
