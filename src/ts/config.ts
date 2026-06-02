@@ -75,9 +75,24 @@ export interface SpaConfig {
   };
 }
 
-/** Hardcoded safe defaults used when no config has been fetched yet. */
+/**
+ * Hardcoded safe defaults used only when the server has never been
+ * reached AND nothing is cached in localStorage (first-ever offline
+ * load).  The server config is cached on every successful
+ * fetchSpaConfig() and restored from localStorage on subsequent
+ * offline loads — these defaults are a last-resort fallback.
+ */
 const DEFAULT_SPA_CONFIG: SpaConfig = {
-  markdown: { html: false, plugins: [] },
+  markdown: {
+    html: false,
+    plugins: [
+      'wikilinks',              // [[note]] links — essential navigation
+      'tasklists',              // - [ ] / - [x] checkboxes
+      ['highlight', ['common']], // syntax highlighting — basic set
+      'inline-extras',          // ++ins++, ^^sup^^, ,,sub,,
+      'toc',                    // table of contents
+    ],
+  },
   deleted_notes_ttl_days: 7,
   timestamp_format: null,
   spellcheck: {
@@ -105,6 +120,11 @@ export async function fetchSpaConfig(): Promise<void> {
     const resp = await fetch(apiUrl('spa-config'));
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const json: SpaConfig = await resp.json();
+    // Guard against invalid responses (e.g. SW offline fallback or
+    // truncated cached values) that lack the required shape.
+    if (!json || typeof json.markdown !== 'object') {
+      throw new Error('Invalid spa-config response shape');
+    }
     _spaConfig = json;
     spaConfig.set(JSON.stringify(json));
   } catch {

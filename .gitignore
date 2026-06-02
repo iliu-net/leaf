@@ -4,6 +4,8 @@ vendor
 node_modules
 spa/*.js
 !spa/sw.js
+spa/build-meta.json
+spa/files-cache.json
 *.bak
 
 # Some test directories...

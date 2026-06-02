@@ -496,7 +496,7 @@ async function boot(): Promise<void> {
   // Fetch server config, then activate configured markdown plugins
   await fetchSpaConfig();
   const cfg = getSpaConfig();
-  if (cfg.markdown.plugins?.length) {
+  if (cfg.markdown?.plugins?.length) {
     loadPlugins(cfg.markdown.plugins).catch(err =>
       console.warn('[boot] Plugin loading failed:', err)
     );

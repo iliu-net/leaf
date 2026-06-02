@@ -20,9 +20,10 @@ test-phpunit: ## Run PHPUnit unit tests
 test-integration: ## Run integration tests (starts server, runs curl scripts)
 	bash tests/integration/run.sh
 
-clean: ## Remove leftover test temp directories
+clean: ## Remove leftover test temp directories and build artifacts
 	rm -rf /tmp/leaf-phpunit-* /tmp/leaf-integration-* /tmp/leaf-integration-env-*
 	find spa -maxdepth 1 ! -name 'sw.js' -name '*.js' -type f -print0 | xargs -0r rm -v
+	rm -f spa/build-meta.json spa/files-cache.json
 
 typecheck: ## Run TypeScript type checking (no emit)
 	pnpm run typecheck

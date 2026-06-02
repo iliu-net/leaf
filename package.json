@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --project src/tsconfig.json --noEmit",
-    "build": "esbuild src/ts/app.ts --bundle --format=esm --splitting --minify-whitespace --outdir=spa/ --loader:.md=text --loader:.wasm=binary",
+    "build": "esbuild src/ts/app.ts --bundle --format=esm --splitting --minify-whitespace --outdir=spa/ --loader:.md=text --loader:.wasm=binary --metafile=spa/build-meta.json && node -e \"require('fs').writeFileSync('spa/files-cache.json', JSON.stringify(Object.keys(JSON.parse(require('fs').readFileSync('spa/build-meta.json','utf8')).outputs).map(f=>f.replace(/^spa\\//,''))))\"",
     "test": "cd tests/spa && vitest run",
     "test:watch": "cd tests/spa && vitest"
   },
