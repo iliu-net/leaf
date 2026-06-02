@@ -2,9 +2,8 @@
 title: Keyboard Shortcuts
 ---
 
-# Keyboard Shortcuts
 
-## Global
+# Global
 
 | Key | Action |
 |-----|--------|
@@ -14,7 +13,7 @@ title: Keyboard Shortcuts
 | `Ctrl+B` | Toggle sidebar |
 | `Backspace` | Go back (when not editing) |
 
-## Search
+# Search
 
 When the search box is focused, typing filters the note list by **note ID** in real time. Press `Enter` to switch to a **full-text search** — this scans all notes' content and displays matches with context snippets.
 
@@ -24,7 +23,7 @@ When the search box is focused, typing filters the note list by **note ID** in r
 | `Enter` | Full-text search (content) |
 | `Escape` | Clear search |
 
-## Editor (CodeMirror / Raw)
+# Editor (CodeMirror / Raw)
 
 | Key | Action |
 |-----|--------|

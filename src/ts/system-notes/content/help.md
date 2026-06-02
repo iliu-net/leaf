@@ -2,11 +2,10 @@
 title: Help
 ---
 
-# Help
 
 Welcome to the Leaf help system.
 
-## Topics
+# Topics
 
 - [[@help:shortcuts|Keyboard shortcuts]]
 - [[@help:markdown|Markdown syntax]]

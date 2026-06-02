@@ -2,7 +2,7 @@
 title: About Leaf
 ---
 
-# Leaf
+**Leaf** © 2026 Alejandro Liu
 
 A minimal, fast, offline-capable notes app.
 
@@ -12,3 +12,6 @@ A minimal, fast, offline-capable notes app.
 - **Wikilinks** — `[[note]]` style cross-references between notes
 - **Sync** — optional server sync keeps notes available across devices
 - **PWA** — install as a standalone app on desktop and mobile
+
+See [[@help:copyright|]]
+

@@ -2,17 +2,16 @@
 title: Markdown Syntax
 ---
 
-# Markdown Syntax
 
 Leaf uses standard markdown with some extensions.
 
-## Basic formatting
+# Basic formatting
 
 ```markdown
 **bold**  *italic*  ~~strikethrough~~  `code`
 ```
 
-## Headings
+# Headings
 
 ```markdown
 # H1
@@ -20,7 +19,7 @@ Leaf uses standard markdown with some extensions.
 ### H3
 ```
 
-## Links
+# Links
 
 ```markdown
 [external](https://example.com)
@@ -28,7 +27,7 @@ Leaf uses standard markdown with some extensions.
 [[internal-note|with label]]
 ```
 
-## Code blocks
+# Code blocks
 
 ````markdown
 ```javascript
@@ -36,7 +35,7 @@ const x = 1;
 ```
 ````
 
-## Other
+# Other
 
 - Lists (ordered and unordered)
 - Blockquotes with `>`
