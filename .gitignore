@@ -1,4 +1,4 @@
-data
+
 api/config.php
 vendor
 node_modules
@@ -16,5 +16,3 @@ docs/api
 docs/spa
 docs/.phpdoc-cache
 
-# Some test directories...
-demo

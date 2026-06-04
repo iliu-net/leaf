@@ -2,23 +2,18 @@
 /**
  * config.php — per-instance environment configuration
  *
- *
- * JWT_SECRET must be a long random string — generate with:
- *   php -r "echo bin2hex(random_bytes(32));"
- * Never commit the real secret to version control.
  */
 
 // ── Paths ──────────────────────────────────────────────────────────────────
 
-define('LEAF_PHP_DIR', dirname(__DIR__) . '/src/php/');
-define('DATA_ROOT',    dirname(dirname(__DIR__)) . '/leaf-data/');
+define('LEAF_PHP_DIR', dirname(__DIR__) . '/../src/php/');
+define('DATA_ROOT',    dirname(__DIR__) . '/data/');
 
 // ── CORS policy ──────────────────────────────────────────────────────────
 // CORS — tighten Access-Control-Allow-Origin in production
 define('CORS_ALLOW_POLICY', '*'); # Set to the actual SPA origin
 
 // ── JWT settings ──────────────────────────────────────────────────────────
-
 // Replace with output of: php -r "echo bin2hex(random_bytes(32));"
 define('JWT_SECRET',   'CHANGE_ME_TO_A_LONG_RANDOM_STRING');
 
@@ -30,26 +25,28 @@ define('REFRESH_EXPIRY', 30 * 24 * 3600);   // refresh token lifetime: 30 days
 // The SPA fetches this at boot and caches it in localStorage.
 $spa_config = [
     'markdown' => [
-        'html'    => false,  // allow raw HTML in markdown input
+        'html'    => false, 	// allow raw HTML in markdown input
         'plugins' => [
-	    'inline-extras', // ['inline-extras'] for ++ins++, ^^sup^^, ,,sub,,, ==kbd==, ??mark??;
+	    'inline-extras',	// for ++ins++, ^^sup^^, ,,sub,,, ==kbd==, ??mark??;
 	    'wikilinks',
 	    ['highlight', ['common','hcl']], // for popular + extras;
 	    //~ ['highlight', ['js','py']] // for explicit list only
-	    // e.g. ['emoji'] for :smile: shortcuts;
-	    // ['abbr'] for *[abbr]: expansion — auto-wraps in <abbr>;
-	    // ['deflist'] for definition lists (Term / : Definition);
-	    // ['footnote'] for [^label] and ^[inline] footnotes;
-
-	    // ['mermaid'] for Mermaid diagrams (flowchart, sequence, ER, gantt, etc.);
-	    // ['mathjax'] for MathJax rendering (TeX/LaTeX and AsciiMath);
-	    // ['spreadsheet'] for CSV spreadsheet with formula evaluation;
-	    // ['multimdtable'] for colspan/rowspan/captions;
+	    'emoji',		// for :smile: shortcuts;
+	    'abbr',		// for *[abbr]: expansion — auto-wraps in <abbr>;
+	    'deflist',		// for definition lists (Term / : Definition);
+	    'footnote',		// for [^label] and ^[inline] footnotes;
+	    'mermaid',		// for Mermaid diagrams (flowchart, sequence, ER, gantt, etc.);
+	    'mathjax',		// for math rendering (TeX/LaTeX and AsciiMath);
+	    'spreadsheet',	// for CSV spreadsheet with formula evaluation;
+	    'multimdtable',	// for colspan/rowspan/captions;
+	    'svgbob',		// line-art type drawings
+	    'tasklists',	// Github stile - [ ] / - [x] checkboxes
+	    'toc',		// Automatic table of contents
 	],
     ],
     'deleted_notes_ttl_days' => 7,      // days before deleted notes are purged client-side
     'timestamp_format'      => null,    // null = client decides; or PHP date) format, e.g. 'Y-m-d H:i'
-    'e2ee' => null,	// true if e2ee is required, false if e2ee is not supported by this endpoint, null if supported but not required/enforced.
+    'e2ee' => false,	// true if e2ee is required, false if e2ee is not supported by this endpoint, null if supported but not required/enforced.
     'autosave' => [
       'enabled' => true,
       'delay_ms' => 2000,

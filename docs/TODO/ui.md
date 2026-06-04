@@ -16,6 +16,19 @@
     a 3 way merge.
   * UI, select from History UI and generate a preview.  User can accept
     or cancel.
+* Extend wikilinks
+  * http:// or https:// will generate external links.  Last entries
+    in autocomlete should be http:// or https:// and let the user type.
+  * $ -> used for special embedding ... aborts autocompletion
+    $yt: youtube embeds ~~not really needed, never really used this~~
+    $gh-script: embed like gist shortcut
+    <script src="https://tortugalabs.github.io/embed-like-gist/embed.js?style=github&showBorder=on&showLineNumbers=on&showFileMeta=on&showCopy=on&fetchFromJsDelivr=on&target=https://github.com/alejandroliu/0ink.net/blob/main/snippets/2024/optimiz/output.md"></script>
+    $!media: embed a image from media library.  Could do auto completion
+    if a API is available
+    $media: add a link from media library.
+    ![title]({static}/images/..path...) => image
+    [title]({static}/images/..path...) => just a link
+* Remove back button and use browser history instead
 
 ***
 

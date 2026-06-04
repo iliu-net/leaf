@@ -23,27 +23,43 @@ define('COOKIE_PATH', '/');
 @mkdir(DATA_ROOT, 0755, true);
 @mkdir(NOTES_DIR, 0755, true);
 
-$phpDir = __DIR__ . '/../../src/php';
+// Path to the src/php directory — used by test classes to load backends.
+define('LEAF_PHP_DIR', __DIR__ . '/../../src/php/');
 
-@require_once $phpDir . '/jwt.php';
-@require_once $phpDir . '/storage.php';
-@require_once $phpDir . '/storage/FlatFileStorage.php';
-@require_once $phpDir . '/users.php';
+// Shared source files required by all tests.
+@require_once LEAF_PHP_DIR . 'jwt.php';
+@require_once LEAF_PHP_DIR . 'storage.php';
+@require_once LEAF_PHP_DIR . 'users.php';
 
-// ── Wire storage backend ───────────────────────────────────────────────
+// ── Storage backend ───────────────────────────────────────────────────
+//
+// Each test class wires its own backend via createStorage().
+// The old "StorageTest" (internals) and legacy tests that don't extend
+// StorageContractTestBase need a default backend.  FlatFileStorage is
+// always available and serves as the default.
 
+@require_once LEAF_PHP_DIR . 'storage/FlatFileStorage.php';
+
+// Default wiring — test classes that extend StorageContractTestBase
+// will override this in their setUp().
 $GLOBALS['testStorage'] = new FlatFileStorage(DATA_ROOT, DELETED_NOTE_TTL_DAYS);
 storage_set($GLOBALS['testStorage']);
 
 /**
- * Invoke a private/protected method on the concrete FlatFileStorage
- * instance.  Used by unit tests that exercise internal building blocks
+ * Invoke a private/protected method on the concrete storage instance.
+ * Used by unit tests that exercise internal building blocks
  * (resolveVersion, applyWrite, putNote, etc.).
  */
 function storage_invoke(string $method, mixed ...$args): mixed
 {
-    $s = $GLOBALS['testStorage'] ?? null;
-    if (!$s) throw new \RuntimeException('$testStorage not set in $GLOBALS');
+    $s = storage();
+    if (!$s) throw new \RuntimeException('storage() not initialised');
     $ref = new ReflectionMethod($s, $method);
     return $ref->invoke($s, ...$args);
 }
+
+/** Git-stage TTL in hours (0 = immediate commit, no staging — test mode). */
+define('STAGE_FLUSH_HOURS', 0);
+
+/** Whether the active backend is GitStorage (needed by legacy tests). */
+define('IS_GIT_BACKEND', getenv('TEST_STORAGE_BACKEND') === 'git');

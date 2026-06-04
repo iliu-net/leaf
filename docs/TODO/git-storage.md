@@ -94,41 +94,54 @@ Each note has an optional `.meta` file that stages content before committing.
 The git commit is deferred until a *trigger* fires.
 
 ```
-Alice writes X.md (content "v5") + X.meta {"author":"alice","date":"2026-05-29","base_commit":"abc"}
+Alice (client_id=3) writes X.md (v5) + X.meta
+  {"author":"alice","client_id":3,"date":"2026-05-29","base_commit":"abc"}
   → NO git commit yet
 
-Alice writes X.md again (content "v6") — .meta exists, same author+date
+Alice (client_id=3) writes X.md again (v6) — .meta exists,
+  same client_id + same author + same date
   → overwrite X.md, .meta unchanged
   → STILL no commit
 
-Bob syncs — server sees X.meta, author=alice ≠ bob
+Bob (client_id=4) syncs — server sees X.meta, client_id=3 ≠ 4
   → TRIGGER: commit X.md, unlink X.meta, write changelog entry
   → Bob receives committed version
+
+Alice's laptop (client_id=7) syncs — server sees X.meta, client_id=3 ≠ 7
+  → TRIGGER: commit X.md (phone's staged content published)
+  → Alice's laptop receives committed version
+  → Without the client_id guard, the laptop would see "same author" and
+    skip the flush, receiving the stale committed version — then
+    potentially overwrite the phone's staged content on its next save.
 ```
 
 ### Commit Triggers
 
 | Trigger | Behaviour |
 |---|---|
-| **Different author reads** | Flush the stage (commit + unlink `.meta`) so the reader sees the published content |
+| **Different client_id reads** | Flush the stage (commit + unlink `.meta`) so the reader sees the published content |
 | **Date change on write** | Old `.meta` has yesterday's date → flush old stage → write new content + fresh `.meta` for today |
-| **Different author writes** | Flush the original author's stage → then stage the new author's content |
+| **Different client_id writes** | Flush the original client's stage → then stage the new client's content |
 | **DELETE** | Flush any staged content first → then `git rm` + commit deletion |
 | **RENAME** | Flush any staged content first → then `git mv` + commit rename |
-| **Bootstrap** (`syncedRevision===0`) | Flush ALL `.meta` files before building the response |
-| **Maintenance** (optional TTL) | `storage_housekeeping()` — periodically flush `.meta` files older than N hours |
+| **Bootstrap** (`syncedRevision===0`) | No separate flush step needed. `getNoteFull`'s read-side trigger flushes each note's `.meta` as it's read (when `clientId ≠ meta.client_id`). Every note in the bootstrap response is either already committed or committed on-the-fly. |
+| **Maintenance** (TTL-based) | `storage_housekeeping()` — flush `.meta` files older than `STAGE_FLUSH_HOURS` (config.php, default 12 h) |
 
 ### `.meta` File Format
 
 ```json
 {
   "author":      "alice",
+  "client_id":   3,
   "date":        "2026-05-29",
   "base_commit": "abc123def456"
 }
 ```
 
-- **`author`** — who is staging this content
+- **`author`** — who is staging this content (used for git commit attribution)
+- **`client_id`** — the sync client ID of the device that wrote this stage;
+  the primary key for flush decisions (same author on two devices → two different
+  `client_id` values → flush on cross-device access)
 - **`date`** — UTC date (`Y-m-d`); date change triggers a flush
 - **`base_commit`** — the last committed SHA for this file when staging began;
   becomes `prev_version` in the changelog entry on flush; `null` for new notes
@@ -138,34 +151,34 @@ Bob syncs — server sees X.meta, author=alice ≠ bob
 
 ```
 if .meta exists:
-  if same author AND same date:
+  if same client_id AND same author AND same date:
     overwrite .md, keep .meta → return null (staged)
   else:
     flush existing stage (commit + changelog + unlink .meta)
     fall through
 
 write .md
-write new .meta {author, date, base_commit: last_committed_sha_or_null}
+write new .meta {author, client_id, date, base_commit: last_committed_sha_or_null}
 return null (staged — no new revision yet)
 ```
 
 ### Read-Side Trigger
 
-`storage_get_note_full($id, $viewer)` is the consumer-facing read.
-If a `.meta` exists and `viewer !== meta.author`, the stage is flushed
+`storage_get_note_full($id, $clientId)` is the consumer-facing read.
+If a `.meta` exists and `clientId !== meta.client_id`, the stage is flushed
 before returning the content.  Consumers are unaware — they just pass
-`$author` and get back normalized data.
+`$clientId` (already part of the sync protocol) and get back normalized data.
 
 ```php
-function storage_get_note_full(string $id, string $viewer): ?array {
+function storage_get_note_full(string $id, int $clientId): ?array {
     $note = storage_get_note($id);   // internal: reads .md + git metadata
     if (!$note) return null;
 
-    // Staging flush: if a .meta exists and viewer ≠ author, commit it first
+    // Staging flush: if a .meta exists and clientId ≠ meta.client_id, commit it first
     $metapath = meta_path($id);
-    if ($viewer !== '' && file_exists($metapath)) {
+    if ($clientId !== 0 && file_exists($metapath)) {
         $meta = json_decode(file_get_contents($metapath), true);
-        if (($meta['author'] ?? '') !== $viewer) {
+        if (($meta['client_id'] ?? 0) !== $clientId) {
             storage_flush_stage($id);
             $note = storage_get_note($id);   // re-read after commit
         }
@@ -309,8 +322,8 @@ internals differ.
 
 | Function | Git backend implementation |
 |---|---|
-| `storage_get_note_full($id, $viewer)` | Reads `.md` file; flushes `.meta` if `viewer ≠ meta.author`; queries git for metadata. Returns the same flat shape. |
-| `storage_put_note_logged($id, $content, $author, $client_version)` | See staging logic below. Returns `[$sha, false]` on commit, `null` on stage. |
+| `storage_get_note_full($id, $clientId)` | Reads `.md` file; flushes `.meta` if `clientId ≠ meta.client_id`; queries git for metadata. Returns the same flat shape. |
+| `storage_put_note_logged($id, $content, $author, $clientId, $client_version)` | See staging logic below. Returns `[$sha, false]` on commit, `null` on stage. |
 | `storage_delete_note_logged($id, $author)` | Flushes stage → writes `.deleted` → `git rm` → commit → changelog. Returns `bool`. |
 | `storage_rename_note_logged($old, $new, $author)` | Flushes stage → `git mv` → commit → changelog. Returns `bool`. |
 | `storage_get_version_list($id)` | `git log --format='%H %at %an' -- notes/{id}.md` |
@@ -325,7 +338,7 @@ internals differ.
 | `storage_note_deleted()` | Unchanged — checks `.deleted` marker |
 | `storage_get_note($id)` | Internal only. Reads `.md` + git metadata. Returns internal representation (no `versions` key). |
 | `storage_put_note($id, $data)` | Writes `.md` directly (used by flush, not staging path) |
-| `storage_apply_write($id, $content, $author)` | See staging logic below. Returns SHA on commit, `null` on stage. |
+| `storage_apply_write($id, $content, $author, $clientId)` | See staging logic below. Returns SHA on commit, `null` on stage. |
 | `storage_delete_note($id, $deleted_by)` | Writes `.deleted` marker → `git rm` → commit |
 | `storage_revive_note($id)` | `git show` to recover → writes `.md` → removes `.deleted` → commit CREATE |
 | `storage_rename_note($old, $new)` | Filesystem `rename()` → git commit |
@@ -334,7 +347,7 @@ internals differ.
 | `storage_purge_deleted_notes()` | Unlinks `.deleted` markers older than TTL |
 | `storage_hard_delete_note()` | Unlinks `.deleted` marker |
 | `storage_flush_stage($id)` | **New.** Commits staged `.md` + unlinks `.meta` + writes changelog entry. Returns SHA. |
-| `storage_flush_all_stages()` | **New.** Flushes every `.meta` file. Called at bootstrap. |
+| `storage_flush_all_stages()` | **New.** Internal utility. Flushes every `.meta` file. Used by `housekeeping()` for TTL-based flushes; not needed at bootstrap (read-side triggers handle it per-note). |
 
 ### Deleted Functions
 
@@ -342,7 +355,7 @@ internals differ.
 - `storage_mark_version_seen()` — commits are immutable, nothing to flip
 - `created_by` lazy-migration code — git log provides this on every read
 
-### Changed Constants
+### Changed Constants / Capabilities
 
 - `storage_e2ee_support()` — returns `false` in git mode.  Not a
   technical limitation (opaque blobs can be stored in `.md` files and
@@ -350,6 +363,9 @@ internals differ.
   backend: `git diff` shows ciphertext, static site generators can't
   render content, CLI editing is impossible.  If you need E2EE, use the
   flat-file backend instead.
+- `STAGE_FLUSH_HOURS` — new config.php constant (default 12).  Controls
+  how long a `.meta` file can remain uncommitted before
+  `storage_housekeeping('sync')` force-flushes it.
 
 ---
 
@@ -400,7 +416,7 @@ Called internally by `storage_put_note_logged()`.  Returns the commit
 SHA on flush, or `null` when content is staged (no commit created).
 
 ```php
-function storage_apply_write(string $id, string $content, string $author): ?string {
+function storage_apply_write(string $id, string $content, string $author, int $clientId): ?string {
     $is_new = !file_exists(note_path($id));
     $prev_sha = $is_new ? null : git_log_last_sha($id);
 
@@ -409,12 +425,13 @@ function storage_apply_write(string $id, string $content, string $author): ?stri
     if (file_exists($metapath)) {
         $meta = json_decode(file_get_contents($metapath), true);
         $today = gmdate('Y-m-d');
-        if (($meta['author'] ?? '') === $author && ($meta['date'] ?? '') === $today) {
-            // Same author, same day → just update the staged content
+        if (($meta['client_id'] ?? 0) === $clientId
+            && ($meta['date'] ?? '') === $today) {
+            // Same device, same day → just update the staged content
             file_put_contents(note_path($id), $content);
             return null;  // staged, no new commit
         }
-        // Different author or new day → flush the existing stage first
+        // Different device or new day → flush the existing stage first
         storage_flush_stage($id);
     }
 
@@ -437,10 +454,10 @@ function storage_apply_write(string $id, string $content, string $author): ?stri
 }
 ```
 
-`storage_put_note_logged()` wraps this: returns `[$sha, false]` on
-commit, `null` on stage.  DELETE and RENAME logged functions follow the
-same structure: commit files + dirty changelog together, then append
-their own changelog entry.
+`storage_put_note_logged()` wraps this, receiving `$clientId` from
+the sync protocol: returns `[$sha, false]` on commit, `null` on stage.
+DELETE and RENAME logged functions follow the same structure: commit
+files + dirty changelog together, then append their own changelog entry.
 
 ### `git_file_info($id)`
 
@@ -488,11 +505,11 @@ Only the values change — structure is identical:
 
 ### Bootstrap (`syncedRevision === 0`)
 
-1. `storage_flush_all_stages()` — flush ALL `.meta` files (orphaned
-   stages from crashed writers or stale deferred commits)
-2. `storage_list_notes()` + `storage_get_note_full()` — read all `.md`
-   files, batch query git for per-file metadata
-3. Build CREATE changes as before (same code path as flat-file backend)
+1. `storage_list_notes()` + `storage_get_note_full()` — read all `.md`
+   files, batch query git for per-file metadata.  `getNoteFull`'s
+   read-side trigger flushes any staged `.meta` for each note on-the-fly
+   (when `clientId ≠ meta.client_id`), so no separate flush step is needed.
+2. Build CREATE changes as before (same code path as flat-file backend)
 
 ### Conflict Detection
 
@@ -570,7 +587,7 @@ not yet a committed version).
   lines of version-management code)
 - All git-mutating operations must be serialized behind a `flock`
 - Staging logic lives entirely inside `storage.php` — `sync.php` is
-  unaffected (it just passes `$author` as `$viewer` and destructures
+  unaffected (it just passes `$clientId` and destructures
   the `$dirty` boolean without knowing what they mean for git)
 - `git log` queries add latency to `storage_get_note()` and
   `storage_list_notes()` (acceptable for low transaction volume)
@@ -590,38 +607,46 @@ not yet a committed version).
 ## Open Questions
 
 1. **One commit per change vs. one commit per sync push?**
-   Per-change gives cleaner per-file history.  Start with per-change; batch
-   later if commit count becomes an issue.
+   RESOLVED: per-file commit.  Commits happen on staging-flush triggers,
+   not at write time.  Each flush creates one commit for one note's `.md`
+   file (plus the trailing changelog entry from the previous operation).
+   This gives clean per-file history (`git log notes/A.md` shows only A's
+   changes).  The staging layer already debounces rapid same-device saves
+   so per-note commit count is minimal — batching across notes wouldn't
+   save much and would pollute `git log`.  For a simple note-taking app,
+   clear history beats commit-count micro-optimisation.
 
 2. **Should `.deleted` markers be committed to git?**
-   Recommendation: no.  They carry operational metadata (`deleted_at`,
+   RESOLVED: no.  They carry operational metadata (`deleted_at`,
    `deleted_by`) that git doesn't natively store.  Committing them would
    create noisy history for every delete/restore cycle.
 
 3. **Git author identity format.**
-   Current proposal: `username <username@leaf.local>`.  For multi-server
+   RESOLVED: `username <username@leaf.local>`.  For multi-server
    deployments, use real email addresses (configurable).
 
 4. **Git history growth over years.**
-   Mitigations: periodic shallow-clone for new deployments; changelog serves
-   as the fast path for sync regardless of history size.
+   DEFERRED — not an issue at the moment.  Mitigations exist if needed:
+   periodic shallow-clone for new deployments; changelog serves as the
+   fast path for sync regardless of history size.
 
 5. **Staging TTL.**
-   Should `.meta` files auto-flush after a timeout (e.g. 24 hours)?
-   `storage_housekeeping()` is the designated hook (called daily from
-   sync.php's purge block).  Bootstrap already handles stale stages on
-   `syncedRevision===0`, so they don't accumulate across restarts
-   regardless.
+   RESOLVED: `.meta` files auto-flush after `STAGE_FLUSH_HOURS` (defined in
+   `config.php`, default 12 hours).  `storage_housekeeping('sync')` is the
+   designated hook (called daily from sync.php's purge block).  Bootstrap
+   (`syncedRevision===0`) also handles stale stages so they don't survive
+   restarts regardless of TTL.
 
 6. **Concurrent git index corruption.**
-   Solved by `flock`-serialized writes.  Reads are lock-free and read
+   RESOLVED: `flock`-serialized writes.  Reads are lock-free and read
    consistent file contents.  If a read happens mid-write (before commit),
    it sees the new `.md` content (which is fine — it's the latest content,
    just not yet in a git commit).
 
-7. **Rapid same-author saves creating no commits until a trigger.**
-   This is the design.  If Alice writes 50 times and nobody else reads, no
-   commits are created.  Is this acceptable for audit purposes?  The
-   changelog doesn't see the intermediate states.  If audit of all saves is
-   required, always-commit (no staging) is the alternative — accept the
-   commit spam.
+7. **Rapid same-device saves creating no commits until a trigger.**
+   RESOLVED: this is the intended design.  If Alice writes 50 times on the
+   same device, git sees one commit (version history stays clean).  The
+   separate audit log (`NOTE_WRITE` entries in `audit.php`) captures each
+   individual write event regardless of whether a git commit was created,
+   so per-write audit trails are preserved without commit spam.  No need
+   for an always-commit alternative.

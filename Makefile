@@ -1,5 +1,9 @@
+PHPDOC_VERSION := v3.10.0
+PHPDOC := phpDocumentor.phar
+
 .PHONY: help test test-js test-phpunit test-integration \
-				test-integration-auth test-integration-sync clean \
+				test-integration-auth test-integration-sync \
+				clean dist-clean config-php config-samples \
 				typecheck build-spa build serve \
 				docs docs-php docs-spa docs-clean
 
@@ -21,10 +25,24 @@ test-phpunit: ## Run PHPUnit unit tests
 test-integration: ## Run integration tests (starts server, runs curl scripts)
 	bash tests/integration/run.sh
 
-clean: ## Remove leftover test temp directories and build artifacts
+api/config.php-sample: api/config.php
+	sed -e "s!^[ 	]*define('JWT_SECRET',.*\$$!define('JWT_SECRET',   'CHANGE_ME_TO_A_LONG_RANDOM_STRING');!" < api/config.php > api/config.php-sample
+
+demo/api/config.php-sample: demo/api/config.php
+	sed -e "s!^[ 	]*define('JWT_SECRET',.*\$$!define('JWT_SECRET',   'CHANGE_ME_TO_A_LONG_RANDOM_STRING');!" < demo/api/config.php > demo/api/config.php-sample
+
+config-samples:	api/config.php-sample demo/api/config.php-sample ## Rebuild config samples
+
+config-php:
+	@set -x ; [ -f api/config.php ] || sed -e "s!^[ 	]*define('JWT_SECRET',.*\$$!define('JWT_SECRET',   '$$(php -r "echo bin2hex(random_bytes(32));")');!" > api/config.php < api/config.php-sample
+	@set -x ; [ -f demo/api/config.php ] || sed -e "s!^[ 	]*define('JWT_SECRET',.*\$$!define('JWT_SECRET',   '$$(php -r "echo bin2hex(random_bytes(32));")');!" > demo/api/config.php < demo/api/config.php-sample
+
+clean:  config-samples ## Remove leftover test temp directories and build artifacts
 	rm -rf /tmp/leaf-phpunit-* /tmp/leaf-integration-* /tmp/leaf-integration-env-*
 	find spa -maxdepth 1 ! -name 'sw.js' -name '*.js' -type f -print0 | xargs -0r rm -v
 	rm -f spa/build-meta.json spa/files-cache.json
+
+dist-clean:	clean docs-clean ## Make the package ready for distibution
 
 typecheck: ## Run TypeScript type checking (no emit)
 	pnpm run typecheck
@@ -32,13 +50,10 @@ typecheck: ## Run TypeScript type checking (no emit)
 build-spa: typecheck ## Build the SPA bundle from TypeScript sources
 	pnpm run build
 
-build: build-spa ## Build everything (alias for build-spa)
+build: build-spa config-samples ## Build everything (alias for build-spa)
 
-serve: ## Run test web server
+serve: config-php ## Run test web server
 	php -S localhost:9000
-
-PHPDOC_VERSION := v3.10.0
-PHPDOC := phpDocumentor.phar
 
 $(PHPDOC): ## Download the phpDocumentor PHAR (one-time)
 	curl -sSLo $@ https://github.com/phpDocumentor/phpDocumentor/releases/download/$(PHPDOC_VERSION)/$@

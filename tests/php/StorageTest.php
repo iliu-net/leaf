@@ -7,6 +7,12 @@ class StorageTest extends TestCase
 
     protected function setUp(): void
     {
+        // Always use FlatFileStorage for internal tests
+        @require_once LEAF_PHP_DIR . 'storage/FlatFileStorage.php';
+        $s = new FlatFileStorage(DATA_ROOT, DELETED_NOTE_TTL_DAYS);
+        $GLOBALS['testStorage'] = $s;
+        storage_set($s);
+
         $this->notesDir = NOTES_DIR;
         $this->cleanNotesDir();
     }
