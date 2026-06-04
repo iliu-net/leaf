@@ -1,0 +1,75 @@
+#!/usr/bin/env php
+<?php
+/**
+ * note-cat — read a flat-file JSON note and print its latest version content.
+ *
+ * Usage:
+ *   bin/note-cat <path-to-json-file>
+ *   bin/note-cat <note-id>              # looks in leaf-data/notes/{id}.json
+ *
+ * Examples:
+ *   bin/note-cat leaf-data/notes/welcome.json
+ *   bin/note-cat welcome
+ */
+
+if ($argc < 2) {
+    fwrite(STDERR, "Usage: note-cat <file.json | note-id>\n");
+    exit(1);
+}
+
+$arg = $argv[1];
+
+// If the argument doesn't look like an existing file, treat it as a note ID
+// and look in the default data directory.
+if (!file_exists($arg)) {
+    $dataDir = getenv('LEAF_DATA_DIR') ?: __DIR__ . '/../leaf-data';
+    $path = rtrim($dataDir, '/') . '/notes/' . $arg . '.json';
+    if (!file_exists($path)) {
+        // Also try without .json extension (maybe it was included)
+        $path = rtrim($dataDir, '/') . '/notes/' . $arg;
+    }
+} else {
+    $path = $arg;
+}
+
+if (!file_exists($path)) {
+    fwrite(STDERR, "File not found: {$path}\n");
+    exit(1);
+}
+
+$json = file_get_contents($path);
+$note = json_decode($json, true);
+
+if (!is_array($note)) {
+    fwrite(STDERR, "Failed to parse JSON from: {$path}\n");
+    exit(1);
+}
+
+$current = $note['current'] ?? null;
+
+if ($current === null) {
+    fwrite(STDERR, "Note has no current version (file: {$path})\n");
+    exit(1);
+}
+
+$version = $note['versions'][$current] ?? null;
+
+if ($version === null) {
+    fwrite(STDERR, "Current version '{$current}' not found in versions map\n");
+    exit(1);
+}
+
+$content = $version['content'] ?? '';
+
+if ($content === '') {
+    // Empty content is valid — a blank note
+    echo "\n";
+    exit(0);
+}
+
+echo $content;
+
+// Only add a trailing newline if the content doesn't already end with one
+if (!str_ends_with($content, "\n")) {
+    echo "\n";
+}

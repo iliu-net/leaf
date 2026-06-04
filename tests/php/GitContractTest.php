@@ -159,7 +159,8 @@ class GitContractTest extends StorageContractTestBase
     {
         [$v1] = storage()->putNoteLogged('note', 'content', 'alice', 1, 'local');
 
-        $entries = storage()->changelogSince(0);
+        // changelogSince(1) skips the SYSTEM_INIT bootstrap marker (rev=1)
+        $entries = storage()->changelogSince(1);
         $this->assertCount(1, $entries);
 
         $entry = $entries[0];

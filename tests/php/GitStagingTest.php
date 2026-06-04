@@ -410,8 +410,9 @@ class GitStagingTest extends TestCase
         $this->assertContains('data/changelog.jsonl', $files,
             'Changelog is committed with the data/ prefix');
 
-        // The working-tree changelog has full truth (including trailing entry)
-        $entries = $gs->changelogSince(0);
+        // The working-tree changelog has full truth (including trailing entry).
+        // changelogSince(1) skips the SYSTEM_INIT bootstrap marker (rev=1).
+        $entries = $gs->changelogSince(1);
         $this->assertCount(2, $entries);
 
         $this->rmTree($projectRoot);

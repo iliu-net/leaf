@@ -1022,7 +1022,27 @@ class GitStorage implements StorageInterface
 
     public function changelogNextRev(): int
     {
-        if (!file_exists($this->changelogFile)) return 1;
+        // Bootstrap: if changelog has never existed, seed it with a
+        // no-op marker so changelogCurrentRev() never returns 0.
+        // Without this, a fresh deployment where the client also has
+        // syncedRevision=0 triggers an infinite bootstrap/sync loop
+        // because the server responds with currentRevision=0 each time.
+        if (!file_exists($this->changelogFile)) {
+            $dir = dirname($this->changelogFile);
+            if (!is_dir($dir)) mkdir($dir, 0755, true);
+            $fh = fopen($this->changelogFile, 'w');
+            if ($fh) {
+                fwrite($fh, json_encode([
+                    'rev'     => 1,
+                    'type'    => 'SYSTEM_INIT',
+                    'ts'      => 0,
+                    'file'    => '',
+                    'version' => null,
+                ], JSON_UNESCAPED_UNICODE) . "\n");
+                fclose($fh);
+            }
+            return 2;
+        }
 
         $fh = fopen($this->changelogFile, 'r');
         if (!$fh) return 1;
@@ -1101,6 +1121,47 @@ class GitStorage implements StorageInterface
         return 1;
     }
 
+    /**
+     * Find .md files on disk that have no git history and no .meta file,
+     * and commit them directly.  Handles bootstrap of manually-created
+     * markdown files before the first sync.
+     */
+    private function storageFlushUntrackedNotes(): void
+    {
+        if (!is_dir($this->notesDir)) return;
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($this->notesDir, RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if ($file->getExtension() !== 'md') continue;
+
+            $relative = substr($file->getPathname(), strlen($this->notesDir));
+            $relative = preg_replace('/\.md$/', '', $relative);
+            $id = str_replace('/', ':', $relative);
+
+            // Already tracked by git → skip
+            if ($this->gitLogLastSha($id) !== null) continue;
+            // Already staged (.meta exists) → handle via storageFlushStage
+            if (file_exists($this->metaPath($id))) continue;
+            // Deleted → skip
+            if (file_exists($this->deletedPath($id))) continue;
+
+            // Untracked, live .md file → commit it directly
+            $content = file_get_contents($file->getPathname());
+            $sha = $this->gitCommitMd($id, $content, 'system', "CREATE {$id} (bootstrap)");
+
+            $this->changelogAppend([
+                'rev'          => $this->changelogNextRev(),
+                'version'      => $sha,
+                'file'         => $id,
+                'type'         => 'CREATE',
+                'ts'           => filemtime($file->getPathname()),
+                'prev_version' => null,
+            ]);
+        }
+    }
+
     // ── Housekeeping (StorageInterface) ────────────────────────────────
 
     public function housekeeping(string $entry): int
@@ -1111,8 +1172,15 @@ class GitStorage implements StorageInterface
             // Flush stale .meta files
             $this->storageFlushAllStages();
 
+            // Commit untracked .md files (e.g. demo data, manual file drops)
+            $this->storageFlushUntrackedNotes();
+
             // Purge expired tombstones
             $removed += $this->purgeDeletedNotes();
+
+            // Commit the trailing changelog entry — housekeeping should
+            // leave a clean working tree.
+            $this->commitChangelog();
 
             return $removed;
         }
@@ -1124,6 +1192,21 @@ class GitStorage implements StorageInterface
     public function e2eeSupport(): bool
     {
         return false;
+    }
+
+    /**
+     * Commit the changelog to git if it has uncommitted entries.
+     *
+     * The trailing-commit model leaves the last changelog entry dirty in
+     * the working tree until the next note operation picks it up.  Call
+     * this after housekeeping('sync') to get a clean working tree.
+     *
+     * @return ?string  Commit SHA, or null if nothing to commit
+     */
+    private function commitChangelog(): ?string
+    {
+        if (!$this->changelogIsDirty()) return null;
+        return $this->gitCommit([], [], 'Changelog flush', 'system');
     }
 
     // ── Private: note existence ────────────────────────────────────────

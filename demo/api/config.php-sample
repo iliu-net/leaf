@@ -60,8 +60,13 @@ define('DELETED_NOTE_TTL_DAYS', 30);
 // ── Storage backend ──────────────────────────────────────────────────────
 // Swap this line to switch to a different backend (e.g. MySqlStorage).
 require_once LEAF_PHP_DIR . 'storage.php';
-require_once LEAF_PHP_DIR . 'storage/FlatFileStorage.php';
-storage_set(new FlatFileStorage(DATA_ROOT, DELETED_NOTE_TTL_DAYS));
+//~ require_once LEAF_PHP_DIR . 'storage/FlatFileStorage.php';
+//~ storage_set(new FlatFileStorage(DATA_ROOT, DELETED_NOTE_TTL_DAYS));
+
+require_once LEAF_PHP_DIR . 'storage/GitStorage.php';
+define('STAGE_FLUSH_HOURS', 12);    // hours before uncommitted .meta is force-flushed
+storage_set(new GitStorage(DATA_ROOT, DELETED_NOTE_TTL_DAYS, STAGE_FLUSH_HOURS));
+
 
 // ── Audit log ───────────────────────────────────────────────────────────────
 // Monthly audit files older than this are removed during daily purge.

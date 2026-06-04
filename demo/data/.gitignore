@@ -1,0 +1,7 @@
+*.jsonl
+!changelog.jsonl
+*.meta
+refresh_tokens.json
+users.htpasswd
+last_purge.txt
+.git-lock

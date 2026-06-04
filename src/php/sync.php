@@ -248,6 +248,8 @@ foreach ($client_changes as $change) {
 $current_revision = storage()->changelogCurrentRev();
 $server_changes   = [];
 
+error_log("SYNC: current_rev:${current_revision} synced_rev:${synced_revision}");
+
 if ($synced_revision === 0) {
     // ── Bootstrap: build from filesystem ────────
 
