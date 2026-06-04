@@ -43,7 +43,6 @@ import * as loginCtrl  from './login-ctrl.js';
 import * as notesCtrl  from './notes-ctrl.js';
 import * as trashCtrl  from './trash-ctrl.js';
 import * as editTime   from './edit-time.js';
-import * as navHistory  from './nav-history.js';
 import { lastNote }      from './local-store.js';
 
 // ── Last-note persistence ──────────────────────────────────────────────────
@@ -74,6 +73,36 @@ async function restoreLastNote(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ── Browser history (URL-driven navigation) ────────────────────────────────
+
+/** Read the note ID from ?note= query param, or null. */
+function getNoteFromUrl(): string | null {
+  return new URLSearchParams(location.search).get('note');
+}
+
+/** Push ?note=id onto browser history (creates a new entry). */
+function pushNoteUrl(id: string): void {
+  if (getNoteFromUrl() === id) return;
+  const url = new URL(location.href);
+  url.searchParams.set('note', id);
+  history.pushState(null, '', url);
+}
+
+/** Replace the current URL with ?note=id (no new history entry). */
+function replaceNoteUrl(id: string): void {
+  const url = new URL(location.href);
+  url.searchParams.set('note', id);
+  history.replaceState(null, '', url);
+}
+
+/** Remove ?note= from the current URL (replace state). */
+function clearNoteUrl(): void {
+  if (!getNoteFromUrl()) return;
+  const url = new URL(location.href);
+  url.searchParams.delete('note');
+  history.replaceState(null, '', url);
 }
 
 // ── Editor state (current note, content, auto-save) ──────────────────────
@@ -175,7 +204,8 @@ async function saveAndStop(): Promise<void> {
 /**
  * Activate a fully-loaded note in the editor.
  * Sets all app-level state, shows the editor, highlights the sidebar,
- * pushes nav history, persists last-note, and starts edit-time tracking.
+ * pushes browser history (?note=id), persists last-note, and starts
+ * edit-time tracking.
  */
 function activateNote(id: string, data: NoteData): void {
   _current = id;
@@ -188,7 +218,7 @@ function activateNote(id: string, data: NoteData): void {
   ui.setDirty(false);
   ui.showEditor(data);
   ui.setActiveNote(id);
-  navHistory.push(id);
+  pushNoteUrl(id);
   persistLastNote(id);
   const existingSec = parseInt(data.meta['edit-time'] as string || '0', 10) || 0;
   editTime.start(id, existingSec, getEditTimeConfig().inactivity_sec);
@@ -248,7 +278,6 @@ function buildChangeHandlerDeps(): ChangeHandlerDeps {
     updateTrashCount: () => updateTrashCount(),
     toast: (msg: string) => ui.toast(msg),
     setTrashCount: (n: number) => ui.setTrashCount(n),
-    navRemove: (id: string) => navHistory.remove(id),
     setActiveNote: (id: string) => ui.setActiveNote(id),
   };
 }
@@ -297,7 +326,7 @@ function wireUiEvents(): void {
       if (wasCurrent) {
         editTime.stop();
         clearEditorState();
-        navHistory.remove(id);
+        clearNoteUrl();
       }
     },
     onSearch:        q        => notesCtrl.handleSearch(q),
@@ -368,21 +397,36 @@ function wireUiEvents(): void {
     onTrashEmpty:    ()       => trashCtrl.handleTrashEmpty(),
   });
 
-  // ── Back button ───────────────────────────────────────────────────────
-  $maybe(DOM.BTN_BACK)?.addEventListener('click', () => handleBack());
-}
+  // ── Browser history (popstate) ──────────────────────────────────────
+  window.addEventListener('popstate', async () => {
+    const noteId = getNoteFromUrl();
+    if (!noteId) {
+      // Back to no-note state — show empty state
+      await saveAndStop();
+      editTime.stop();
+      clearEditorState();
+      ui.hideEditor();
+      return;
+    }
+    if (noteId === _current) return;  // same note, no-op
 
-/** Navigate to the previous note in the history stack. */
-async function handleBack(): Promise<void> {
-  const prevId = navHistory.pop();
-  if (!prevId) return;
-
-  await saveAndStop();
-  try {
-    activateNote(prevId, await notes.loadNote(prevId));
-  } catch {
-    ui.toast(`Failed to open "${prevId}"`, true);
-  }
+    await saveAndStop();
+    try {
+      const existing = await dbGetNote(noteId);
+      if (!existing) {
+        // Note was deleted — show empty state
+        editTime.stop();
+        clearEditorState();
+        ui.hideEditor();
+        return;
+      }
+      activateNote(noteId, await notes.loadNote(noteId));
+    } catch {
+      editTime.stop();
+      clearEditorState();
+      ui.hideEditor();
+    }
+  });
 }
 
 // ── Boot phases ───────────────────────────────────────────────────────────
@@ -403,10 +447,19 @@ async function showShell(): Promise<void> {
   await notesCtrl.refreshList();
   updateTrashCount();
 
-  // Restore the last opened note (persisted across page loads)
-  restoreLastNote().catch(err =>
-    console.warn('[boot] Failed to restore last note:', err)
-  );
+  // Restore note from ?note= URL param, fall back to last-opened note.
+  // If the note was deleted, empty state is shown (no error).
+  (async () => {
+    const urlNoteId = getNoteFromUrl();
+    if (urlNoteId) {
+      const existing = await dbGetNote(urlNoteId);
+      if (existing) {
+        try { activateNote(urlNoteId, await notes.loadNote(urlNoteId)); } catch { /* empty state */ }
+      }
+    } else {
+      await restoreLastNote();
+    }
+  })().catch(err => console.warn('[boot] Failed to restore note:', err));
 
   subscribe(event => {
     ui.setSidebarLoading(false);

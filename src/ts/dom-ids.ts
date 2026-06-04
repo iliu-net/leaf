@@ -62,7 +62,6 @@ export const DOM = {
   BTN_VIEW_HISTORY: 'btn-view-history',
 
   // ── Toolbar ─────────────────────────────────────────────────────────────
-  BTN_BACK:            'btn-back',
   BTN_NEW:             'btn-new',
   BTN_SAVE:            'btn-save',
   BTN_TOGGLE_SIDEBAR:  'btn-toggle-sidebar',
