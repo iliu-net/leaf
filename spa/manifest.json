@@ -1,4 +1,5 @@
 {
+  "_comment": "Per-instance customisation: change name, short_name, description, and start_url for each deployment.  The icons/ directory is symlinked from the shared dist build.",
   "name": "Leaf",
   "short_name": "Leaf",
   "description": "A minimal markdown notes app",

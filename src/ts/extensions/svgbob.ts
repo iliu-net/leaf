@@ -51,16 +51,16 @@ registerFenceRenderer(['bob', 'svgbob'], (tokens, idx) => {
 
 // ── Hydrator registration ──────────────────────────────────────────────────
 //
-// svgbob-wasm uses wasm-bindgen --target web, which imports the .wasm file
-// as an ES module.  esbuild doesn't support this pattern natively, so we
-// use the binary loader (--loader:.wasm=binary) and instantiate the WASM
-// manually.
+// svgbob-wasm uses wasm-bindgen --target web.  Vite's ?url suffix
+// resolves the .wasm file to a URL at build time.
 
 registerHydrator('svgbob', async () => {
-  // Dynamic import of the WASM binary — esbuild's binary loader inlines
-  // it as a base64-encoded Uint8Array.
-  const wasmMod = await import('svgbob-wasm/svgbob_wasm_bg.wasm');
-  const wasmBytes: Uint8Array = wasmMod.default;
+  // Dynamic import with ?url suffix → Vite returns the URL string.
+  const wasmMod = await import('svgbob-wasm/svgbob_wasm_bg.wasm?url');
+  const wasmUrl: string = wasmMod.default;
+  const response = await fetch(wasmUrl);
+  if (!response.ok) throw new Error(`Failed to fetch svgbob WASM: ${response.status}`);
+  const wasmBytes = new Uint8Array(await response.arrayBuffer());
 
   // Instantiate the WASM module.  svgbob is a pure-compute module with
   // no host imports, so an empty import object suffices.

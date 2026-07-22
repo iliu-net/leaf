@@ -11,13 +11,22 @@
  * with a user gesture (button click).  No persistence.
  */
 
-import { DOM, $maybe } from './dom-ids.js';
-
 // ── State ──────────────────────────────────────────────────────────────────
 
 let _wakeLock: WakeLockSentinel | null = null;
 let _active = false;
 let _visibilityHandler: (() => void) | null = null;
+
+/** Subscribers notified whenever cookmode active state changes. */
+let _onChange: ((active: boolean) => void) | null = null;
+
+/**
+ * Register a callback to be notified when cookmode state changes.
+ * Pass `null` to unsubscribe.  Only one subscriber at a time (React hook).
+ */
+export function onCookmodeChange(cb: ((active: boolean) => void) | null): void {
+  _onChange = cb;
+}
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
@@ -37,12 +46,14 @@ export async function enable(): Promise<boolean> {
   try {
     _wakeLock = await navigator.wakeLock.request('screen');
     _active = true;
+    _onChange?.(true);
     console.log('[cookmode] Wake lock acquired');
 
     // The lock is released when the tab loses focus or the OS intervenes.
     _wakeLock.addEventListener('release', () => {
       _active = false;
       _wakeLock = null;
+      _onChange?.(false);
       console.log('[cookmode] Wake lock released (by OS or tab switch)');
       updateButton();
     });
@@ -59,6 +70,7 @@ export async function enable(): Promise<boolean> {
           } catch (err) {
             _active = false;
             _wakeLock = null;
+            _onChange?.(false);
             console.log('[cookmode] Failed to re-acquire wake lock:', (err as Error).message);
             updateButton();
           }
@@ -82,6 +94,7 @@ export async function enable(): Promise<boolean> {
  */
 export async function disable(): Promise<void> {
   _active = false;
+  _onChange?.(false);
 
   if (_visibilityHandler) {
     document.removeEventListener('visibilitychange', _visibilityHandler);
@@ -114,7 +127,7 @@ export async function toggle(): Promise<boolean> {
  * Safe to call even if the button isn't in the DOM yet.
  */
 export function updateButton(): void {
-  const btn = $maybe(DOM.BTN_COOKMODE) as HTMLButtonElement | null;
+  const btn = document.getElementById('btn-cookmode') as HTMLButtonElement | null;
   if (!btn) return;
   btn.classList.toggle('active', _active);
   btn.title = _active ? 'Cookmode: ON — screen will stay awake' : 'Cookmode: OFF — click to keep screen awake';

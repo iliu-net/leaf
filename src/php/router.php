@@ -15,6 +15,63 @@
  * PATH_INFO is the primary routing mechanism.  A REQUEST_URI-based
  * fallback handles servers where PATH_INFO is unset.
  */
+if (PHP_SAPI === 'cli') {
+  if (count($argv) < 2) {
+    showCliUsage(0);
+  }
+  if (file_exists(__DIR__.'/'.$argv[1].'_impl.php')) {
+    require_once __DIR__.'/'.$argv[1].'_impl.php';
+  } else {
+    fwrite(STDERR, "Unknown subcommand: {$argv[1]}\n\n");
+    showCliUsage(1);
+  }
+  exit(0);
+}
+
+/**
+ * Extract a one-line description from an _impl.php file's docblock.
+ *
+ * Looks for the first /** … * / block and returns the first text line
+ * after stripping the "filename — " prefix convention.
+ */
+function cliDescription(string $file): string {
+    $content = file_get_contents($file);
+    if (preg_match('|/\*\*\s*\n\s*\*\s*(.*)|', $content, $m)) {
+        $desc = trim($m[1]);
+        // Strip "filename.php — " or "filename.php - " prefix
+        $desc = preg_replace('/^[a-z0-9_-]+\.php\s*[—\-]\s*/i', '', $desc);
+        return $desc;
+    }
+    return '';
+}
+
+/**
+ * Print available CLI subcommands with descriptions and exit.
+ *
+ * Scans src/php/ for *_impl.php files, extracts a one-line description
+ * from each docblock, and lists them.
+ */
+function showCliUsage(int $code): never {
+    $impls = glob(__DIR__.'/*_impl.php') ?: [];
+    $subs  = [];
+    foreach ($impls as $f) {
+        $subs[basename($f, '_impl.php')] = cliDescription($f);
+    }
+    ksort($subs);
+
+    if ($subs) {
+        echo "Available subcommands:\n";
+        $pad = max(array_map('strlen', array_keys($subs))) + 2;
+        foreach ($subs as $name => $desc) {
+            printf("  %-{$pad}s%s\n", $name, $desc);
+        }
+    } else {
+        echo "No subcommands available.\n";
+    }
+    echo "\nUsage: php api/index.php <subcommand> [options]\n";
+    exit($code);
+}
+
 
 // ── Determine the endpoint ───────────────────────────────────────────────────
 

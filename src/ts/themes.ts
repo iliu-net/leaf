@@ -18,6 +18,25 @@ const THEME_COLORS: Record<string, string> = {
   'paired-12':  '#0d1117',
 };
 
+/**
+ * Apply a theme by name.  Callable from React — no DOM querying.
+ * Updates data-theme attr, meta theme-color, localStorage, and CodeMirror.
+ */
+export function setTheme(themeName: string): void {
+  document.documentElement.setAttribute('data-theme', themeName);
+  theme.set(themeName);
+  const mc = document.querySelector('meta[name="theme-color"]');
+  if (mc) mc.setAttribute('content', THEME_COLORS[themeName] || '#080808');
+  // Notify CodeMirror to swap syntax highlight style
+  const setCM = (window as any).__leafSetCMTheme;
+  if (setCM) setCM(themeName);
+}
+
+/** Get the current theme name. */
+export function getTheme(): string {
+  return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 
 /**

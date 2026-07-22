@@ -28,7 +28,16 @@
     $media: add a link from media library.
     ![title]({static}/images/..path...) => image
     [title]({static}/images/..path...) => just a link
-* Remove back button and use browser history instead
+* caching broken? how to add testing?
+* template - should be an common used fields, with hint true/false
+* template-deps - also common used fileds, and a checklist to select multiple notes.
+* migrate to unocss
+* tweak shortcuts
+  * Ctrl+S, save, stay in current tab.
+  * Escape, if autosave on, save and switch to View Tab
+    If autosave is off, we show dialog: discard, cancel, save.
+    Save = Enter, Cancel = Escape, discard -> no shortcut.
+
 
 ***
 
@@ -59,8 +68,6 @@
 * [x] Implement Auto Save
 * [x] Small UI tweaks
   * [x] Left Panel UI - SideBar can be resized.
-  * [x] add an in-app back button
-    * Close to the top left of the window.
   * [x] Add CTRL+E shortcut to go from VIEW TAB to CODE or RAW tab,
 	add a different shortcut to go to the META TAB.  CODE or
 	META tabs should grab focus when switched to.
@@ -136,3 +143,6 @@
     the markdown-it renderer).~~
   - ~~**Canvas-based crop** in the image editor modal (freeform crop, aspect-ratio
     lock, circular crop for avatar-style images).~~
+* ~~CodeMirror refactor for @uiw/react-codemirror~~ \
+  We don't do this as it is a fairly shallow wrapper.  Most
+  developer teams will eventually drop it and code directly.

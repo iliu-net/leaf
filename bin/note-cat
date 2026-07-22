@@ -5,32 +5,17 @@
  *
  * Usage:
  *   bin/note-cat <path-to-json-file>
- *   bin/note-cat <note-id>              # looks in leaf-data/notes/{id}.json
  *
- * Examples:
+ * Example:
  *   bin/note-cat leaf-data/notes/welcome.json
- *   bin/note-cat welcome
  */
 
 if ($argc < 2) {
-    fwrite(STDERR, "Usage: note-cat <file.json | note-id>\n");
+    fwrite(STDERR, "Usage: note-cat <file.json>\n");
     exit(1);
 }
 
-$arg = $argv[1];
-
-// If the argument doesn't look like an existing file, treat it as a note ID
-// and look in the default data directory.
-if (!file_exists($arg)) {
-    $dataDir = getenv('LEAF_DATA_DIR') ?: __DIR__ . '/../leaf-data';
-    $path = rtrim($dataDir, '/') . '/notes/' . $arg . '.json';
-    if (!file_exists($path)) {
-        // Also try without .json extension (maybe it was included)
-        $path = rtrim($dataDir, '/') . '/notes/' . $arg;
-    }
-} else {
-    $path = $arg;
-}
+$path = $argv[1];
 
 if (!file_exists($path)) {
     fwrite(STDERR, "File not found: {$path}\n");

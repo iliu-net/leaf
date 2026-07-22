@@ -27,7 +27,7 @@ require_once __DIR__ . '/auth_guard.php';
 require_once __DIR__ . '/http-helpers.php';
 require_once __DIR__ . '/cors.php';
 
-$author = require_auth();   // exits with 401 if token missing/invalid
+$author = auth_username();   // 'anonymous' when auth disabled, 401 otherwise
 
 // ── Parse request ─────────────────────────────────────────────────────────────
 

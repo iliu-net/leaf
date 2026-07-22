@@ -11,6 +11,7 @@
       <file>GitStagingTest.php</file>
       <file>UsersTest.php</file>
       <file>SyncUtilTest.php</file>
+      <file>AuthGuardTest.php</file>
     </testsuite>
   </testsuites>
 </phpunit>

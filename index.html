@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       Per-instance branding — customise these when copying index.html
+       into a new instance directory.
+       ═══════════════════════════════════════════════════════════════════ -->
+  <meta name="description" content="A minimal, fast, offline-capable notes app">
+  <meta name="apple-mobile-web-app-title" content="Leaf">
+  <title>Leaf</title>
+  <meta name="theme-color" content="#0a0a0a">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.svg" sizes="any" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       Per-instance Leaf configuration.
+       Set apiBase to the URL of your Leaf API (where index.php lives).
+       Both absolute and relative URLs work:
+         apiBase: '/api/'             // absolute
+         apiBase: '../api/'           // relative (resolved by the browser)
+         apiBase: '/app1/api/'        // absolute, subdirectory deployment
+
+       Optionally set namespace to isolate localStorage / IndexedDB when
+       multiple instances share the same origin.  Defaults to an
+       auto-derived slug from the install path.
+       ═══════════════════════════════════════════════════════════════════ -->
+  <script>
+    window.LEAF_CONFIG = {
+      apiBase: '/api/',
+      // namespace: 'my-instance',
+    };
+  </script>
+
+  <!-- Theme init: set data-theme before CSS loads to prevent FOUC -->
+  <script>
+    (function(){
+      var t = localStorage.getItem('leaf:theme');
+      if (!t) { t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
+      document.documentElement.setAttribute('data-theme', t);
+      var mc = document.querySelector('meta[name="theme-color"]');
+      if (mc) { mc.setAttribute('content',
+        t === 'light' ? '#fafaf8' : t === 'magenta' ? '#ffffff' : t === 'paired-12' ? '#0d1117' : '#080808'); }
+    })();
+  </script>
+
+  <!-- CSS is bundled by Vite via src/ts/styles.ts -->
+</head>
+<body>
+
+<!-- ── App shell ── -->
+<!-- React mounts here; App.tsx renders the shell contents (header, sidebar,
+     editor, status bar).  Hidden until auth confirmed. -->
+<div id="app"></div>
+
+<!-- ── Context menu (shared, positioned by JS) ── -->
+<div id="context-menu" class="item-context-menu" role="menu"></div>
+
+<!-- App entry point — Vite transpiles TypeScript on the fly in dev,
+     bundles with hashed filenames in production -->
+<script type="module" src="/src/ts/main.tsx"></script>
+
+</body>
+</html>

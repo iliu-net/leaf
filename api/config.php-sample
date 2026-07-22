@@ -30,21 +30,23 @@ define('REFRESH_EXPIRY', 30 * 24 * 3600);   // refresh token lifetime: 30 days
 // The SPA fetches this at boot and caches it in localStorage.
 $spa_config = [
     'markdown' => [
-        'html'    => false,  // allow raw HTML in markdown input
+        'html'    => false,	// allow raw HTML in markdown input
         'plugins' => [
-	    'inline-extras', // ['inline-extras'] for ++ins++, ^^sup^^, ,,sub,,, ==kbd==, ??mark??;
+	    'inline-extras',	// ['inline-extras'] for ++ins++, ^^sup^^, ,,sub,,, ==kbd==, ??mark??;
 	    'wikilinks',
 	    ['highlight', ['common','hcl']], // for popular + extras;
 	    //~ ['highlight', ['js','py']] // for explicit list only
-	    // e.g. ['emoji'] for :smile: shortcuts;
-	    // ['abbr'] for *[abbr]: expansion — auto-wraps in <abbr>;
-	    // ['deflist'] for definition lists (Term / : Definition);
-	    // ['footnote'] for [^label] and ^[inline] footnotes;
-
-	    // ['mermaid'] for Mermaid diagrams (flowchart, sequence, ER, gantt, etc.);
-	    // ['mathjax'] for MathJax rendering (TeX/LaTeX and AsciiMath);
-	    // ['spreadsheet'] for CSV spreadsheet with formula evaluation;
-	    // ['multimdtable'] for colspan/rowspan/captions;
+	    'emoji',		// for :smile: shortcuts;
+	    'abbr',		// for *[abbr]: expansion — auto-wraps in <abbr>;
+	    'deflist',		// for definition lists (Term / : Definition);
+	    'footnote',		// for [^label] and ^[inline] footnotes;
+	    'mermaid',		// for Mermaid diagrams (flowchart, sequence, ER, gantt, etc.);
+	    'mathjax',		// for MathJax rendering (TeX/LaTeX and AsciiMath);
+	    'spreadsheet',	// for CSV spreadsheet with formula evaluation;
+	    'multimdtable',	// for colspan/rowspan/captions;
+            'svgbob',         	// line-art type drawings
+            'tasklists',      	// Github stile - [ ] / - [x] checkboxes
+            'toc',           	// Automatic table of contents
 	],
     ],
     'deleted_notes_ttl_days' => 7,      // days before deleted notes are purged client-side
@@ -54,6 +56,9 @@ $spa_config = [
       'enabled' => true,
       'delay_ms' => 2000,
     ],
+    'auth' => [
+      'enabled' => false,	// set to false to disable authentication entirely
+    ],
 ];
 
 // ── Soft-delete TTL ───────────────────────────────────────────────────────
@@ -61,10 +66,15 @@ $spa_config = [
 define('DELETED_NOTE_TTL_DAYS', 30);
 
 // ── Storage backend ──────────────────────────────────────────────────────
-// Swap this line to switch to a different backend (e.g. MySqlStorage).
+// Swap the commented block to switch backends.
 require_once LEAF_PHP_DIR . 'storage.php';
 require_once LEAF_PHP_DIR . 'storage/FlatFileStorage.php';
 storage_set(new FlatFileStorage(DATA_ROOT, DELETED_NOTE_TTL_DAYS));
+
+// For Git-based storage (server-visible Markdown, no E2EE):
+//   require_once LEAF_PHP_DIR . 'storage/GitStorage.php';
+//   define('STAGE_FLUSH_HOURS', 12);    // hours before uncommitted .meta is force-flushed
+//   storage_set(new GitStorage(DATA_ROOT, DELETED_NOTE_TTL_DAYS, STAGE_FLUSH_HOURS));
 
 // ── Audit log ───────────────────────────────────────────────────────────────
 // Monthly audit files older than this are removed during daily purge.

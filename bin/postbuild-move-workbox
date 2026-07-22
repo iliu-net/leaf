@@ -1,0 +1,23 @@
+#!/bin/sh
+# Post-build: move workbox-*.js into dist/assets/ and patch sw.js's import.
+# vite-plugin-pwa (generateSW) places the workbox runtime at the build root,
+# but we prefer all JS chunks under assets/.
+
+set -e
+
+WORKBOX_FILE=$(ls dist/workbox-*.js 2>/dev/null | head -1)
+
+if [ -z "$WORKBOX_FILE" ]; then
+  echo "postbuild-move-workbox: no workbox-*.js found, nothing to do" >&2
+  exit 0
+fi
+
+BASENAME=$(basename "$WORKBOX_FILE")
+MODNAME="${BASENAME%.js}"   # workbox-abeb32eb (no extension — sw.js uses this)
+DEST="dist/assets/$BASENAME"
+
+echo "Moving $BASENAME → assets/"
+mv "$WORKBOX_FILE" "$DEST"
+
+echo "Patching sw.js: ./$MODNAME → ./assets/$MODNAME"
+sed -i "s|\"./$MODNAME\"|\"./assets/$MODNAME\"|g" dist/sw.js

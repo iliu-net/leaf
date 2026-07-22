@@ -68,6 +68,15 @@ non-POSIX filesystems.
 
 ## Front end
 
+## CodeMirror 6 integration
+
+Instead of using `@uiw/react-codemirror`, we are calling the
+CodeMirror 6 API directly.  `@uiw/react-codemirror` would
+save us about 30 lines of boiler plate, but for Leaf we will
+still be calling the CodeMirror 6 API to fully implement the
+features that we require.
+
+### Others
 * Features:
   * Offline-first
   * Fast sync

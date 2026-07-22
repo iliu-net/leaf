@@ -1,0 +1,73 @@
+/* ── Spreadsheet tables (spreadsheet extension) ── */
+
+.spreadsheet-wrap {
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.spreadsheet-table {
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  font-family: var(--font-mono, 'SF Mono', 'Cascadia Code', 'Fira Code', monospace);
+}
+
+.spreadsheet-table th,
+.spreadsheet-table td {
+  padding: 4px 10px;
+  border: 1px solid var(--border-hi);
+  text-align: right;
+  white-space: nowrap;
+  min-width: 60px;
+}
+
+/* Column headers (A, B, C…) and row headers (1, 2, 3…) */
+.spreadsheet-table .ss-col-header,
+.spreadsheet-table .ss-row-header {
+  background: var(--bg-3);
+  color: var(--text-3);
+  font-weight: normal;
+  font-size: 0.75rem;
+  text-align: center;
+  min-width: 28px;
+  user-select: none;
+}
+
+.spreadsheet-table .ss-row-header {
+  padding: 4px 8px;
+}
+
+/* Data header row (first CSV row when it's a header) */
+.spreadsheet-table .ss-data-header {
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Formula cells */
+.spreadsheet-table .ss-formula {
+  font-style: italic;
+}
+
+/* Error cells */
+.spreadsheet-table .ss-error {
+  color: var(--danger, #e05555);
+  font-weight: 600;
+}
+
+/* ── Magenta theme overrides ── */
+[data-theme="magenta"] .spreadsheet-table .ss-col-header,
+[data-theme="magenta"] .spreadsheet-table .ss-row-header {
+  background: #f5e0ec;
+}
+
+[data-theme="magenta"] .spreadsheet-table .ss-data-header {
+  color: var(--accent-dim);
+}
+
+/* ── Dark / paired-12: more visible cell borders ── */
+[data-theme="dark"] .spreadsheet-table th,
+[data-theme="dark"] .spreadsheet-table td,
+[data-theme="paired-12"] .spreadsheet-table th,
+[data-theme="paired-12"] .spreadsheet-table td {
+  border-color: var(--text-3);
+}

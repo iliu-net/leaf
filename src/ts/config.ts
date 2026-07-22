@@ -2,7 +2,7 @@
  * config.ts — per-instance runtime configuration
  *
  * Fetches and caches server-side SPA configuration (markdown plugins,
- * spellcheck, auto-save, etc.).  For install-path awareness, imports
+ * language, auto-save, etc.).  For install-path awareness, imports
  * getInstallPath / getNamespace from local-store.ts.
  */
 
@@ -10,14 +10,26 @@ import { getInstallPath, getNamespace, spaConfig } from './local-store.js';
 
 // ── API URL helpers ─────────────────────────────────────────────────────────
 
-const _apiBaseUrl = getInstallPath() + '../api/';
+/**
+ * Derive the API base URL.  Order of precedence:
+ *   1. window.LEAF_CONFIG.apiBase  (per-instance, set in index.html)
+ *   2. install-path heuristic      (current dir + '../api/')
+ */
+function deriveApiBase(): string {
+  if (typeof window !== 'undefined' && window.LEAF_CONFIG?.apiBase) {
+    return window.LEAF_CONFIG.apiBase;
+  }
+  return getInstallPath() + '../api/';
+}
 
-/** The API base URL, e.g. "/app1/spa/../api/" → resolves to "/app1/api/". */
+const _apiBaseUrl = deriveApiBase();
+
+/** The API base URL, e.g. "/api/" (absolute) or "../api/" (relative). */
 export function getApiBaseUrl(): string {
   return _apiBaseUrl;
 }
 
-/** Build a full API URL, e.g. apiUrl("auth") → "/app1/spa/../api/index.php/auth". */
+/** Build a full API URL, e.g. apiUrl("auth") → "/api/index.php/auth". */
 export function apiUrl(endpoint: string): string {
   return _apiBaseUrl + 'index.php/' + endpoint;
 }
@@ -30,11 +42,14 @@ export function apiUrl(endpoint: string): string {
  */
 export function loadConfig(): void {
   const ns = getNamespace();
+  const src = (typeof window !== 'undefined' && window.LEAF_CONFIG?.apiBase)
+    ? 'index.html' : 'install-path';
   console.log(
-    '[config] install=%s  namespace=%s  api=%s',
+    '[config] install=%s  namespace=%s  api=%s  (source: %s)',
     getInstallPath(),
     ns || '(root)',
     _apiBaseUrl,
+    src,
   );
 }
 
@@ -54,8 +69,8 @@ export interface SpaConfig {
   deleted_notes_ttl_days: number;
   /** Timestamp format string (e.g. 'YYYY-MM-DD HH:mm'), or null for client default. */
   timestamp_format: string | null;
-  /** Spellcheck configuration (client-side only — not written to server). */
-  spellcheck?: {
+  /** Language configuration (client-side only — not written to server). */
+  language?: {
     /** Default BCP 47 language tag (e.g. 'en-US'). Falls back to <html lang> → 'en-US'. */
     default_lang?: string;
     /** Languages to show in the meta-tab language picker. */
@@ -72,6 +87,16 @@ export interface SpaConfig {
   edit_time?: {
     /** Seconds of inactivity before the edit timer pauses. Default 300 (5 min). */
     inactivity_sec?: number;
+  };
+  /** Authentication configuration. */
+  auth?: {
+    /** Set to false to disable authentication entirely. Default true. */
+    enabled?: boolean;
+  };
+  /** Server-reported version info (only present when online). */
+  _server?: {
+    version: string;
+    php: string;
   };
 }
 
@@ -95,7 +120,7 @@ const DEFAULT_SPA_CONFIG: SpaConfig = {
   },
   deleted_notes_ttl_days: 7,
   timestamp_format: null,
-  spellcheck: {
+  language: {
     default_lang: 'en-US',
     preferred_langs: ['en-US', 'en-GB', 'es', 'fr', 'de', 'it', 'pt', 'nl'],
   },
@@ -105,6 +130,9 @@ const DEFAULT_SPA_CONFIG: SpaConfig = {
   },
   edit_time: {
     inactivity_sec: 300,
+  },
+  auth: {
+    enabled: true,
   },
 };
 
@@ -145,16 +173,16 @@ export function getSpaConfig(): SpaConfig {
 }
 
 /**
- * Spellcheck config with defaults filled in (never undefined).
+ * Language config with defaults filled in (never undefined).
  * Safe to call before fetchSpaConfig() completes.
  */
-export function getSpellcheckConfig(): Required<NonNullable<SpaConfig['spellcheck']>> {
-  const sc = _spaConfig.spellcheck ?? DEFAULT_SPA_CONFIG.spellcheck!;
+export function getLanguageConfig(): Required<NonNullable<SpaConfig['language']>> {
+  const sc = _spaConfig.language ?? DEFAULT_SPA_CONFIG.language!;
   return {
-    default_lang: sc.default_lang || DEFAULT_SPA_CONFIG.spellcheck!.default_lang!,
+    default_lang: sc.default_lang || DEFAULT_SPA_CONFIG.language!.default_lang!,
     preferred_langs: sc.preferred_langs?.length
       ? sc.preferred_langs
-      : DEFAULT_SPA_CONFIG.spellcheck!.preferred_langs!,
+      : DEFAULT_SPA_CONFIG.language!.preferred_langs!,
   };
 }
 
@@ -179,4 +207,23 @@ export function getEditTimeConfig(): Required<NonNullable<SpaConfig['edit_time']
   return {
     inactivity_sec: et.inactivity_sec ?? DEFAULT_SPA_CONFIG.edit_time!.inactivity_sec!,
   };
+}
+
+/**
+ * Auth config with defaults filled in.
+ * Safe to call before fetchSpaConfig() completes.
+ */
+export function getAuthConfig(): Required<NonNullable<SpaConfig['auth']>> {
+  const ac = _spaConfig.auth ?? DEFAULT_SPA_CONFIG.auth!;
+  return {
+    enabled: ac.enabled ?? DEFAULT_SPA_CONFIG.auth!.enabled!,
+  };
+}
+
+/**
+ * Returns true if authentication is enabled on this instance.
+ * Defaults to true when config hasn't been fetched yet.
+ */
+export function isAuthEnabled(): boolean {
+  return getAuthConfig().enabled;
 }

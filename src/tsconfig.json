@@ -4,6 +4,7 @@
     "module": "ES2020",
     "moduleResolution": "bundler",
     "strict": true,
+    "jsx": "react-jsx",
     "noEmit": true,
     "outDir": "dist",
     "rootDir": "ts",
@@ -12,5 +13,5 @@
     "forceConsistentCasingInFileNames": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"]
   },
-  "include": ["ts/**/*.ts"]
+  "include": ["ts/**/*.ts", "ts/**/*.tsx", "ts/**/*.d.ts"]
 }

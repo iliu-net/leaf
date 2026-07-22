@@ -58,7 +58,7 @@ $spa_config = [
     ],
     'deleted_notes_ttl_days' => 7,
     'timestamp_format'      => null,
-    'spellcheck' => [
+    'language' => [
         'default_lang'    => 'en-GB',
         'preferred_langs' => ['en-US', 'en-GB', 'es', 'nl'],
     ],

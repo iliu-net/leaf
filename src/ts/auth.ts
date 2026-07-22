@@ -26,13 +26,14 @@ export interface LoginResult {
   ok: boolean;
   username?: string;
   error?: string;
+  status?: number;
 }
 
 type AuthFailureListener = () => void;
 
 // ── Imports ──────────────────────────────────────────────────────────────
 
-import { apiUrl } from './config.js';
+import { apiUrl, isAuthEnabled } from './config.js';
 import { createListenerList } from './utils.js';
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -66,7 +67,14 @@ function clearToken(): void {
 
 const _authBus = createListenerList<AuthFailureListener>();
 
-export const onAuthFailure = _authBus.subscribe;
+/**
+ * Subscribe to auth-failure events.  When auth is disabled, this is a
+ * no-op — the callback is never stored and unsubscribe is a no-op.
+ */
+export function onAuthFailure(fn: AuthFailureListener): () => void {
+  if (!isAuthEnabled()) return () => {};
+  return _authBus.subscribe(fn);
+}
 
 function notifyAuthFailure(): void {
   clearToken();
@@ -91,7 +99,7 @@ export async function login(username: string, password: string): Promise<LoginRe
     const data = await res.json() as Record<string, unknown>;
 
     if (!res.ok || !data.ok) {
-      return { ok: false, error: (data.error as string) ?? 'Login failed' };
+      return { ok: false, status: res.status, error: (data.error as string) ?? 'Login failed' };
     }
 
     setToken(data.token as string, data.username as string, data.expires as number);
@@ -201,6 +209,9 @@ export async function logout(): Promise<void> {
  * Use this for all requests to api.php and sync.php.
  */
 export async function authFetch(url: string | URL | Request, options: RequestInit = {}): Promise<Response> {
+  // When auth is disabled, pass through to plain fetch — no token, no 401 retry.
+  if (!isAuthEnabled()) return fetch(url, options);
+
   const makeHeaders = (token: string | null): Record<string, string> => ({
     ...(options.headers as Record<string, string> | undefined),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -231,6 +242,14 @@ export async function authFetch(url: string | URL | Request, options: RequestIni
  * Returns true if a valid session was restored, false otherwise.
  */
 export async function tryRestoreSession(): Promise<'ok' | 'auth-failed' | 'network-error'> {
+  // When auth is disabled, skip all token-based auth and return 'ok'
+  // so the app treats the user as authenticated (sync will still attempt
+  // to run, and the server must also have auth disabled).
+  if (!isAuthEnabled()) {
+    _username = 'local';
+    return 'ok';
+  }
+
   const result = await refreshTokenImpl(false);
   if (result.ok) return 'ok';
   if (result.reason === 'auth') return 'auth-failed';

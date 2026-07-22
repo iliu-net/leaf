@@ -89,7 +89,20 @@ const _pluginRegistry: Record<string, () => Promise<(md: MarkdownIt, ...args: an
  */
 export function parse(body: string): string {
   if (!body) return '';
-  return getMd().render(body);
+  const html = getMd().render(body);
+
+  // Diagnostic: if the output has fenced code blocks without data-lang,
+  // the fence renderer registration on the markdown-it instance has
+  // been lost (likely a module-reload race during HMR or SW update).
+  // This is the root cause of code blocks losing syntax highlighting.
+  if (html.includes('<pre><code') && !html.includes('data-lang')) {
+    console.warn(
+      '[markdown] Fence renderer NOT registered on markdown-it instance. ' +
+      'Code blocks will not be syntax-highlighted. ' +
+      'This is a bug — the renderer chain was lost after module reinitialisation.',
+    );
+  }
+  return html;
 }
 
 /**

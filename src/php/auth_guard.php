@@ -48,3 +48,22 @@ function require_auth(): string {
 
     return $username;
 }
+
+/**
+ * Return the authenticated username, or a default when auth is disabled.
+ *
+ * Checks $spa_config['auth']['enabled'] — when false, returns 'anonymous'
+ * without requiring any Authorization header.  When auth is enabled (the
+ * default), delegates to require_auth(), which exits with 401 on failure.
+ *
+ * Callers that currently use  $author = require_auth();  should switch to
+ * $author = auth_username();  so deployments can disable auth via spa-config.
+ *
+ * @return string  The authenticated username, or 'anonymous' when auth is off.
+ */
+function auth_username(): string {
+    global $spa_config;
+    $enabled = $spa_config['auth']['enabled'] ?? true;
+    if (!$enabled) return 'anonymous';
+    return require_auth();
+}

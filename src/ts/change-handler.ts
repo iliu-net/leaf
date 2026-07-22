@@ -39,8 +39,6 @@ export interface ChangeHandlerDeps {
   /** Set the trash count directly (used on trash-emptied). */
   setTrashCount(n: number): void;
 
-  /** Remove a note ID from navigation history. */
-  navRemove(id: string): void;
   /** Highlight a note in the sidebar. */
   setActiveNote(id: string): void;
 }
@@ -80,8 +78,6 @@ export async function handleChange(
           deps.clearEditor();
           deps.toast(`"${msg.id}" was deleted in another tab`);
         }
-        // Prune deleted note from history
-        deps.navRemove(msg.id);
       }
       break;
     }

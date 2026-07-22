@@ -61,7 +61,7 @@ const DEXIE_RENAME = 4;
 require_once __DIR__ . '/http-helpers.php';
 require_once __DIR__ . '/cors.php';
 
-$author = require_auth();   // exits with 401 if token missing/invalid
+$author = auth_username();   // 'anonymous' when auth disabled, 401 otherwise
 
 // ── Daily house keeping chores ──────────
 $purgeFile = DATA_ROOT . 'last_purge.txt';
@@ -90,7 +90,7 @@ function safe_id(string $raw): string {
     // Replace leading dots with underscore (prevents hidden files and "." / "..")
     $raw = preg_replace('/^\.+/', '_', $raw);
     // Strip any remaining unsafe characters
-    return preg_replace('/[^a-zA-Z0-9_\-\.$%\'@~!(){}^#&`:]/u', '_', $raw);
+    return preg_replace('/[^a-zA-Z0-9_\-\.$%\'@~!(){}^#&`: +,;=\[\] ]/u', '_', $raw);
 }
 
 // ─────────────────────────────────────────────
@@ -228,6 +228,40 @@ $synced_revision = (int)($body['syncedRevision'] ?? 0);
 $client_changes  = $body['changes'] ?? [];
 $client_id      = (int)($body['client_id'] ?? 0);
 
+// ── Step 0: Validate all client change IDs before applying any ──
+// If any key would be transformed by safe_id(), the client has a bug —
+// reject the whole batch rather than silently rewriting.
+foreach ($client_changes as $change) {
+    $raw_key = (string)($change['key'] ?? '');
+    $safe    = safe_id($raw_key);
+    if ($raw_key !== '' && $safe !== $raw_key) {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'error'    => 'INVALID_ID',
+            'key'      => $raw_key,
+            'expected' => $safe,
+        ]);
+        exit;
+    }
+    // Also validate renamed_to for RENAME changes
+    $type = (int)($change['type'] ?? 0);
+    if ($type === DEXIE_RENAME) {
+        $raw_new  = (string)($change['obj']['renamed_to'] ?? '');
+        $safe_new = safe_id($raw_new);
+        if ($raw_new !== '' && $safe_new !== $raw_new) {
+            http_response_code(400);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'error'    => 'INVALID_ID',
+                'key'      => $raw_new,
+                'expected' => $safe_new,
+            ]);
+            exit;
+        }
+    }
+}
+
 // ── Step 1: Apply client changes ─────────────
 foreach ($client_changes as $change) {
     apply_client_change($change, $author, $client_id);
@@ -248,7 +282,7 @@ foreach ($client_changes as $change) {
 $current_revision = storage()->changelogCurrentRev();
 $server_changes   = [];
 
-error_log("SYNC: current_rev:${current_revision} synced_rev:${synced_revision}");
+//~ error_log("SYNC: current_rev:${current_revision} synced_rev:${synced_revision}");
 
 if ($synced_revision === 0) {
     // ── Bootstrap: build from filesystem ────────

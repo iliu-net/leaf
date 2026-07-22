@@ -20,6 +20,7 @@ import type { FrontmatterResult } from './frontmatter.js';
 import { applyAutotags } from './autotag.js';
 import { publish } from './change-bus.js';
 import { isSystemNote, getSystemNote } from './system-notes/registry.js';
+import { safeName } from './utils.js';
 export { isSystemNote };
 
 /** Note metadata returned by listNotes(). */
@@ -140,6 +141,8 @@ export async function loadNote(id: string): Promise<NoteData> {
  * Save content to IndexedDB and queue an UPDATE for the server.
  */
 export async function saveNote(id: string, content: string): Promise<{ ok: boolean }> {
+  id = safeName(id);
+
   // Guard: system notes should never be saved — the UI should prevent this,
   // but a defensive check here catches any edge case (e.g. stale shortcuts).
   if (isSystemNote(id)) {
@@ -164,6 +167,7 @@ export async function saveNote(id: string, content: string): Promise<{ ok: boole
  * Create a new note in IndexedDB and queue a CREATE for the server.
  */
 export async function createNote(id: string): Promise<{ ok: boolean; file: string }> {
+  id = safeName(id);
   await dbCreateNote(id);
   publish({ type: 'created', id });
   return { ok: true, file: id };
@@ -182,6 +186,7 @@ export async function deleteNote(id: string): Promise<{ ok: boolean }> {
  * Rename a note in IndexedDB and queue a RENAME for the server.
  */
 export async function renameNote(oldId: string, newId: string): Promise<{ ok: boolean }> {
+  newId = safeName(newId);
   await dbRenameNote(oldId, newId);
   publish({ type: 'renamed', id: oldId, newId });
   return { ok: true };

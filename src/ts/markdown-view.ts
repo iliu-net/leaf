@@ -1,45 +1,25 @@
 /**
- * markdown-view.ts — rendered markdown viewer tab
+ * markdown-view.ts — shared markdown rendering utilities
  *
  * Lazy-loads markdown-it on first render so it stays out of the initial
- * bundle.  Implements TabPanel for editor-ctrl.ts.
+ * bundle.
  *
- * Exports `renderView()` as the single shared read-only render path,
- * used by both the View tab and the Trash preview banner.
+ * Exports:
+ *   - renderView()           — content + metadata → HTML string
+ *   - postProcessWikilinks() — title resolution & missing-link styling
  */
 
 import type { NoteData } from './notes.js';
-import type { TabPanel, TabPanelContext } from './tab-panel.js';
-import { DOM, $maybe } from './dom-ids.js';
 import { parseFrontmatter } from './frontmatter.js';
 import {
   renderFrontmatter,
-  renderFrontmatterTable,
   renderStats,
   renderSystemInfo,
 } from './render-fm.js';
-import { esc, html } from './utils.js';
-import { hydrate } from './fence-hydrate.js';
+import { html } from './utils.js';
 import { dbGetNote } from './db.js';
 import { expandTemplate } from './template.js';
 import { isSystemNote, getSystemNote } from './system-notes/registry.js';
-
-// ── Search highlight state ────────────────────────────────────────────────────
-
-let _searchQuery: string | null = null;
-
-/**
- * Set the query string to highlight in the VIEW tab.
- * Pass `null` to clear highlighting.
- */
-export function setSearchHighlight(query: string | null): void {
-  _searchQuery = query ? query.trim() : null;
-}
-
-/** Return the active search query, or null if no search is active. */
-export function getSearchHighlight(): string | null {
-  return _searchQuery;
-}
 
 // ── Lazy markdown-it ────────────────────────────────────────────────────────
 
@@ -51,35 +31,6 @@ async function _ensureMd(): Promise<(body: string) => string> {
     _parseMarkdown = md.parse;
   }
   return _parseMarkdown;
-}
-
-// ── DOM refs ────────────────────────────────────────────────────────────────
-
-let _viewHeader:  HTMLElement | null = null;
-let _viewContent: HTMLElement | null = null;
-
-// ── Init (TabPanel) ─────────────────────────────────────────────────────────
-
-/** One-time setup: cache DOM refs. */
-export function init(): void {
-  _viewHeader  = $maybe(DOM.TAB_VIEW)?.querySelector('.view-header') as HTMLElement | null;
-  _viewContent = $maybe(DOM.TAB_VIEW)?.querySelector('.view-content') as HTMLElement | null;
-
-  // Wikilink navigation — intercept clicks on [[page]] links and dispatch
-  // a custom event so app.ts can open the note without a page reload.
-  _viewContent?.addEventListener('click', (e) => {
-    const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-note]');
-    if (!link) return;
-
-    e.preventDefault();
-    const id = link.dataset.note;
-    if (!id) return;
-
-    _viewContent!.dispatchEvent(new CustomEvent('navigate-note', {
-      bubbles: true,
-      detail: { id },
-    }));
-  });
 }
 
 // ── Shared rendering ────────────────────────────────────────────────────────
@@ -137,7 +88,7 @@ export async function renderView(content: string, noteData: NoteData): Promise<s
  * Both operations share a single batch IndexedDB lookup over all wikilinks
  * in the rendered content.
  */
-async function _postProcessWikilinks(root: Element): Promise<void> {
+export async function postProcessWikilinks(root: Element): Promise<void> {
   const allLinks = root.querySelectorAll<HTMLAnchorElement>('a[data-note]');
   if (allLinks.length === 0) return;
 
@@ -199,85 +150,3 @@ async function _postProcessWikilinks(root: Element): Promise<void> {
     }
   }
 }
-
-// ── TabPanel lifecycle ──────────────────────────────────────────────────────
-
-/**
- * Walk all text nodes in `root` and wrap case-insensitive matches of `query`
- * in `<mark class="search-highlight">` elements.
- */
-function _highlightMatches(root: Element, query: string): void {
-  const q = query.toLowerCase();
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const textNodes: Text[] = [];
-  while (walker.nextNode()) {
-    textNodes.push(walker.currentNode as Text);
-  }
-  for (const node of textNodes) {
-    const text = node.textContent || '';
-    const lower = text.toLowerCase();
-    if (lower.indexOf(q) === -1) continue;
-
-    const parent = node.parentNode!;
-    const frag = document.createDocumentFragment();
-    let pos = 0;
-    while (pos < text.length) {
-      const nextIdx = text.toLowerCase().indexOf(q, pos);
-      if (nextIdx === -1) {
-        frag.appendChild(document.createTextNode(text.slice(pos)));
-        break;
-      }
-      if (nextIdx > pos) {
-        frag.appendChild(document.createTextNode(text.slice(pos, nextIdx)));
-      }
-      const mark = document.createElement('mark');
-      mark.className = 'search-highlight';
-      mark.textContent = text.slice(nextIdx, nextIdx + q.length);
-      frag.appendChild(mark);
-      pos = nextIdx + q.length;
-    }
-    parent.replaceChild(frag, node);
-  }
-}
-
-/**
- * Render the View tab panel.
- * The <h1> title sits in the fixed header; everything else scrolls.
- * Delegates to `renderView()` for the HTML — no duplication.
- */
-export async function show(ctx: TabPanelContext): Promise<void> {
-  if (!_viewHeader || !_viewContent) return;
-
-  const html = await renderView(ctx.content, ctx.noteData);
-
-  // Extract <h1> for fixed header, rest goes to scrollable body
-  const m = html.match(/^(<h1[^>]*>.*?<\/h1>)/);
-  _viewHeader.innerHTML = m ? m[1] : '';
-  _viewContent.innerHTML = m ? html.slice(m[1].length) : html;
-
-  // Post-process wikilinks: resolve [[page|]] titles, mark missing links
-  _postProcessWikilinks(_viewContent).catch(err =>
-    console.warn('[markdown-view] wikilink post-process failed:', err)
-  );
-
-  // Hydrate fenced code blocks (syntax highlighting, diagrams)
-  hydrate(_viewContent).catch(err =>
-    console.warn('[markdown-view] hydrate failed:', err)
-  );
-
-  // Highlight full-text search matches (after hydration so code-block
-  // highlights don't interfere)
-  if (_searchQuery) {
-    _highlightMatches(_viewContent, _searchQuery);
-    if (_viewHeader) _highlightMatches(_viewHeader, _searchQuery);
-  }
-}
-
-/** Clear the View tab panel. */
-export function hide(): void {
-  if (_viewHeader)  _viewHeader.innerHTML = '';
-  if (_viewContent) _viewContent.innerHTML = '';
-}
-
-/** TabPanel contract — typed lens for editor-ctrl.ts registration. */
-export const tabPanel: TabPanel = { init, show, hide };

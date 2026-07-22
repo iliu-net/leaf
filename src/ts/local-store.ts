@@ -41,14 +41,19 @@ export function getInstallPath(): string {
 }
 
 /**
- * A filesystem-safe slug derived from the install path.
- * Empty string for root deployments (backward compatible).
+ * A filesystem-safe slug used to scope localStorage keys and IndexedDB
+ * databases.  Order of precedence:
+ *   1. window.LEAF_CONFIG.namespace  (per-instance, set in index.html)
+ *   2. auto-derived from the install path (location.pathname)
  *
  *   /              → ""
  *   /app1/spa/     → "app1-spa"
  *   /notes/work/   → "notes-work"
  */
 export function getNamespace(): string {
+  if (typeof window !== 'undefined' && window.LEAF_CONFIG?.namespace) {
+    return window.LEAF_CONFIG.namespace;
+  }
   const trimmed = _installPath.replace(/^\/|\/$/g, '');
   return trimmed ? trimmed.replace(/\//g, '-') : '';
 }

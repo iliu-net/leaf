@@ -8,7 +8,26 @@
  */
 
 import { ViewPlugin, EditorView } from '@codemirror/view';
-import { openImageEditor } from '../image-editor.js';
+import type { ImageEditorResult } from '../components/ImageEditor.js';
+
+/**
+ * Bridge to the React ImageEditor component.
+ *
+ * Uses window.__imgEditorCalls + CustomEvent to avoid module-level state
+ * which Vite HMR preserves across fast-refresh (causing stale dialogs).
+ * Each call gets a UUID; the React component resolves via that key.
+ */
+export function openImageEditor(blob: Blob): Promise<ImageEditorResult | null> {
+  return new Promise(resolve => {
+    const id = crypto.randomUUID();
+    const reg = ((window as any).__imgEditorCalls =
+      (window as any).__imgEditorCalls || {});
+    reg[id] = resolve;
+    window.dispatchEvent(
+      new CustomEvent('leaf:open-image-editor', { detail: { id, blob } }),
+    );
+  });
+}
 
 // ── HTML ↦ Markdown ──────────────────────────────────────────────────────
 
@@ -113,6 +132,9 @@ class PastePlugin {
         console.error('[paste-handler] Image paste error:', err);
       }
     }
+
+    // Restore focus — the image editor modal steals it while open.
+    view.focus();
   }
 
   private async _pasteHtml(html: string, view: EditorView): Promise<void> {

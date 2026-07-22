@@ -34,7 +34,7 @@ require_once __DIR__ . '/audit.php';
 require_once __DIR__ . '/http-helpers.php';
 require_once __DIR__ . '/cors.php';
 
-$author = require_auth();
+$author = auth_username();   // 'anonymous' when auth disabled, 401 otherwise
 
 $body = json_decode(file_get_contents('php://input'), true);
 if (!is_array($body)) {

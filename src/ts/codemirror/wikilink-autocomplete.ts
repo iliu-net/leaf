@@ -67,12 +67,17 @@ async function wikilinkSource(ctx: CompletionContext): Promise<CompletionResult 
   const partial = match.text.slice(2);       // everything after [[
   const allIds = await refreshCache();
 
-  // If the user hasn't typed anything after [[, show all notes.
+  // System notes (@-prefixed) only appear once the user types `[[@`.
+  // This keeps the initial `[[` list focused on user notes.
+  const sysPrefix = partial.startsWith('@');
+  const candidates = sysPrefix ? allIds : allIds.filter(id => !id.startsWith('@'));
+
+  // If the user hasn't typed anything after [[, show all (non-system) notes.
   // Otherwise filter case-insensitively.
   const lower = partial.toLowerCase();
   const matches = partial
-    ? allIds.filter(id => id.toLowerCase().includes(lower))
-    : allIds;
+    ? candidates.filter(id => id.toLowerCase().includes(lower))
+    : candidates;
 
   if (matches.length === 0) return null;
 

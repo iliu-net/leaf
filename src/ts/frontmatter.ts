@@ -148,8 +148,9 @@ export function pendingMetaToUpdates(pm: PendingMeta): Record<string, string | s
     lang:       pm.lang || undefined,
   };
 
-  // Merge custom fields (only valid keys survive)
+  // Merge custom fields (only valid, non-reserved keys survive)
   for (const [key, val] of Object.entries(sanitizeCustom(pm.custom))) {
+    if (RESERVED_KEYS.has(key)) continue;
     updates[key] = val || undefined;
   }
 

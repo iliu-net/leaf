@@ -241,8 +241,28 @@ export function createEditor(
       '.cm-activeLineGutter': {
         backgroundColor: 'var(--bg-active)',
       },
+      // Active-line indicator: use a subtle left-border instead of a
+      // full background so the selection layer (z-index: -1) shows through.
       '.cm-activeLine': {
-        backgroundColor: 'var(--bg-active)',
+        backgroundColor: 'transparent',
+        boxShadow: 'inset 2px 0 0 var(--bg-active)',
+      },
+      // ── Selection layer (renders BEHIND content at z-index: -1) ─────────
+      '.cm-selectionLayer .cm-selectionBackground': {
+        background: 'var(--cm-selection)',
+      },
+      '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
+        background: 'var(--cm-selection-focus)',
+      },
+      // ── Native ::selection (renders ON the text, above everything) ────────
+      // Override CodeMirror's hideNativeSelection which uses system Highlight.
+      '.cm-line::selection, .cm-line ::selection': {
+        backgroundColor: 'var(--cm-selection-focus)',
+        color: 'inherit',
+      },
+      '.cm-content:focus ::selection, .cm-content:focus::selection': {
+        backgroundColor: 'var(--cm-selection-focus)',
+        color: 'inherit',
       },
       '.cm-foldPlaceholder': {
         backgroundColor: 'var(--bg-2)',

@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# leaf-instance — create a new Leaf SPA instance from the shared dist build.
+#
+# Copies index.html and manifest.json from the built dist/ into the
+# instance directory, customises them with the given name / API endpoint,
+# and creates symlinks back to the shared dist for JS bundles, CSS, icons,
+# and service-worker files.
+#
+# Usage:
+#   bin/leaf-instance [--name NAME] [--api-base URL] [--dist DIR] OUTDIR
+#
+# Options:
+#   -n, --name NAME        App name for <title>, manifest, iOS shortcut
+#                          [default: Leaf]
+#   -a, --api-base URL     API base URL, absolute or relative.  Must end with /.
+#                          [default: ../api/]
+#   -d, --dist DIR         Path to the shared dist/ build output.
+#                          [default: ./dist]
+#   -h, --help             Show this help
+#
+# Examples:
+#   # Create an instance at ./demo/spa/ using defaults
+#   bin/leaf-instance -n "My Notes" -a ../api/ ./demo/spa/
+#
+#   # Create an instance pointing to an absolute dist path
+#   bin/leaf-instance -n "Work Notes" -a /work/api/ -d /srv/leaf/dist ./instances/work/spa/
+
+NAME="Leaf"
+API_BASE="../api/"
+DIST="dist"
+
+usage() {
+  sed -n '1,25p' "$0" | grep -v '^#!/' | sed 's/^# \?//'
+  exit 0
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n|--name)     NAME="$2"; shift 2 ;;
+    -a|--api-base) API_BASE="$2"; shift 2 ;;
+    -d|--dist)     DIST="$2"; shift 2 ;;
+    -h|--help)     usage ;;
+    --) shift; break ;;
+    -*) echo "Unknown option: $1" >&2; exit 1 ;;
+    *)  break ;;
+  esac
+done
+
+OUTDIR="${1:-}"
+if [[ -z "$OUTDIR" ]]; then
+  echo "Error: OUTDIR is required" >&2
+  echo "Usage: leaf-instance [options] OUTDIR" >&2
+  exit 1
+fi
+
+# ── Validation ───────────────────────────────────────────────────────────────
+
+if [[ ! -d "$DIST" ]]; then
+  echo "Error: dist directory not found: $DIST" >&2
+  echo "  Run 'make build' first." >&2
+  exit 1
+fi
+
+if [[ ! -f "$DIST/index.html" ]]; then
+  echo "Error: $DIST/index.html not found — was the build successful?" >&2
+  exit 1
+fi
+
+if [[ ! "$API_BASE" =~ /$ ]]; then
+  echo "Error: api-base must end with '/' — got '$API_BASE'" >&2
+  exit 1
+fi
+
+SHORT_NAME="${NAME:0:12}"  # PWA short_name limit per spec
+
+# ── Resolve paths ────────────────────────────────────────────────────────────
+
+# Resolve to absolute paths for reliable relative-path calculation.
+# realpath (GNU) and grealpath (macOS/homebrew) both support these flags.
+abs_path() {
+  if command -v realpath >/dev/null 2>&1; then
+    realpath "$1"
+  elif command -v grealpath >/dev/null 2>&1; then
+    grealpath "$1"
+  else
+    # Fallback: use readlink -f (Linux) or Python
+    if command -v readlink >/dev/null 2>&1 && readlink -f / >/dev/null 2>&1; then
+      readlink -f "$1"
+    else
+      python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1"
+    fi
+  fi
+}
+
+rel_path() {
+  if command -v realpath >/dev/null 2>&1 && realpath --relative-to / / >/dev/null 2>&1; then
+    realpath --relative-to="$1" "$2"
+  elif command -v grealpath >/dev/null 2>&1; then
+    grealpath --relative-to="$1" "$2"
+  else
+    python3 -c "import os,sys; print(os.path.relpath(sys.argv[2], sys.argv[1]))" "$1" "$2"
+  fi
+}
+
+mkdir -p "$OUTDIR"
+ABSDIST=$(abs_path "$DIST")
+ABSINST=$(abs_path "$OUTDIR")
+
+echo "Creating Leaf instance at $ABSINST"
+echo "  name:     $NAME"
+echo "  api-base: $API_BASE"
+echo "  dist:     $ABSDIST"
+
+# ── index.html ───────────────────────────────────────────────────────────────
+
+cp "$DIST/index.html" "$OUTDIR/index.html"
+
+# Inject window.LEAF_CONFIG with apiBase (replace the existing script block
+# that starts with "window.LEAF_CONFIG").
+sed -i "s|apiBase: *'[^']*'|apiBase: '$API_BASE'|" "$OUTDIR/index.html"
+
+# Replace <title>
+sed -i "s|<title>[^<]*</title>|<title>$NAME</title>|" "$OUTDIR/index.html"
+
+# Replace apple-mobile-web-app-title
+sed -i "s|<meta name=\"apple-mobile-web-app-title\" content=\"[^\"]*\"|<meta name=\"apple-mobile-web-app-title\" content=\"$NAME\"|" "$OUTDIR/index.html"
+
+# Replace description meta
+sed -i "s|<meta name=\"description\" content=\"[^\"]*\"|<meta name=\"description\" content=\"$NAME — a Leaf notes instance\"|" "$OUTDIR/index.html"
+
+# ── manifest.json ────────────────────────────────────────────────────────────
+
+cp "$DIST/manifest.json" "$OUTDIR/manifest.json"
+
+# Customise manifest fields
+sed -i "s|\"name\": *\"[^\"]*\"|\"name\": \"$NAME\"|" "$OUTDIR/manifest.json"
+sed -i "s|\"short_name\": *\"[^\"]*\"|\"short_name\": \"$SHORT_NAME\"|" "$OUTDIR/manifest.json"
+sed -i "s|\"description\": *\"[^\"]*\"|\"description\": \"$NAME — a Leaf notes instance\"|" "$OUTDIR/manifest.json"
+
+# ── Symlinks to shared dist ──────────────────────────────────────────────────
+
+# Compute relative path from instance dir to dist
+RELPATH=$(rel_path "$ABSINST" "$ABSDIST")
+
+echo "  link-target: $RELPATH (relative)"
+
+# Symlink assets/, icons/, and service-worker files
+for target in assets icons sw.js registerSW.js; do
+  if [[ -e "$DIST/$target" ]]; then
+    ln -sfn "$RELPATH/$target" "$OUTDIR/$target"
+    echo "  linked: $target → $RELPATH/$target"
+  fi
+done
+
+# Symlink workbox-*.js files (there may be one or more)
+for f in "$DIST"/workbox-*.js; do
+  if [[ -f "$f" ]]; then
+    base=$(basename "$f")
+    ln -sfn "$RELPATH/$base" "$OUTDIR/$base"
+    echo "  linked: $base → $RELPATH/$base"
+  fi
+done
+
+echo ""
+echo "Instance created at $ABSINST"
+echo "  Edit $ABSINST/index.html to tweak apiBase, theme-color, etc."
+echo "  Edit $ABSINST/manifest.json to tweak PWA name, start_url, etc."

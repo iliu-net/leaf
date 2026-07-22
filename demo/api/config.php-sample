@@ -51,6 +51,9 @@ $spa_config = [
       'enabled' => true,
       'delay_ms' => 2000,
     ],
+    'auth' => [
+      'enabled' => false,	// set to false to disable authentication entirely
+    ],
 ];
 
 // ── Soft-delete TTL ───────────────────────────────────────────────────────

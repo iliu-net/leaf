@@ -1,0 +1,129 @@
+#!/bin/sh
+#
+# Call OpenTofu with the right secrets var
+#
+set -euf ; ( set -o pipefail 2>/dev/null ) && set -o pipefail
+
+#
+# Handle global options here...
+#
+tofu=tofu
+auto=true
+vars_dir=.
+mydir=$(dirname $(readlink -f "$0"))
+export PATH=$PATH:$mydir
+
+while [ $# -gt 0 ]
+do
+  case "$1" in
+    -e) vars_dir="$2" ; shift 2 ;;
+    --vars-dir=*) vars_dir=${1#--vars-dir=} ; shift ;;
+    -chdir=*) cd "${1#-chdir=}" ; shift ;;
+    -chdir|--chdir|-c) cd "$2" ; shift 2 ;;
+    -help|--help|-h|help) exec $tofu -help ; exit $? ;;
+    -version|--version|-V|version) exec $tofu version ; exit $? ;;
+    --no-auto) auto=false ; shift ;;
+    --auto) auto=true ; shift ;;
+    *) break ;;
+  esac
+done
+
+
+var_files() {
+  local prefix='' pattern='*.tfvars'
+  while [ $# -gt 0 ]
+  do
+    case "$1" in
+    --prefix=*) prefix=${1#--prefix=} ;;
+    --pattern=*) pattern=${1#--pattern=} ;;
+    *) break ;;
+    esac
+    shift
+  done
+  local f IFS="
+"
+  for f in $(find "$@" -mindepth 1 -maxdepth 1 -name "$pattern" )
+  do
+    echo "$prefix$f"
+  done
+}
+
+run() {
+  env | grep -E '^(OS_|TF_VAR_)' |sort 1>&2
+  set -x
+  "$@"
+}
+
+load_env() {
+  [ $# -eq 0 ] && return
+  local i
+  echo -n "Reading.." 1>&2
+  for i in "$@"
+  do
+    echo -n "$i"..
+    . "$i"
+  done
+  echo "DONE"
+}
+
+# Collect env files
+env=$(
+  for SH in .sh ""
+  do
+    var_files --pattern=".*.env$SH" "$vars_dir"
+    var_files --pattern="*.env$SH" "$vars_dir"
+  done
+)
+if [ $# -eq 0 ] ; then
+  $tofu -help
+  var_files=$(var_files "$vars_dir" | xargs)
+  if [ -n "$var_files" ] || [ -n "$env" ] ; then
+    echo ''
+    echo Using:
+    [ -n "$var_files" ] && echo   var-files: $var_files
+    [ -n "$env" ] && echo   env-files: $env
+  fi
+  exit 0
+fi
+load_env $env
+
+### Calculated
+if $auto ; then
+  region=$(echo "${OS_PROJECT_NAME:=eu-de}" | cut -d_ -f1)
+  [ -z "${OS_REGION_NAME:-}" ] && export OS_REGION_NAME=$region
+  [ -z "${OS_AUTH_URL:-}" ] && export OS_AUTH_URL="https://iam.$region.otc.t-systems.com/v3"
+  export TF_VAR_region=$region
+fi
+
+# TODO: if username/password or token authentication, try to get temp
+# AK/SK so we can use the S3 backend.
+auto_aws_creds=false
+if [ -n "${OS_ACCESS_KEY:-}" ] && [ -z "${AWS_ACCESS_KEY_ID:-}" ] ; then
+  export AWS_ACCESS_KEY_ID="$OS_ACCESS_KEY"
+  auto_aws_creds=true
+fi
+if [ -n "${OS_SECRET_KEY:-}" ] && [ -z "${AWS_SECRET_ACCESS_KEY:-}" ] ; then
+  export AWS_SECRET_ACCESS_KEY="$OS_SECRET_KEY"
+  auto_aws_creds=true
+fi
+
+$auto_aws_creds && [ -n "${OS_SECURITY_TOKEN:-}" ] \
+	&& [ -z "${AWS_SESSION_TOKEN:-}" ] \
+	&& export AWS_SESSION_TOKEN="$OS_SECURITY_TOKEN"
+
+command="$1" ; shift
+case "$command" in
+  providers|fmt|login|logout|metadata|state|workspace) # Commands that do not support -var-file
+    run $tofu "$command" "$@"
+    exit
+    ;;
+  init)
+    # Special handling of init command...
+    set - "$@" $(var_files --pattern='backend.hcl' --prefix=-backend-config= "$vars_dir")
+    ;;
+esac
+
+
+run $tofu "$command" \
+	$(var_files --prefix=-var-file= "$vars_dir") \
+	"$@"

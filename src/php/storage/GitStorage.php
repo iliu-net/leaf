@@ -132,7 +132,16 @@ class GitStorage implements StorageInterface
         // Create .gitignore to exclude staging and tombstone files from tracking
         $gitignore = $this->dataRoot . '/.gitignore';
         if (!file_exists($gitignore)) {
-            file_put_contents($gitignore, "# Leaf git-storage exclusions\n*.meta\n*.deleted\n.git-lock\n");
+            file_put_contents($gitignore,
+            	'# Leaf git-storage exclusions' . PHP_EOL . 
+            	'*.meta' . PHP_EOL . 
+            	'*.deleted' . PHP_EOL .
+            	'.git-lock'. PHP_EOL .
+            	'audit-*.jsonl' . PHP_EOL .
+            	'last_purge.txt' . PHP_EOL .
+            	'refresh_tokens.json' . PHP_EOL .
+            	'users.htpasswd' . PHP_EOL .
+            	PHP_EOL);
         }
 
         // Create an initial empty commit so the repo always has a HEAD.
@@ -615,7 +624,29 @@ class GitStorage implements StorageInterface
             $this->storageFlushStage($id);
         }
 
-        // Stage this write: write .md + .meta, NO commit
+        // ── CREATE: commit immediately ──────────────────────
+        // A brand-new file (no prior git history) gets a commit right
+        // away so it has an audit trail from the start.  UPDATEs for
+        // existing files still go through the staging path below for
+        // debouncing.
+        $prevSha = $this->gitLogLastSha($id);
+        if ($prevSha === null) {
+            $message = "CREATE {$id}";
+            $sha = $this->gitCommitMd($id, $content, $author, $message);
+
+            $this->changelogAppend([
+                'rev'          => $this->changelogNextRev(),
+                'version'      => $sha,
+                'file'         => $id,
+                'type'         => 'CREATE',
+                'ts'           => time(),
+                'prev_version' => null,
+            ]);
+
+            return $sha;
+        }
+
+        // Stage this UPDATE: write .md + .meta, NO commit
         $dir = dirname($this->notePath($id));
         if (!is_dir($dir)) mkdir($dir, 0755, true);
         file_put_contents($this->notePath($id), $content);
@@ -623,7 +654,7 @@ class GitStorage implements StorageInterface
             'author'      => $author,
             'client_id'   => $clientId,
             'date'        => $today,
-            'base_commit' => $this->gitLogLastSha($id),
+            'base_commit' => $prevSha,
         ], JSON_UNESCAPED_UNICODE));
 
         return null;   // staged, no commit
@@ -1166,7 +1197,7 @@ class GitStorage implements StorageInterface
 
     public function housekeeping(string $entry): int
     {
-        if ($entry === 'sync') {
+        if ($entry === 'sync' || $entry === 'cron') {
             $removed = 0;
 
             // Flush stale .meta files

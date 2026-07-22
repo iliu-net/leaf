@@ -2,10 +2,9 @@
 api/config.php
 vendor
 node_modules
-spa/*.js
-!spa/sw.js
-spa/build-meta.json
-spa/files-cache.json
+dist/
+dist.zip
+deployment.tar.gz
 *.bak
 
 # PHP Documentor
@@ -16,3 +15,5 @@ docs/api
 docs/spa
 docs/.phpdoc-cache
 
+# Generated instance directories
+demo/spa/

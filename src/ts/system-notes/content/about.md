@@ -1,8 +1,13 @@
 ---
+template: true
 title: About Leaf
 ---
 
-**Leaf** © 2026 Alejandro Liu
+**Leaf**
+- Server: `<%= $.config._server?.version || 'offline' %>` (PHP <%= $.config._server?.php || '?' %>)
+- Client: <DEVELOPMENT>
+
+Copyright © 2026 Alejandro Liu
 
 A minimal, fast, offline-capable notes app.
 

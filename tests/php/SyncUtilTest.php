@@ -18,7 +18,7 @@ class SyncUtilTest extends TestCase
         $raw = trim($raw);
         $raw = str_replace('/', ':', $raw);
         $raw = preg_replace('/^\.+/', '_', $raw);
-        return preg_replace('/[^a-zA-Z0-9_\-\.$%\'@~!(){}^#&`:]/u', '_', $raw);
+        return preg_replace('/[^a-zA-Z0-9_\-\.$%\'@~!(){}^#&`: +,;=\[\] ]/u', '_', $raw);
     }
 
     // ── Path separator mapping ────────────────────────────────────────────
@@ -69,16 +69,16 @@ class SyncUtilTest extends TestCase
 
     public function testAllowsSpecialChars(): void
     {
-        $input  = 'a$b%c\'d@e~f!g(h)i{j}k^l#m&n:o`p';
+        $input  = "a\$b%c'd@e~f!g(h)i{j}k^l#m&n:o`p q+r,s;t=u[v]w";
         $result = $this->safeId($input);
         $this->assertSame($input, $result);
     }
 
     // ── Unsafe character stripping ─────────────────────────────────────────
 
-    public function testStripsSpaces(): void
+    public function testPreservesSpaces(): void
     {
-        $this->assertSame('foo_bar', $this->safeId('foo bar'));
+        $this->assertSame('foo bar', $this->safeId('foo bar'));
     }
 
     public function testStripsTabs(): void
@@ -114,7 +114,7 @@ class SyncUtilTest extends TestCase
     {
         $input  = "  ../etc/passwd  ";
         $result = $this->safeId($input);
-        // Leading dots replaced, slashes mapped to colons, spaces stripped
+        // Leading dots replaced, slashes mapped to colons, leading/trailing spaces trimmed
         $this->assertSame('_:etc:passwd', $result);
     }
 

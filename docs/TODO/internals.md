@@ -8,10 +8,6 @@
   - Use node.js (so we can use the same rendering engines)
   - ~~Question: Use existing end-point, Read files directly or New end-point?~~
   - Convert notes to a Github Pages site
-* [ ] git based storage alternative?
-  * The aim is to replace github/0ink.net NacoWiki+Albatros
-  * We could keep the current backend and simply export everything to
-    github. And github can keep track of a differnt change history.
 * [ ] Node.js web server
   - Runs on web server.  [Namecheap](https://www.namecheap.com/support/knowledgebase/article.aspx/10047/2182/how-to-work-with-nodejs-app/)
   - Question: Use existing end-point, Read files directly or New end-point?
@@ -75,3 +71,17 @@ Later
   writes from device A, and later writes the same note to device B,
   the two versions get collapsed.
 * [x] convert storage.php into a formal interface + class
+* [x] git based storage alternative?
+  * The aim is to replace github/0ink.net NacoWiki+Albatros
+  * We could keep the current backend and simply export everything to
+    github. And github can keep track of a differnt change history.
+* [x] switch t vite based build
+  * GOOD: HMR - run new code without reloading web app
+  * GOOD: CSS bundling (is this better?)
+  * GOOD: better service worker integration (really?)
+  * GOOD: Unfies with vitest.
+  * BAD: index.html moves to project root
+  * BAD: sw.js needs rewrite
+  * BAD: CSS needs to be moved from index.html <link> to JS
+  * BAD: Different build structure.
+  * BAD: php dev server still needed, but proxied via vite server

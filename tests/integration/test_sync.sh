@@ -107,24 +107,29 @@ PULL3_KEY=$(echo "$PULL3" | jq -r '.changes[0].key')
 [ "$PULL3_KEY" = "test-note" ] || fail "pull after delete: expected key test-note, got '$PULL3_KEY'"
 pass
 
-# ── 8. Create note with special characters in name ─────────────────────────
+# ── 8. Create note with colons as path separator ─────────────────────────
 
 SPECIAL=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
-    -d '{"syncedRevision":0,"client_id":1,"changes":[{"type":1,"key":"work/meetings/notes","obj":{"id":"work/meetings/notes","content":"slash mapped to colon","version":"0"}}]}')
+    -d '{"syncedRevision":0,"client_id":1,"changes":[{"type":1,"key":"work:meetings:notes","obj":{"id":"work:meetings:notes","content":"colon as path separator","version":"0"}}]}')
 
-SPECIAL_KEY=$(echo "$SPECIAL" | jq -r '.changes[0].key // empty')
-# safe_id maps / to :, and leading dots are not involved here
-# The key returned should have : instead of /
-# Actually wait - the response returns changes since syncedRevision, not the key that was pushed
-pass
-
-# Pull to verify the key was transformed
+# Pull to verify the key was stored as-is (colons are safe)
 PULL4=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
     -d '{"syncedRevision":0,"client_id":1,"changes":[]}')
 
-# Find our note with the slash
 FOUND=$(echo "$PULL4" | jq '[.changes[] | select(.key == "work:meetings:notes")] | length')
-[ "$FOUND" = "1" ] || fail "slash mapping: expected key work:meetings:notes, got nothing"
+[ "$FOUND" = "1" ] || fail "colon path: expected key work:meetings:notes, got nothing"
+pass
+
+# ── 8b. Unsafe key with slash is rejected with 400 ───────────────────────
+
+UNSAFE_CODE=$(curl -s -o /dev/null -w '%{http_code}' "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
+    -d '{"syncedRevision":0,"client_id":1,"changes":[{"type":1,"key":"work/slash","obj":{"id":"work/slash","content":"has slash","version":"0"}}]}')
+[ "$UNSAFE_CODE" = "400" ] || fail "unsafe slash key: expected 400, got $UNSAFE_CODE"
+
+UNSAFE_BODY=$(curl -s "${AUTH[@]}" -X POST "$BASE/api/index.php/sync" \
+    -d '{"syncedRevision":0,"client_id":1,"changes":[{"type":1,"key":"work/slash","obj":{"id":"work/slash","content":"has slash","version":"0"}}]}')
+UNSAFE_ERROR=$(echo "$UNSAFE_BODY" | jq -r '.error // empty')
+[ "$UNSAFE_ERROR" = "INVALID_ID" ] || fail "unsafe slash key: expected error INVALID_ID, got '$UNSAFE_ERROR'"
 pass
 
 # ── 9. Rename a note via push (type 4) ──────────────────────────────────────

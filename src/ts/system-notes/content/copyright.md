@@ -2,7 +2,8 @@
 title: Copyright & Licenses
 ---
 
-**Leaf** © 2026 Alejandro Liu
+**Leaf** \
+Copyright © 2026 Alejandro Liu
 
 # License
 

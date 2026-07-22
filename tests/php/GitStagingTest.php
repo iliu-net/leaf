@@ -71,35 +71,50 @@ class GitStagingTest extends TestCase
     // ── Basic staging ───────────────────────────────────────────────
 
     #[Test]
-    public function firstWrite_createsMetaFile(): void
+    public function firstWrite_commitsImmediately(): void
     {
+        // CREATE (no prior git history) commits straight to git —
+        // no .meta, no staging.
         $result = $this->storage->putNoteLogged('note', 'hello', 'alice', 1, 'local');
 
-        // Staged — no commit yet
-        $this->assertSame([null, true], $result);
-        $this->assertTrue($this->hasMeta('note'));
+        $this->assertIsArray($result);
+        $this->assertNotEmpty($result[0], 'Commit SHA assigned immediately');
+        $this->assertFalse($result[1], 'Dirty flag false — committed, not staged');
+        $this->assertFalse($this->hasMeta('note'));
         $this->assertTrue($this->hasMd('note'));
     }
 
     #[Test]
-    public function stagedNote_isNotInVersionList(): void
+    public function secondWrite_isStaged_notAnUpdateYet(): void
     {
-        $this->storage->putNoteLogged('note', 'hello', 'alice', 1, 'local');
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'v1', 'alice', 1, 'local');
 
-        // No git commit yet → version list is empty
+        // Second write is an UPDATE — enters staging, no new commit
+        $result = $this->storage->putNoteLogged('note', 'v2', 'alice', 1, 'local');
+
+        $this->assertSame([null, true], $result);
+        $this->assertTrue($this->hasMeta('note'));
+
+        // Version list still only has the CREATE commit
         $versions = $this->storage->getVersionList('note');
-        $this->assertCount(0, $versions);
+        $this->assertCount(1, $versions);
     }
 
     #[Test]
     public function stagedNote_contentIsReadableByAuthor(): void
     {
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'initial', 'alice', 1, 'local');
+
+        // Second write stages (UPDATE)
         $this->storage->putNoteLogged('note', 'staged content', 'alice', 1, 'local');
 
         // Author reads own note — sees the staged content
         $note = $this->storage->getNoteFull('note', 1);
         $this->assertSame('staged content', $note['content']);
-        $this->assertSame('', $note['version'], 'No commit SHA until flushed');
+        // Version is still the CREATE commit — UPDATE hasn't been flushed
+        $this->assertNotEmpty($note['version'], 'Version is CREATE commit SHA');
     }
 
     // ── Debounce ─────────────────────────────────────────────────────
@@ -107,25 +122,34 @@ class GitStagingTest extends TestCase
     #[Test]
     public function sameAuthorSameDay_overwritesStagedContent(): void
     {
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'init', 'alice', 1, 'local');
+
+        // Subsequent writes are UPDATEs — all staged, overwriting the
+        // same .md + .meta without new commits
         $this->storage->putNoteLogged('note', 'v1', 'alice', 1, 'local');
         $this->storage->putNoteLogged('note', 'v2', 'alice', 1, 'local');
         $this->storage->putNoteLogged('note', 'v3', 'alice', 1, 'local');
 
-        // All three overwrote the same .md file — still staged
+        // Still staged
         $this->assertTrue($this->hasMeta('note'));
 
         // Content is the latest
         $note = $this->storage->getNoteFull('note', 1);
         $this->assertSame('v3', $note['content']);
 
-        // No versions committed yet
+        // Only the CREATE commit exists — UPDATEs are still staged
         $versions = $this->storage->getVersionList('note');
-        $this->assertCount(0, $versions);
+        $this->assertCount(1, $versions);
     }
 
     #[Test]
-    public function sameAuthorSameDay_producesSingleCommitAfterFlush(): void
+    public function sameAuthorSameDay_producesTwoCommitsAfterFlush(): void
     {
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'init', 'alice', 1, 'local');
+
+        // Debounced UPDATE writes
         $this->storage->putNoteLogged('note', 'v1', 'alice', 1, 'local');
         $this->storage->putNoteLogged('note', 'v2', 'alice', 1, 'local');
         $this->storage->putNoteLogged('note', 'v3', 'alice', 1, 'local');
@@ -133,9 +157,9 @@ class GitStagingTest extends TestCase
         // Flush the stage
         $this->flushStage('note');
 
-        // Now there's exactly one commit
+        // Two commits: CREATE + the flushed UPDATE
         $versions = $this->storage->getVersionList('note');
-        $this->assertCount(1, $versions, 'Debounced saves → one commit');
+        $this->assertCount(2, $versions, 'CREATE commit + one flushed UPDATE commit');
 
         $note = $this->storage->getNoteFull('note', 1);
         $this->assertSame('v3', $note['content']);
@@ -147,47 +171,60 @@ class GitStagingTest extends TestCase
     #[Test]
     public function differentViewer_readTriggersFlush(): void
     {
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'init', 'alice', 1, 'local');
+
+        // Second write stages (UPDATE)
         $this->storage->putNoteLogged('note', 'alice content', 'alice', 1, 'local');
 
-        // Bob reads (different client_id) → triggers flush
+        // Bob reads (different client_id) → triggers flush of Alice's stage
         $note = $this->storage->getNoteFull('note', clientId: 2);
 
-        // Content is committed now
         $this->assertSame('alice content', $note['content']);
-        $this->assertNotEmpty($note['version'], 'Flush assigned a commit SHA');
+        $this->assertNotEmpty($note['version'], 'Flush assigned a commit SHA for the UPDATE');
 
         // .meta is gone
         $this->assertFalse($this->hasMeta('note'));
 
-        // Version list now has one entry
+        // Two entries: CREATE + flushed UPDATE
         $versions = $this->storage->getVersionList('note');
-        $this->assertCount(1, $versions);
+        $this->assertCount(2, $versions);
     }
 
     #[Test]
     public function sameViewer_readDoesNotTriggerFlush(): void
     {
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'init', 'alice', 1, 'local');
+
+        // Second write stages (UPDATE)
         $this->storage->putNoteLogged('note', 'my content', 'alice', 1, 'local');
 
         // Alice reads her own note — no flush
         $note = $this->storage->getNoteFull('note', clientId: 1);
 
         $this->assertSame('my content', $note['content']);
-        $this->assertSame('', $note['version'], 'Still no commit');
+        // Version is still the CREATE SHA — UPDATE hasn't been flushed
+        $this->assertNotEmpty($note['version'], 'CREATE commit SHA — UPDATE still staged');
 
-        // .meta still exists
+        // .meta still exists (UPDATE is staged, not flushed)
         $this->assertTrue($this->hasMeta('note'));
     }
 
     #[Test]
     public function clientIdZero_neverTriggersFlush(): void
     {
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'init', 'alice', 1, 'local');
+
+        // Second write stages (UPDATE)
         $this->storage->putNoteLogged('note', 'content', 'alice', 1, 'local');
 
         // clientId=0 means "no viewer" — should never flush
         $note = $this->storage->getNoteFull('note', clientId: 0);
 
-        $this->assertSame('', $note['version']);
+        // Version is the CREATE SHA — clientId=0 didn't flush the UPDATE
+        $this->assertNotEmpty($note['version']);
         $this->assertTrue($this->hasMeta('note'));
     }
 
@@ -196,20 +233,23 @@ class GitStagingTest extends TestCase
     #[Test]
     public function differentClient_writeFlushesOldStage(): void
     {
-        // Alice stages content
+        // Alice writes → commits immediately (CREATE)
+        $this->storage->putNoteLogged('note', 'alice create', 'alice', 1, 'local');
+
+        // Alice writes again → stages (UPDATE)
         $this->storage->putNoteLogged('note', 'alice v1', 'alice', 1, 'local');
 
-        // Bob writes — triggers flush of Alice's stage, then stages Bob's
+        // Bob writes — triggers flush of Alice's UPDATE stage, then stages Bob's
         $result = $this->storage->putNoteLogged('note', 'bob v1', 'bob', 2, 'local');
 
         // Bob's write is staged (new .meta)
         $this->assertSame([null, true], $result);
 
-        // Alice's content was committed (flush before Bob's write)
+        // Alice's UPDATE content was committed (flush before Bob's write)
         $versions = $this->storage->getVersionList('note');
-        $this->assertCount(1, $versions, 'Alice stage flushed → 1 commit');
+        $this->assertCount(2, $versions, 'CREATE + flushed UPDATE → 2 commits');
 
-        // Alice's content is in the version history
+        // Alice's UPDATE content is in the version history (newest → index 0)
         $content = $this->storage->getVersionContent('note', $versions[0]['key']);
         $this->assertSame('alice v1', $content);
 
@@ -226,9 +266,13 @@ class GitStagingTest extends TestCase
     #[Test]
     public function delete_flushesStagedContentFirst(): void
     {
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'init', 'alice', 1, 'local');
+
+        // Second write stages (UPDATE)
         $this->storage->putNoteLogged('note', 'pre-delete staged', 'alice', 1, 'local');
 
-        // Delete — should flush Alice's stage before deleting
+        // Delete — should flush Alice's UPDATE stage before deleting
         $ok = $this->storage->deleteNoteLogged('note', 'bob');
         $this->assertTrue($ok);
 
@@ -248,9 +292,13 @@ class GitStagingTest extends TestCase
     #[Test]
     public function rename_flushesStagedContentFirst(): void
     {
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'init', 'alice', 1, 'local');
+
+        // Second write stages (UPDATE)
         $this->storage->putNoteLogged('note', 'pre-rename staged', 'alice', 1, 'local');
 
-        // Rename — should flush Alice's stage before renaming
+        // Rename — should flush Alice's UPDATE stage before renaming
         $ok = $this->storage->renameNoteLogged('note', 'moved', 'bob');
         $this->assertTrue($ok);
 
@@ -268,13 +316,18 @@ class GitStagingTest extends TestCase
     #[Test]
     public function housekeeping_flushesStaleMetas(): void
     {
+        // First writes commit (CREATE) — no .meta
+        $this->storage->putNoteLogged('a', 'init a', 'alice', 1, 'local');
+        $this->storage->putNoteLogged('b', 'init b', 'bob', 2, 'local');
+
+        // Second writes stage (UPDATE) — creates .meta files
         $this->storage->putNoteLogged('a', 'content a', 'alice', 1, 'local');
         $this->storage->putNoteLogged('b', 'content b', 'bob', 2, 'local');
 
         $this->assertTrue($this->hasMeta('a'));
         $this->assertTrue($this->hasMeta('b'));
 
-        // housekeeping('sync') flushes all stages
+        // housekeeping('sync') flushes all staged UPDATEs
         $this->storage->housekeeping('sync');
 
         // Both stages flushed
@@ -291,27 +344,46 @@ class GitStagingTest extends TestCase
     // ── putNoteLogged return value ──────────────────────────────────
 
     #[Test]
-    public function putNoteLogged_returnsNullVersionWhenStaged(): void
+    public function create_returnsShaNotStaged(): void
     {
+        // First write (no prior git history) → commits immediately
         $result = $this->storage->putNoteLogged('note', 'content', 'alice', 1, 'local');
 
         $this->assertIsArray($result);
         $this->assertCount(2, $result);
-        $this->assertNull($result[0], 'Version is null — not committed yet');
+        $this->assertNotEmpty($result[0], 'Commit SHA — CREATE committed immediately');
+        $this->assertFalse($result[1], 'Dirty flag false — committed, not staged');
+    }
+
+    #[Test]
+    public function update_returnsNullVersionWhenStaged(): void
+    {
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'v1', 'alice', 1, 'local');
+
+        // Second write is an UPDATE → staged
+        $result = $this->storage->putNoteLogged('note', 'v2', 'alice', 1, 'local');
+
+        $this->assertIsArray($result);
+        $this->assertCount(2, $result);
+        $this->assertNull($result[0], 'Version is null — UPDATE staged, not committed');
         $this->assertTrue($result[1], 'Dirty flag is true — content is staged');
     }
 
     #[Test]
     public function putNoteLogged_returnsShaAfterFlush(): void
     {
+        // First write commits (CREATE)
+        $this->storage->putNoteLogged('note', 'v1', 'alice', 1, 'local');
+
+        // Second write stages (UPDATE)
         $this->storage->putNoteLogged('note', 'content', 'alice', 1, 'local');
 
         // Flush via cross-client read
         $this->storage->getNoteFull('note', clientId: 2);
 
-        // Now the note is committed — a subsequent write is a new commit
-        // (in test mode flushHours=0 the next write commits directly,
-        //  but here with real staging it also commits because .meta was unlinked)
+        // Third write — now that the stage was flushed, .meta is gone
+        // so this is a fresh UPDATE that stages again
         $result = $this->storage->putNoteLogged('note', 'updated', 'alice', 1, 'local');
         $this->assertIsArray($result);
         // After flush, no .meta exists, so this write stages a fresh .meta

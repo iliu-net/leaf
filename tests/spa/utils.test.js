@@ -25,14 +25,16 @@ describe('safeName()', () => {
   });
 
   it('replaces unsafe characters with underscore', () => {
-    expect(safeName('hello world')).toBe('hello_world');
-    // ! is safe (it's in the allowed special chars set)
-    expect(safeName('hello world!!!')).toBe('hello_world!!!');
+    // space is now allowed; backslash and other unsafe chars still → _
+    expect(safeName('hello\\world')).toBe('hello_world');
+    expect(safeName('hello\tworld')).toBe('hello_world');
   });
 
   it('preserves safe special characters', () => {
     expect(safeName('my-note_v2')).toBe('my-note_v2');
     expect(safeName("note$%'@~!(){}^#&`")).toBe("note$%'@~!(){}^#&`");
+    // space and brackets are now allowed
+    expect(safeName('note +,;=[]')).toBe('note +,;=[]');
   });
 
   it('preserves periods in the middle', () => {
@@ -59,8 +61,8 @@ describe('safeName()', () => {
   });
 
   it('handles mixed safe and unsafe characters', () => {
-    // ! is safe, parens are safe, space → underscore
-    expect(safeName('  My Cool Note!!! (v1)  ')).toBe('My_Cool_Note!!!_(v1)');
+    // ! and parens are safe, space is now safe, only trimmed
+    expect(safeName('  My Cool Note!!! (v1)  ')).toBe('My Cool Note!!! (v1)');
   });
 
   it('replaces angle brackets', () => {
@@ -72,7 +74,7 @@ describe('safeName()', () => {
   });
 
   it('replaces unicode characters with underscore', () => {
-    expect(safeName('naïve café')).toBe('na_ve_caf_');
+    expect(safeName('naïve café')).toBe('na_ve caf_');
   });
 
   it('allows @ symbol in names', () => {

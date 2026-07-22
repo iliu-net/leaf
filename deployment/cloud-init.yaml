@@ -1,0 +1,181 @@
+#cloud-config
+users:
+- name: ${user}
+  groups: sudo
+  shell: /bin/bash
+  sudo: ['ALL=(ALL) NOPASSWD:ALL']
+  passwd: "${passwd}"
+  lock_passwd: false
+  ssh_authorized_keys:
+%{ for key in ssh_keys ~}
+  - "${key}"
+%{ endfor ~}
+
+
+# Identify and format the disk ONLY if it has no filesystem
+fs_setup:
+  - label: data_disk
+    filesystem: 'xfs'
+    device: ${device_path}
+    partition: auto
+    overwrite: false  # CRITICAL: This prevents data loss on recreation
+
+# Mount the disk
+mounts:
+  - [ ${device_path}, /mnt/data, "xfs", "defaults,nofail", "0", "2" ]
+
+
+#~ # This is not working!
+#~ package_update: true
+#~ packages:
+  #~ ...
+
+write_files:
+- path: /root/pkgs.txt
+  permissions: '0644'
+  content: |
+    - curl
+    - pwgen
+    - micro
+    - python3-venv
+    - zip
+    - dos2unix
+    # More stuff
+    - nginx
+    - wget
+    - rcm
+    # Install cert tools
+    - python3-certbot-nginx
+    - ssl-cert
+    - php-fpm
+
+- path: /tmp/le.sh
+  permissions: '0755'
+  content: |
+    #!/bin/sh
+    [ $# -ne 0 ] && sleep "$1"
+    # 3. Run Certbot non-interactively
+    # --nginx: Automatically configures Nginx for HTTPS
+    # --agree-tos: Accept the Terms of Service
+    # -m: Your email for renewal/security notices
+    # -n: Non-interactive mode
+    certbot --nginx \
+        -d "${dnsname}" \
+        -m "${ca_email}" \
+        --agree-tos \
+        -n --redirect "$@"
+    systemctl restart nginx
+- path: /tmp/nginx.conf
+  permissions: '0644'
+  content: |
+    server {
+      listen 80 default_server;
+      listen [::]:80 default_server;
+      root /var/www/html;
+      index index.php index.html index.htm index.nginx-debian.html;
+      server_name ${dnsname};
+      #
+      location / {
+        try_files $uri $uri/ =404;
+      }
+      # Pass PHP scripts to PHP-FPM with PATH_INFO support
+      location ~ [^/]\.php(/|$) {
+        fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+        try_files $fastcgi_script_name =404;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO       $fastcgi_path_info;
+        fastcgi_pass unix:/run/php/php-fpm.sock;
+        client_max_body_size 64m;
+        fastcgi_param PHP_VALUE "upload_max_filesize=64M\npost_max_size=64M";
+      }
+    }
+    #
+    server {
+      listen 443 ssl;
+      server_name ${dnsname};
+      ssl_certificate /etc/ssl/certs/ssl-cert-snakeoil.pem;
+      ssl_certificate_key /etc/ssl/private/ssl-cert-snakeoil.key;
+      root /var/www/html;
+      index index.php index.html index.htm;
+      #
+      # Pass PHP scripts to PHP-FPM with PATH_INFO support
+      location ~ [^/]\.php(/|$) {
+        fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+        try_files $fastcgi_script_name =404;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO       $fastcgi_path_info;
+        fastcgi_pass unix:/run/php/php-fpm.sock;
+        client_max_body_size 64m;
+        fastcgi_param PHP_VALUE "upload_max_filesize=64M\npost_max_size=64M";
+      }
+    }
+
+- path: /tmp/le-persist.sh
+  permissions: '0755'
+  content: |
+    #!/bin/sh
+    if [ ! -d /mnt/data ] ; then
+      echo "No persistent data volume!"
+      exit 0
+    fi
+    if [ -d /etc/letsencrypt ] ; then
+      if [ -L /etc/letsencrypt ] ; then
+        echo "Already set-up correctly?"
+        exit 0
+      fi
+      if [ ! -d /mnt/data/letsencrypt ] ; then
+        # No persistent data yet
+        cp -av /etc/letsencrypt /mnt/data/letsencrypt
+      fi
+      # Remove existing letsencrypt directory...
+      rm -rf /etc/letsencrypt
+    else
+      mkdir -p /mnt/data/letsencrypt
+    fi
+    ln -s /mnt/data/letsencrypt /etc/letsencrypt
+
+
+runcmd:
+- sed -i~ -e 's/^127\.0\.0\.1\s*.*$/127.0.0.1 localhost '$(uname -n)'/' /etc/hosts
+# We need to do this as cloud-init is ignore package installations
+- apt-get update -y
+- "DEBIAN_FRONTEND=noninteractive apt-get install -y $(sed -e 's/#.*//' -e 's/^ *- / /' /root/pkgs.txt)"
+- >
+    cd /usr/local &&
+    curl -k -O https://uniagent-eu-de.obs.eu-de.otc.t-systems.com/package/agent_install.sh &&
+    bash agent_install.sh
+    -r ${region} -u 0.1.9 -t 2.7.2
+    -o otc.t-systems.com
+    -d agent.ces.${region}.otc.t-systems.com
+
+# Configure nginx and stuff...
+- systemctl enable nginx
+- systemctl start nginx
+- rm -f /etc/nginx/sites-enabled/default
+- cp -av /tmp/nginx.conf /etc/nginx/sites-available/nginx
+- ln -s ../sites-available/nginx /etc/nginx/sites-enabled/nginx
+- systemctl restart nginx
+- "echo '<h1>Deployed on T Cloud Public</h1><p>Instance: $(uname -n)</p>' > /var/www/html/index.html"
+- "echo '<?php phpinfo();' > /var/www/html/phpinfo.php"
+# Security reporting
+
+# Configure storage
+- mkdir -p /mnt/data
+- mount -av
+
+#
+# Used for storing Issued Let's encrypt certs
+#
+- sh /tmp/le-persist.sh
+- >
+  mkdir -p /mnt/data/leaf &&
+  chown www-data:www-data /mnt/data/leaf
+
+# We run this in the background because we need to wait for
+# the port mappings to be created...
+# We tested that it takes about 8 seconds to create each mapping
+# and we have 3 of them...
+# - "env ${ testing_tls ? "STAGING=--staging" : ""} /tmp/le.sh 24 &"
+

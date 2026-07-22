@@ -103,11 +103,11 @@ function valid_username(string $u): bool {
 
 // ── Commands ──────────────────────────────────────────────────────────────
 
-$cmd = $argv[1] ?? '';
+$cmd = $argv[2] ?? '';
 
 if ($cmd === 'add') {
-    $username = $argv[2] ?? '';
-    $password = $argv[3] ?? '';
+    $username = $argv[3] ?? '';
+    $password = $argv[4] ?? '';
 
     if (!valid_username($username)) abort("Invalid username '$username'");
     if (strlen($password) < 8)     abort("Password must be at least 8 characters");
@@ -122,7 +122,7 @@ if ($cmd === 'add') {
 }
 
 if ($cmd === 'delete') {
-    $username = $argv[2] ?? '';
+    $username = $argv[3] ?? '';
     if ($username === '') usage();
 
     $users = load_htpasswd();
@@ -147,8 +147,8 @@ if ($cmd === 'list') {
 }
 
 if ($cmd === 'check') {
-    $username = $argv[2] ?? '';
-    $password = $argv[3] ?? '';
+    $username = $argv[3] ?? '';
+    $password = $argv[4] ?? '';
     if ($username === '' || $password === '') usage();
 
     require_once __DIR__ . '/users.php';

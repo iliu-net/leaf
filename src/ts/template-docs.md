@@ -47,7 +47,6 @@ The data object is accessed with `$`:
 | `$.meta.summary` | Current note's summary |
 | `$.meta.<key>` | Any frontmatter field on this note |
 | `$.config.timestamp_format` | Server config value |
-| `$.config.spellcheck.default_lang` | Server config (nested) |
 | `$.notes["note-id"].meta.title` | Another note's title |
 | `$.notes["note-id"].meta.<key>` | Any frontmatter field from another note |
 | `$.notes["note-id"].body` | Another note's raw body (use `<%~ %>` |

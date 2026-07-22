@@ -107,6 +107,7 @@ export async function expandTemplate(
     return _eta.renderString(body, data);
   } catch (err) {
     console.warn('[template] Eta render failed:', err);
-    return body; // fall back to unrendered body
+    const msg = err instanceof Error ? err.message : String(err);
+    return `> **⚠ Template Error:** ${msg}\n\n${body}`;
   }
 }

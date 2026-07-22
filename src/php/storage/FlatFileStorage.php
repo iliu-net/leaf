@@ -436,7 +436,7 @@ class FlatFileStorage implements StorageInterface
 
     public function housekeeping(string $entry): int
     {
-        if ($entry === 'sync') {
+        if ($entry === 'sync' || $entry === 'cron') {
             return $this->purgeDeletedNotes();
         }
         return 0;

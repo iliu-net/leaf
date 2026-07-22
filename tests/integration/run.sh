@@ -40,9 +40,8 @@ echo "==> Setting up test environment..."
 # Create api/ subdirectory (mirrors production layout)
 mkdir -p "$ENV_DIR/api"
 
-# Copy per-instance files only: index.php, adduser.php, config.php
+# Copy per-instance files only: index.php, config.php
 cp "$ROOT_DIR"/api/index.php   "$ENV_DIR/api/"
-cp "$ROOT_DIR"/api/adduser.php "$ENV_DIR/api/"
 cp "$SCRIPT_DIR/config.php"    "$ENV_DIR/api/config.php"
 
 # Symlink shared code — mirrors production deployment
@@ -52,8 +51,8 @@ ln -s "$ROOT_DIR"/spa "$ENV_DIR/spa"
 # Create data directories
 mkdir -p "$ENV_DIR/data"/notes
 
-# Add a test user (adduser.php loads config, delegates to src/php/adduser_impl.php)
-php "$ENV_DIR/api/adduser.php" add testuser test1234 > /dev/null
+# Add a test user via index.php CLI (router delegates to src/php/adduser_impl.php)
+php "$ENV_DIR/api/index.php" adduser add testuser test1234 > /dev/null
 
 echo "     Environment: $ENV_DIR"
 

@@ -137,7 +137,7 @@ export function safeName(raw: string): string {
   let name = raw.trim();
   name = name.replace(/\//g, ':');
   name = name.replace(/^\.+/, '_');
-  name = name.replace(/[^a-zA-Z0-9_\-\.$%'@~!(){}^#&`:]/g, '_');
+  name = name.replace(/[^a-zA-Z0-9_\-\.$%'@~!(){}^#&`: +,;=\[\] ]/g, '_');
   return name.slice(0, 80);
 }
 

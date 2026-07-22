@@ -99,26 +99,39 @@ cd leaf
 pnpm install
 composer install
 
-# Configure
-cp api/config.php-sample api/config.php
-# Edit api/config.php — set JWT_SECRET, DATA_ROOT, etc.
-
-# Create initial user
-php api/adduser.php alice
-# (types password interactively)
+# Generate config (with a random JWT secret)
+make config-php
+# Review api/config.php — adjust DATA_ROOT if needed
 
 # Build the SPA
 pnpm run build
 
-# Start dev server
+# Start the dev server
 make serve
-# → http://localhost:9000
 ```
+
+`make serve` starts two servers:
+
+| Server | Port | What it serves |
+|---|---|---|
+| PHP built-in | `:9000` | API (`/api/`, `/demo/api/`) + static demo SPA |
+| Vite dev | `:5173` | Live-reloading SPA at `/spa/`, API proxied to `:9000` |
+
+The **demo instance** (`http://localhost:9000/demo/spa/`) is a pre-built production copy that showcases the project's features. Its notes live in `demo/data/` inside the repo.
+
+The **dev instance** (`http://localhost:5173/spa/`) is the Vite-powered development SPA with hot module replacement. Its notes live at the `DATA_ROOT` path defined in `api/config.php` — outside the repository by default. Verify with:
+
+```bash
+php api/index.php spacfg --data
+# → /path/to/leaf-data/
+```
+
+The `DATA_ROOT` directory (and its `notes/` subdirectory) is **created automatically** on first boot by the storage backend. You don't need to `mkdir` it — just make sure the parent directory is writable.
 
 ### One-command setup (from scratch)
 
 ```bash
-pnpm install && composer install && cp api/config.php-sample api/config.php && php api/adduser.php admin && pnpm run build && make serve
+pnpm install && composer install && make config-php && pnpm run build && make serve
 ```
 
 ---
@@ -146,6 +159,61 @@ Open the app menu (top-right) → **Theme** → choose from dark, light, magenta
 
 ---
 
+## CLI
+
+The API entry point (`api/index.php`) doubles as a command-line interface. Run it without arguments to see available subcommands:
+
+```bash
+php api/index.php
+# Available subcommands:
+#   adduser    htpasswd user management tool
+#   cron       periodic maintenance tasks (called via cron)
+#   notes      dump note content or list notes via the storage backend
+#   rotatejwt  regenerate the JWT_SECRET for this instance
+#   spacfg     print the SPA config as JSON, or show the data directory
+```
+
+Each subcommand lives in `src/php/<name>_impl.php` and is auto-discovered by the router — no registration needed. Subcommands inherit the full config bootstrap (storage backend, audit, constants), so they work with any storage backend the instance is configured to use.
+
+### Subcommand reference
+
+| Command | Description |
+|---|---|
+| `php api/index.php spacfg` | Print `$spa_config` as pretty-printed JSON |
+| `php api/index.php spacfg --data` | Print `DATA_ROOT` path |
+| `php api/index.php notes --list` | List all live note IDs |
+| `php api/index.php notes <id>` | Dump the latest content of a note |
+| `php api/index.php adduser add <user> <pass>` | Create or update a user |
+| `php api/index.php adduser delete <user>` | Remove a user |
+| `php api/index.php adduser list` | List all usernames |
+| `php api/index.php adduser check <user> <pass>` | Test a password |
+| `php api/index.php rotatejwt` | Regenerate JWT_SECRET (invalidates all sessions) |
+| `php api/index.php cron` | Run housekeeping silently (for cron jobs) |
+| `php api/index.php cron --verbose` | Run housekeeping with diagnostic output |
+
+### Enabling authentication
+
+Auth is controlled in `api/config.php`:
+
+```php
+$spa_config = [
+    'auth' => [
+        'enabled' => true,   // set to true to require login
+    ],
+    // ...
+];
+```
+
+When auth is enabled for the first time, create a user:
+
+```bash
+php api/index.php adduser add alice hunter2
+```
+
+This writes a bcrypt hash to `DATA_ROOT/users.htpasswd`. Log in at the SPA with the username and password. The SPA stores an access token in memory and a refresh token in an httpOnly cookie — no credentials touch localStorage.
+
+To disable auth, set `'enabled' => false` — the SPA skips the login screen and all API requests use the `anonymous` identity.
+
 ## Development
 
 ```bash
@@ -167,7 +235,7 @@ make docs-clean     # Remove generated docs
 
 make clean          # Remove test artifacts and build output
 
-make serve          # Start PHP dev server on :9000
+make serve          # Start dev server (PHP :9000 + Vite :5173)
 ```
 
 
@@ -210,8 +278,8 @@ pnpm run build
 
 # On the server, configure:
 #   1. api/config.php — JWT_SECRET, DATA_ROOT, CORS policy
-#   2. Create users with:  php api/adduser.php <username>
-#   3. Ensure data/ is writable by the PHP process
+#   2. Create users with:  php api/index.php adduser add <username> <password>
+#   3. Ensure the DATA_ROOT parent directory is writable by the PHP process
 ```
 
 The SPA uses relative paths everywhere — it works from any subdirectory without reconfiguration.

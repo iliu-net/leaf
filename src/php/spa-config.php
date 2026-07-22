@@ -13,4 +13,16 @@ require_once __DIR__ . '/http-helpers.php';
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 require_once __DIR__ . '/cors.php';
 
+// ── Server version info ──────────────────────────────────────────
+
+$versionFile = __DIR__ . '/version.txt';
+$serverVersion = is_file($versionFile)
+    ? trim(file_get_contents($versionFile))
+    : 'unknown';
+
+$spa_config['_server'] = [
+    'version' => $serverVersion,
+    'php'     => PHP_VERSION,
+];
+
 respond($spa_config ?? (object)[]);

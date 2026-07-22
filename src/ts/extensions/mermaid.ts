@@ -56,16 +56,73 @@ registerFenceRenderer(['mermaid'], (tokens, idx) => {
 // render function calls mermaid.render() with unique IDs to avoid
 // DOM conflicts.
 
+// ── Map application theme to Mermaid theme ─────────────────────────────────
+
+function getMermaidTheme(): string {
+  const appTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  switch (appTheme) {
+    case 'dark':
+    case 'paired-12':
+      return 'dark';
+    case 'light':
+    case 'magenta':
+    default:
+      return 'neutral';
+  }
+}
+
 registerHydrator('mermaid', async () => {
   const mermaid = await import('mermaid');
+
+  // Apply current theme on initial load
   mermaid.default.initialize({
     startOnLoad: false,
-    theme: 'neutral',
+    theme: getMermaidTheme() as any,
   });
+
   let idCounter = 0;
-  return async (source: string) => {
+
+  const renderDiagram = async (source: string) => {
     const id = `mermaid-${idCounter++}`;
     const { svg } = await mermaid.default.render(id, source);
     return `<div class="mermaid-diagram">${svg}</div>`;
   };
+
+  // ── Re-render all existing mermaid diagrams when theme changes ────────
+
+  const rehydrateAll = () => {
+    const blocks = document.querySelectorAll<HTMLElement>(
+      'code[data-lang="mermaid"].hljs',
+    );
+    for (const el of blocks) {
+      const raw = el.dataset.source;
+      if (!raw) continue;
+      const source = decodeURIComponent(escape(atob(raw)));
+      // Use a temporary counter that won't collide — mermaid IDs must be
+      // unique DOM-wide, so we suffix with a per-element random string.
+      const rid = `mermaid-r-${Math.random().toString(36).slice(2, 8)}`;
+      mermaid.default.render(rid, source).then(({ svg }) => {
+        el.innerHTML = `<div class="mermaid-diagram">${svg}</div>`;
+      }).catch((err: unknown) => {
+        console.warn('[mermaid] re-render failed:', err);
+      });
+    }
+  };
+
+  // Watch for data-theme attribute changes on <html>
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.type === 'attributes' && m.attributeName === 'data-theme') {
+        mermaid.default.initialize({
+          startOnLoad: false,
+          theme: getMermaidTheme() as any,
+        });
+        rehydrateAll();
+        break;
+      }
+    }
+  });
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  return renderDiagram;
 });

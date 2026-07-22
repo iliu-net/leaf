@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# rotate-jwt — regenerate the JWT_SECRET in a Leaf config.php file.
+#
+# Generates a fresh 64-character hex secret (32 random bytes) and
+# updates the define('JWT_SECRET', ...) line in place.
+#
+# Usage:
+#   bin/rotate-jwt path/to/config.php
+#
+# This invalidates all existing sessions — existing refresh tokens
+# and JWTs were signed with the old secret and will be rejected.
+# Delete refresh_tokens.json afterwards if you want a clean slate:
+#   rm path/to/data/refresh_tokens.json
+
+CONFIG="${1:-}"
+
+if [[ -z "$CONFIG" ]]; then
+  echo "Usage: rotate-jwt <config.php>" >&2
+  exit 1
+fi
+
+if [[ ! -f "$CONFIG" ]]; then
+  echo "Error: $CONFIG not found" >&2
+  exit 1
+fi
+
+# ── Generate a new random secret ──────────────────────────────────────────
+
+new_secret() {
+  if command -v php >/dev/null 2>&1; then
+    php -r 'echo bin2hex(random_bytes(32));'
+  elif command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import secrets; print(secrets.token_hex(32))'
+  else
+    echo "Error: need php, openssl, or python3 to generate random bytes" >&2
+    exit 1
+  fi
+}
+
+SECRET=$(new_secret)
+
+if [[ -z "$SECRET" || ${#SECRET} -lt 64 ]]; then
+  echo "Error: failed to generate a valid secret" >&2
+  exit 1
+fi
+
+# ── Replace the JWT_SECRET line ───────────────────────────────────────────
+
+sed -i "s|^\([[:space:]]*define('JWT_SECRET',[[:space:]]*\)'[^']*'|\1'$SECRET'|" "$CONFIG"
+
+echo "JWT_SECRET rotated in $CONFIG"
+echo "  New secret: ${SECRET:0:8}…${SECRET: -8}"
+echo ""
+echo "  ⚠  All existing sessions are now invalid."
+echo "  Delete refresh_tokens.json if you want a clean slate."
